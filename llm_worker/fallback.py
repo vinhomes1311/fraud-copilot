@@ -11,7 +11,7 @@ def rule_based_brief(ctx: dict[str, Any]) -> BriefContent:
     return BriefContent(
         summary=(f"[Tóm tắt tự động theo luật] Giao dịch {ctx.get('txn_id')} số tiền {tx.get('amt')}, "
                  f"mức rủi ro {ctx.get('risk_level')}. LLM không khả dụng."),
-        key_signals=[f"{e['feature']} đóng góp {e['contribution']:.2f}" for e in ctx.get("explanations", [])],
+        key_signals=[f"{e['feature']} đóng góp {e['contribution']:.2f}" for e in (ctx.get("explanations") or [])],
         checklist=[
             ChecklistItem(step=1, action="Xác minh giao dịch với chủ thẻ qua kênh chính thức."),
             ChecklistItem(step=2, action="Đối chiếu lịch sử giao dịch gần đây của tài khoản."),

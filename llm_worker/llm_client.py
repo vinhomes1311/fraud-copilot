@@ -11,7 +11,7 @@ from fraud_common.schemas import BriefContent, ChecklistItem, Citation
 
 from .rag import Chunk
 
-PROMPT_VERSION = "brief-v0"
+PROMPT_VERSION = "extractive-team-v1"
 
 
 @dataclass
@@ -51,4 +51,7 @@ class StubLLMClient:
 def get_llm_client() -> LLMClient:
     if get_settings().llm_provider == "stub":
         return StubLLMClient()
+    if get_settings().llm_provider == "ollama":
+        from .local_integration import OllamaClient
+        return OllamaClient()
     raise NotImplementedError("Chưa cấu hình LLM thật: thêm client mới vào llm_client.py")

@@ -1,0 +1,12 @@
+services:
+  llm-worker:
+    environment:
+      LLM_PROVIDER: ollama
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-embeddinggemma:300m}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      LLM_CONCURRENCY: ${LLM_CONCURRENCY:-1}
+      LLM_JOB_TIMEOUT_S: ${LLM_JOB_TIMEOUT_S:-30}
+      LLM_VISIBILITY_TIMEOUT_S: ${LLM_VISIBILITY_TIMEOUT_S:-120}
+    extra_hosts:
+      - host.docker.internal:host-gateway
