@@ -91,6 +91,18 @@ def project_evidence(ctx):
 
 
 class OllamaClient:
+    def model_name(self):
+        model = os.environ.get('OLLAMA_MODEL')
+        if not model:
+            raise ValueError('OLLAMA_MODEL must name an installed model')
+        return model
+
+    async def chat(self, model, schema, evidence, selected_chunks):
+        return await request('/api/chat', {'model':model,'stream':False,'format':schema,
+            'options':{'temperature':0,'num_predict':512}, 'messages':[
+                {'role':'system','content':SYSTEM_PROMPT},
+                {'role':'user','content':json.dumps({'evidence':evidence,'playbook':selected_chunks},ensure_ascii=False)}]})
+
     async def generate(self, ctx, chunks):
         kb = load(KB_PATH)
         lookup = {c['rule_code']: c for c in kb['chunks']}
@@ -109,13 +121,8 @@ class OllamaClient:
                             'uniqueItems':True,'items':{'type':'string','enum':list(evidence)}},
             'checklist_ids':{'type':'array','minItems':1,'maxItems':3,'uniqueItems':True,
                              'items':{'type':'string','enum':[c['id'] for c in selected_chunks]}}}}
-        model = os.environ.get('OLLAMA_MODEL')
-        if not model:
-            raise ValueError('OLLAMA_MODEL must name an installed model')
-        result = await request('/api/chat', {'model':model,'stream':False,'format':schema,
-            'options':{'temperature':0,'num_predict':512}, 'messages':[
-                {'role':'system','content':SYSTEM_PROMPT},
-                {'role':'user','content':json.dumps({'evidence':evidence,'playbook':selected_chunks},ensure_ascii=False)}]})
+        model = self.model_name()
+        result = await self.chat(model, schema, evidence, selected_chunks)
         if result.get('done') is not True or result.get('done_reason') == 'length':
             raise ValueError('Incomplete LLM response')
         counts = [result.get('prompt_eval_count'), result.get('eval_count')]

@@ -38,9 +38,27 @@ class StubRetriever:
         return (found or _FAKE_PLAYBOOK[:1])[:top_k]
 
 
+class ApprovedPlaybookRetriever:
+    """Return the complete tiny approved KB; no semantic ranking or embeddings."""
+    async def retrieve(self, signals, risk_level, top_k=5):
+        from .local_integration import KB_PATH
+        from copilot.v2.knowledge import load
+        return [Chunk(section_id=c['section_id'], rule_code=c['rule_code'], text=c['text'])
+                for c in load(KB_PATH)['chunks'][:top_k]]
+
+
 def get_retriever() -> Retriever:
+    import os
     from fraud_common.config import get_settings
-    if get_settings().llm_provider == "ollama":
+    provider = get_settings().llm_provider
+    if provider == 'stub':
+        return StubRetriever()
+    if provider not in ('api', 'ollama'):
+        raise ValueError('Unknown LLM_PROVIDER')
+    mode = os.getenv('LLM_RETRIEVER', 'playbook' if provider == 'api' else 'ollama')
+    if mode == 'ollama':
         from .local_integration import SemanticRetriever
         return SemanticRetriever()
-    return StubRetriever()
+    if mode == 'playbook':
+        return ApprovedPlaybookRetriever()
+    raise ValueError('LLM_RETRIEVER must be ollama or playbook')

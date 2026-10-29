@@ -51,6 +51,9 @@ class StubLLMClient:
 def get_llm_client() -> LLMClient:
     if get_settings().llm_provider == "stub":
         return StubLLMClient()
+    if get_settings().llm_provider == "api":
+        from .api_client import APIClient
+        return APIClient()
     if get_settings().llm_provider == "ollama":
         from .local_integration import OllamaClient
         return OllamaClient()
