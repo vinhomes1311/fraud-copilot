@@ -46,7 +46,20 @@ curl -s -X POST localhost:8080/api/v1/cases/1/actions -H "Authorization: Bearer 
 Tài khoản demo (trong `analyst_api/auth.py`): `analyst1/analyst123`, `lead1/lead123`, `admin/admin123`.
 Tài liệu API tự sinh: `http://localhost:8000/docs` (chỉ khi mở cổng bằng file dev).
 
-## 4. Hợp đồng giao tiếp
+## 4. Dashboard
+
+Dashboard Fraud Copilot được phục vụ tại `http://localhost:8080/` khi chạy Docker Compose:
+
+```bash
+docker compose up --build -d
+```
+
+Đăng nhập bằng tài khoản demo `analyst1 / analyst123` hoặc `lead1 / lead123`.
+Dashboard gọi trực tiếp các API `/api/v1/cases`, hiển thị hàng đợi ưu tiên, bộ lọc,
+chi tiết case và các thao tác analyst. Khi có dữ liệu trong PostgreSQL, các case sẽ
+được hiển thị trong review queue.
+
+## 5. Hợp đồng giao tiếp
 
 ### REST (qua Nginx, tiền tố `/api/v1`)
 | Method & đường dẫn | Ai gọi | Quyền | Ghi chú |
@@ -81,7 +94,7 @@ Mỗi queue gồm `:ready` (ZSET), `:processing` (HASH, có deadline) và `:dead
 | llm-worker | `case_briefs` (cập nhật kết quả) |
 | cả ba | `audit_log` (chỉ INSERT) |
 
-## 5. Những phần cần thay thế
+## 6. Những phần cần thay thế
 | File | Hiện tại | Thay bằng |
 |---|---|---|
 | `scoring_worker/pipeline/inference.py` | xác suất giả theo công thức | nạp model + calibrator từ Model Store |
@@ -92,5 +105,4 @@ Mỗi queue gồm `:ready` (ZSET), `:processing` (HASH, có deadline) và `:dead
 | `analyst_api/auth.py` | user cứng trong code | bảng `users` + băm mật khẩu |
 
 Để thử các đường lỗi: `LLM_STUB_FAIL_RATE=0.5` (circuit breaker, FAILED_TIMEOUT) · `--fault-rate 0.1` ở simulator (MANUAL_FALLBACK_UNSCORED) · tăng `--tps` để thấy 429 backpressure.
-
 
