@@ -1,0 +1,13 @@
+{
+  "document_id": "common-fraud-investigation-playbook",
+  "version": "1.0",
+  "source_status": "official_principles_confirmed_by_user",
+  "source_note": "Năm nguyên tắc Common Knowledge Base trong đề bài, được người dùng xác nhận ngày 2026-10-21. Mã mục do nhóm triển khai gán; phần triển khai là đề xuất của nhóm.",
+  "chunks": [
+    {"id":"PB-01","section_id":"S1","rule_code":"PB-01","text":"Kiểm tra giao dịch bất thường.","implementation_action":"Đối chiếu dữ liệu giao dịch và các tín hiệu bất thường đã được cung cấp.","action_origin":"team_proposal"},
+    {"id":"PB-02","section_id":"S2","rule_code":"PB-02","text":"Phân biệt tín hiệu nghi ngờ và bằng chứng xác nhận gian lận.","implementation_action":"Phân biệt điểm rủi ro và đóng góp đặc trưng của model với bằng chứng xác nhận; không kết luận chỉ từ score.","action_origin":"team_proposal"},
+    {"id":"PB-03","section_id":"S3","rule_code":"PB-03","text":"Kiểm tra thông tin giao dịch và lịch sử liên quan.","implementation_action":"Kiểm tra lịch sử liên quan nếu có; nếu thiếu, ghi nhận dữ liệu cần bổ sung thay vì tự suy luận.","action_origin":"team_proposal"},
+    {"id":"PB-04","section_id":"S4","rule_code":"PB-04","text":"Nguyên tắc chuyển cấp và ghi nhận quyết định.","implementation_action":"Ghi nhận nhận định để chuyên viên xem xét chuyển cấp theo chính sách nhóm đã thống nhất; tài liệu này không quy định ngưỡng chuyển cấp.","action_origin":"team_proposal"},
+    {"id":"PB-05","section_id":"S5","rule_code":"PB-05","text":"Những trường hợp không đủ bằng chứng để kết luận.","implementation_action":"Nêu rõ thông tin còn thiếu và chưa đưa ra kết luận khi không đủ bằng chứng.","action_origin":"team_proposal"}
+  ]
+}

@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 async def main() -> None:
     s = get_settings()
+    s.validate_llm_timeouts()
     setup_logging("llm-worker")
     start_http_server(s.metrics_port)
 

@@ -57,6 +57,11 @@ class Settings:
     llm_stub_latency_s: float = _f("LLM_STUB_LATENCY_S", 1.0)
     llm_stub_fail_rate: float = _f("LLM_STUB_FAIL_RATE", 0.0)
 
+    def validate_llm_timeouts(self) -> None:
+        # Retrieval and generation each have their own deadline; leave time for DB I/O.
+        if self.llm_job_timeout_s <= 0 or self.llm_visibility_timeout_s <= 2 * self.llm_job_timeout_s + 10:
+            raise ValueError("LLM_VISIBILITY_TIMEOUT_S must exceed 2 * LLM_JOB_TIMEOUT_S + 10")
+
 
 @lru_cache
 def get_settings() -> Settings:

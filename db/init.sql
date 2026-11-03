@@ -62,6 +62,7 @@ CREATE INDEX idx_cases_queue ON cases (status, risk_level, created_at);
 
 CREATE TABLE case_briefs (
   case_id        BIGINT PRIMARY KEY REFERENCES cases(case_id),
+  generation_id  TEXT,
   status         TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING|RUNNING|READY|FAILED_TIMEOUT|FAILED
   brief          JSONB,
   citations      JSONB,

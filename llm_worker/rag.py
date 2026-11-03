@@ -39,4 +39,8 @@ class StubRetriever:
 
 
 def get_retriever() -> Retriever:
+    from fraud_common.config import get_settings
+    if get_settings().llm_provider == "ollama":
+        from .local_integration import SemanticRetriever
+        return SemanticRetriever()
     return StubRetriever()

@@ -35,13 +35,16 @@ class BriefProcessor:
 
     async def handle(self, env: JobEnvelope) -> None:
         p = GenerateBriefPayload.model_validate(env.payload)
-        await self._set_status(p.case_id, BriefStatus.RUNNING, attempts=env.attempts + 1)
+        if not await self._set_status(p.case_id, BriefStatus.RUNNING,
+                                      attempts=env.attempts + 1, generation_id=env.job_id):
+            return  # Superseded generation or completed duplicate delivery.
 
         ctx = await self._load_context(p.case_id)
-        signals = [e["feature"] for e in ctx["explanations"]]
+        signals = [e["feature"] for e in (ctx.get("explanations") or [])]
 
         with STAGE_SECONDS.labels("rag").time():
-            chunks = await self.retriever.retrieve(signals, ctx["risk_level"])
+            chunks = await asyncio.wait_for(
+                self.retriever.retrieve(signals, ctx["risk_level"]), self.s.llm_job_timeout_s)
 
         # Timeout + circuit breaker bao quanh lời gọi LLM
         async def _call_llm():
@@ -54,21 +57,20 @@ class BriefProcessor:
                 BREAKER_STATE.set(1 if self.breaker.is_open else 0)
 
         if result.tokens_used > self.s.brief_token_budget:
-            await self._set_status(p.case_id, BriefStatus.FAILED, attempts=env.attempts + 1)
-            BRIEFS.labels(BriefStatus.FAILED.value).inc()
+            await self.handle_dead(env.model_copy(update={"attempts": env.attempts + 1}),
+                                   f"Token budget exceeded: {result.tokens_used}")
             raise NonRetryableError(f"vượt ngân sách token: {result.tokens_used}")
         check_grounding(result.brief, chunks)       # GroundingError -> job lỗi -> retry
 
-        await self.db.wexec(
-            """INSERT INTO case_briefs (case_id, status, brief, citations, attempts, model_name,
-                                        prompt_version, tokens_used, last_error, updated_at)
-               VALUES ($1,'READY',$2,$3,$4,$5,$6,$7,NULL,now())
-               ON CONFLICT (case_id) DO UPDATE SET status='READY', brief=EXCLUDED.brief,
-                 citations=EXCLUDED.citations, attempts=EXCLUDED.attempts, model_name=EXCLUDED.model_name,
-                 prompt_version=EXCLUDED.prompt_version, tokens_used=EXCLUDED.tokens_used,
-                 last_error=NULL, updated_at=now()""",
+        written = await self.db.wexec(
+            """UPDATE case_briefs SET status='READY', brief=$2, citations=$3,
+                 attempts=$4, model_name=$5, prompt_version=$6, tokens_used=$7,
+                 last_error=NULL, updated_at=now()
+               WHERE case_id=$1 AND generation_id=$8 AND status='RUNNING' AND attempts=$4""",
             p.case_id, result.brief.model_dump(), [c.model_dump() for c in result.brief.citations],
-            env.attempts + 1, result.model_name, PROMPT_VERSION, result.tokens_used)
+            env.attempts + 1, result.model_name, PROMPT_VERSION, result.tokens_used, env.job_id)
+        if written != "UPDATE 1":
+            return
         BRIEFS.labels("READY").inc()
         log.info("brief READY", extra={"ctx": {"case_id": p.case_id, "trace_id": env.trace_id,
                                                "tokens": result.tokens_used}})
@@ -76,26 +78,32 @@ class BriefProcessor:
     async def handle_dead(self, env: JobEnvelope, error: str) -> None:
         """Hết số lần thử: đánh dấu FAILED_TIMEOUT, ghi brief rule-based. Case + kết quả ML giữ nguyên (FR-07)."""
         p = GenerateBriefPayload.model_validate(env.payload)
-        status = BriefStatus.FAILED_TIMEOUT if ("Timeout" in error or "CircuitOpen" in error) else BriefStatus.FAILED
+        status = BriefStatus.FAILED_TIMEOUT if ("timeout" in error.lower() or "circuitopen" in error.lower()) else BriefStatus.FAILED
         try:
             ctx = await self._load_context(p.case_id)
             fb = rule_based_brief(ctx).model_dump()
         except Exception:
             fb = None
-        await self.db.wexec(
-            """INSERT INTO case_briefs (case_id, status, brief, attempts, last_error, updated_at)
-               VALUES ($1,$2,$3,$4,$5,now())
-               ON CONFLICT (case_id) DO UPDATE SET status=EXCLUDED.status, brief=EXCLUDED.brief,
-                 attempts=EXCLUDED.attempts, last_error=EXCLUDED.last_error, updated_at=now()""",
-            p.case_id, status.value, fb, env.attempts, error[:500])
-        BRIEFS.labels(status.value).inc()
+        written = await self.db.wexec(
+            """UPDATE case_briefs SET status=$2, brief=$3, citations=$4,
+                 attempts=$5, last_error=$6, model_name=NULL, prompt_version=NULL,
+                 tokens_used=NULL, updated_at=now()
+               WHERE case_id=$1 AND generation_id=$7
+                 AND status IN ('PENDING','RUNNING') AND attempts <= $5""",
+            p.case_id, status.value, fb, fb["citations"] if fb else [],
+            env.attempts, error[:500], env.job_id)
+        if written == "UPDATE 1":
+            BRIEFS.labels(status.value).inc()
 
-    # ------------------------------------------------------------------ helpers
-    async def _set_status(self, case_id: int, status: BriefStatus, attempts: int) -> None:
-        await self.db.wexec(
-            """INSERT INTO case_briefs (case_id, status, attempts) VALUES ($1,$2,$3)
-               ON CONFLICT (case_id) DO UPDATE SET status=EXCLUDED.status, attempts=EXCLUDED.attempts,
-                 updated_at=now()""", case_id, status.value, attempts)
+    async def _set_status(self, case_id: int, status: BriefStatus, attempts: int,
+                          generation_id: str) -> bool:
+        written = await self.db.wexec(
+            """UPDATE case_briefs SET status=$2, attempts=$3, generation_id=$4,
+                 updated_at=now()
+               WHERE case_id=$1 AND (generation_id=$4 OR generation_id IS NULL)
+                 AND status IN ('PENDING','RUNNING') AND attempts <= $3""",
+            case_id, status.value, attempts, generation_id)
+        return written == "UPDATE 1"
 
     async def _load_context(self, case_id: int) -> dict[str, Any]:
         """Chỉ lấy dữ liệu ĐÃ che PII (payload_masked) để đưa vào prompt (FR-09)."""
