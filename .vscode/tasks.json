@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FraudLens: Start dev",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f", "docker-compose.yml",
+        "-f", "docker-compose.dev.yml",
+        "up", "--build", "-d"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "FraudLens: Stop dev",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f", "docker-compose.yml",
+        "-f", "docker-compose.dev.yml",
+        "down"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

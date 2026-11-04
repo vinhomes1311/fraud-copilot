@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08111f" />
+    <title>Fraud Copilot | Risk operations</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status"></div>
+    <main id="login-view" class="login-view">
+      <section class="login-card">
+        <div class="brand-mark">✦</div>
+        <p class="eyebrow">RISK OPERATIONS PLATFORM</p>
+        <h1>Fraud Copilot</h1>
+        <p class="muted">Tập trung tín hiệu rủi ro. Ra quyết định nhanh hơn.</p>
+        <form id="login-form">
+          <label>Tài khoản<input name="username" value="analyst1" autocomplete="username" required /></label>
+          <label>Mật khẩu<input name="password" type="password" value="analyst123" autocomplete="current-password" required /></label>
+          <button class="primary-button wide" type="submit">Đăng nhập <span>→</span></button>
+        </form>
+        <p class="login-hint">Demo: analyst1 / analyst123 · lead1 / lead123</p>
+      </section>
+      <div class="login-glow"></div>
+    </main>
+
+    <main id="app-view" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand"><div class="brand-mark small">✦</div><span>Fraud <b>Copilot</b></span></div>
+        <div class="workspace-label">WORKSPACE</div>
+        <nav>
+          <button class="nav-item active"><span class="nav-icon">⌁</span> Review queue <span id="nav-count" class="nav-count">—</span></button>
+          <button class="nav-item"><span class="nav-icon">◈</span> Analytics</button>
+          <button class="nav-item"><span class="nav-icon">◌</span> Audit trail</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="system-status"><span class="status-dot"></span><div><b>All systems normal</b><small>Updated just now</small></div></div>
+          <button id="logout-button" class="logout">↪ <span>Đăng xuất</span></button>
+        </div>
+      </aside>
+      <section class="content">
+        <header class="topbar">
+          <div><p class="eyebrow">MONDAY, 30 OCTOBER 2026</p><h2>Review queue</h2></div>
+          <div class="topbar-actions"><button id="refresh-button" class="icon-button" title="Làm mới">↻</button><div class="avatar" id="user-avatar">A</div><div class="user-meta"><b id="user-name">Analyst</b><small id="user-role">Risk analyst</small></div></div>
+        </header>
+        <div class="page-body">
+          <div class="kpi-grid">
+            <article class="kpi-card accent"><div class="kpi-icon">⚡</div><div><small>Open cases</small><strong id="open-count">—</strong><span class="trend">Review queue</span></div></article>
+            <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>High risk</small><strong id="high-count">—</strong><span class="trend orange-text">Needs attention</span></div></article>
+            <article class="kpi-card"><div class="kpi-icon green">✓</div><div><small>Avg. confidence</small><strong id="confidence-count">—</strong><span class="trend green-text">Model signal</span></div></article>
+            <article class="kpi-card"><div class="kpi-icon purple">◴</div><div><small>Queue latency</small><strong>1.8<span class="unit">s</span></strong><span class="trend green-text">↓ 12% this week</span></div></article>
+          </div>
+          <div class="section-heading"><div><h3>Priority cases</h3><p>Cases are sorted by risk level and model confidence.</p></div><button id="export-button" class="secondary-button">⇩ Export view</button></div>
+          <section class="queue-card">
+            <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="search-input" placeholder="Search case ID or transaction..." /></div><select id="risk-filter"><option value="">All risk levels</option><option value="HIGH">High risk</option><option value="MEDIUM">Medium risk</option><option value="LOW">Low risk</option></select><select id="status-filter"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="CLOSED">Closed</option></select></div>
+            <div class="table-wrap"><table><thead><tr><th>Case</th><th>Risk level</th><th>Confidence</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody id="cases-body"><tr><td colspan="6" class="loading">Loading cases<span class="loader"></span></td></tr></tbody></table></div>
+            <div class="table-footer"><span id="result-count">—</span><div><button class="page-button" disabled>‹</button><button class="page-button active">1</button><button class="page-button" disabled>›</button></div></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <aside id="detail-panel" class="detail-panel">
+      <div class="detail-header"><div><p class="eyebrow">CASE DETAIL</p><h2 id="detail-title">Case —</h2></div><button id="close-detail" class="close-button">×</button></div>
+      <div id="detail-content"></div>
+    </aside>
+    <div id="panel-backdrop" class="panel-backdrop"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

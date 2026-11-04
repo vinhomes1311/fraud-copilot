@@ -1,121 +1,394 @@
-# Fraud Copilot – Khung giao tiếp giữa các thành phần
+# Fraud Copilot
 
-Khung chạy được bằng Docker Compose. Phần **giao tiếp** (API, hàng đợi Redis, hợp đồng dữ liệu, retry/timeout/circuit breaker, ghi DB qua PgBouncer, metrics) đã làm thật.
-LLM hỗ trợ **gọi API online** qua endpoint tương thích OpenAI, chọn model bằng cấu hình và dùng playbook làm context, không cần train lại LLM. Bộ chấm điểm ML và một số thành phần demo vẫn là hàm giả có đánh dấu `>>> HÀM GIẢ <<<`.
+Fraud Copilot là một pipeline xử lý giao dịch gian lận bất đồng bộ, gồm Analyst API,
+Scoring Worker, LLM Worker, Redis, PostgreSQL, PgBouncer và dashboard web cho analyst.
+Toàn bộ stack có thể chạy bằng Docker Compose.
 
-### Dùng LLM online
+> **Trạng thái hiện tại:** hạ tầng giao tiếp, hợp đồng dữ liệu, retry/timeout,
+> circuit breaker, RBAC, audit log, metrics và dashboard đã có implementation. LLM hỗ trợ
+> API online, Ollama và stub; phần chấm điểm ML vẫn là implementation demo.
+> Xem [hướng dẫn API online](API_ADAPTER.md) để chọn model mà không cần train lại LLM.
 
-Copy `.env.example` thành `.env` (nếu chưa có), điền `LLM_API_KEY`, rồi chạy:
+## Mục lục
 
-```powershell
-docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
-```
+- [Kiến trúc](#kiến-trúc)
+- [Yêu cầu](#yêu-cầu)
+- [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
+- [Dùng LLM online qua API](#dùng-llm-online-qua-api)
+- [Chạy và debug trong VS Code](#chạy-và-debug-trong-vs-code)
+- [Dashboard](#dashboard)
+- [API](#api)
+- [Simulator](#simulator)
+- [Cấu hình](#cấu-hình)
+- [Observability](#observability)
+- [Test](#test)
+- [Cơ chế xử lý lỗi](#cơ-chế-xử-lý-lỗi)
+- [Các phần cần thay thế](#các-phần-cần-thay-thế)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 
-Cấu hình mẫu dùng `LLM_PROVIDER=api`, `LLM_API_MODEL=gpt-5.4-mini` và playbook không cần Ollama/GPU. Có thể đổi model, endpoint, giới hạn token và reasoning effort trong `.env`. Python tự nạp file này; biến môi trường của shell được ưu tiên. Không có cấu hình thì demo vẫn dùng `stub`.
-
-Xem [hướng dẫn API online](API_ADAPTER.md) để chạy Python, kiểm tra cấu hình và gọi thử bằng dữ liệu giả (`python -m llm_worker.smoke_test --live`).
-
-## 1. Sơ đồ giao tiếp
+## Kiến trúc
 
 ```mermaid
 flowchart LR
   SIM[Simulator] -->|POST /transactions + X-API-Key| NGX[Nginx]
   UI[Dashboard] -->|JWT| NGX
   NGX --> API[Analyst API]
-  API -- "ml_jobs (Redis)" --> SW[Scoring Worker]
-  SW -- "case_events (Redis)" --> API
-  API -- "llm_jobs (Redis, High>Medium)" --> LW[LLM Worker]
-  LW --> RAG[RAG + Vector Index]
-  SW & API & LW --> PGW[PgBouncer-write] --> PG[(PostgreSQL Primary)]
-  SW & API & LW --> PGR[PgBouncer-read] --> PGREP[(Replica)]
+  API -->|ml_jobs| SW[Scoring Worker]
+  SW -->|case_events| API
+  API -->|llm_jobs| LW[LLM Worker]
+  LW --> RAG[Playbook + LLM: API / Ollama / stub]
+  API & SW & LW --> PGW[PgBouncer write] --> PG[(PostgreSQL)]
+  API & SW & LW --> PGR[PgBouncer read] --> PG
   API & SW & LW -. /metrics .-> PROM[Prometheus]
 ```
 
-## 2. Chạy
+Luồng chính:
 
-**Cách A – toàn bộ trong Docker** (cần Docker Desktop):
+1. Simulator gửi giao dịch vào Nginx. API loại bỏ `is_fraud`, chống trùng theo
+   `trans_num`, gắn `trace_id` và đưa job vào Redis `ml_jobs`.
+2. Scoring Worker validate dữ liệu, che PII, tính điểm và tạo case.
+3. API nhận event từ `case_events`, sau đó đưa yêu cầu tạo brief vào `llm_jobs`.
+4. LLM Worker tạo brief có citation; nếu LLM lỗi hoặc timeout thì dùng brief
+   rule-based.
+5. Analyst xem review queue trên dashboard và thực hiện các thao tác xử lý case.
+
+Các queue dùng at-least-once delivery. Mỗi queue có vùng `ready`, `processing` và
+`dead`; job hết visibility timeout sẽ được reaper đưa lại vào queue.
+
+## Yêu cầu
+
+- Docker Desktop có hỗ trợ Docker Compose v2
+- Hoặc Python 3.12+ và Redis/PostgreSQL khi chạy service ngoài Docker
+- PowerShell, bash hoặc terminal tương đương để chạy các lệnh ví dụ
+
+## Chạy nhanh bằng Docker
+
+Từ thư mục gốc repository:
+
 ```bash
 docker compose up --build -d
-docker compose --profile sim run --rm simulator --tps 10 --limit 300 --fault-rate 0.05
+docker compose ps
 curl http://localhost:8080/healthz
 ```
 
-**Cách B – chạy/debug Python trong VS Code** (hạ tầng trong Docker, code chạy trên máy):
+Dashboard mở tại <http://localhost:8080/>.
+
+Chạy simulator với dữ liệu tổng hợp:
+
 ```bash
-python -m venv .venv && .venv\Scripts\activate      # Windows (macOS/Linux: source .venv/bin/activate)
-pip install -r requirements-dev.txt                  # cần Python >= 3.11
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis postgres pgbouncer-write pgbouncer-read
+docker compose --profile sim run --rm simulator --tps 10 --limit 300 --fault-rate 0.05
 ```
-Mở VS Code → Run and Debug → chọn **"Cả 3 service"** (file `.vscode/launch.json`). Gửi dữ liệu: `python -m simulator.replay --url http://localhost:8000 --tps 5 --limit 100`.
 
-Nếu PgBouncer báo lỗi xác thực, tạm đổi `DB_WRITE_URL`/`DB_READ_URL` trỏ thẳng `postgres:5432`; code không phải sửa.
+Chạy simulator với dataset có sẵn:
 
-## 3. Thử nghiệm nhanh bằng cURL
 ```bash
-# 1) đăng nhập analyst
-TOKEN=$(curl -s localhost:8080/api/v1/auth/login -H 'content-type: application/json' \
-  -d '{"username":"analyst1","password":"analyst123"}' | python -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
-# 2) hàng đợi ưu tiên
-curl -s localhost:8080/api/v1/cases -H "Authorization: Bearer $TOKEN"
-# 3) chi tiết case (giao dịch đã che PII, điểm, giải thích, brief)
-curl -s localhost:8080/api/v1/cases/1 -H "Authorization: Bearer $TOKEN"
-# 4) chuyển cấp
-curl -s -X POST localhost:8080/api/v1/cases/1/actions -H "Authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' -d '{"action":"ESCALATE","note":"nghi ngờ"}'
+docker compose --profile sim run --rm simulator \
+  --csv /data/fraudTrain.csv --tps 10 --limit 300 --labels /data/labels.csv
 ```
-Tài khoản demo (trong `analyst_api/auth.py`): `analyst1/analyst123`, `lead1/lead123`, `admin/admin123`.
-Tài liệu API tự sinh: `http://localhost:8000/docs` (chỉ khi mở cổng bằng file dev).
 
-## 4. Hợp đồng giao tiếp (Communication Contracts)
+Xem log:
 
-### REST (qua Nginx, tiền tố `/api/v1`)
-| Method & đường dẫn | Ai gọi | Quyền | Ghi chú |
-|---|---|---|---|
-| `POST /transactions` | Simulator | `X-API-Key` | 202 QUEUED · 200 DUPLICATE · 429 hàng đợi đầy (có `Retry-After`) |
-| `GET /transactions/{id}/result` | Simulator/UI | key hoặc JWT | 202 PENDING nếu chưa chấm xong |
-| `POST /auth/login` | UI | – | trả JWT |
-| `GET /cases` | Analyst, Risk Lead | JWT | sắp xếp High trước, xác suất giảm dần; Risk Lead mặc định chỉ thấy ESCALATED |
-| `GET /cases/{id}` | Analyst, Risk Lead | JWT | giao dịch, điểm, SHAP-like, brief, lịch sử thao tác |
-| `POST /cases/{id}/actions` | Analyst | JWT | NOTE · NEEDS_MORE_INFO · CONFIRM_SIMULATED · ESCALATE |
-| `POST /cases/{id}/resolve` | Risk Lead | JWT | CLOSE · RETURN (chỉ case ESCALATED) |
-| `POST /cases/{id}/brief:regenerate` | Analyst, Risk Lead | JWT | tối đa 3 lần/giờ/case |
-| `GET/PUT /admin/threshold-config` | Admin | JWT | mỗi lần PUT tạo version mới |
-| `GET /admin/queues` | Admin | JWT | độ sâu 3 hàng đợi |
+```bash
+docker compose logs -f analyst-api scoring-worker llm-worker
+```
 
-### Hàng đợi Redis (phong bì `JobEnvelope`, xem `fraud_common/schemas.py`)
-| Queue | Producer → Consumer | job_type | Ưu tiên | Timeout / thử lại |
-|---|---|---|---|---|
-| `ml_jobs` | Analyst API → Scoring Worker | `score_transaction` | FIFO | 2 s / 3 lần, quá thì ghi `MANUAL_FALLBACK_UNSCORED` |
-| `case_events` | Scoring Worker → Analyst API | `case_created` | High trước | 30 s / 5 lần |
-| `llm_jobs` | Analyst API → LLM Worker | `generate_brief` | High (0) trước Medium (1) | 30 s / 3 lần, quá thì `FAILED_TIMEOUT` + brief rule-based |
+Dừng stack:
 
-Mỗi queue gồm `:ready` (ZSET), `:processing` (HASH, có deadline) và `:dead` (LIST). Lấy job là thao tác nguyên tử bằng Lua script; worker chết thì reaper trả job về hàng đợi. Cơ chế là **at-least-once**, vì vậy mọi handler đều idempotent (`ON CONFLICT DO NOTHING`).
+```bash
+docker compose down
+```
 
-`trace_id` đi xuyên suốt: Nginx `X-Request-Id` → job → log → cột `trace_id` trong DB.
+Xóa cả dữ liệu PostgreSQL local (không thể khôi phục):
 
-### Quyền ghi DB
-| Tiến trình | Bảng được ghi |
-|---|---|
-| scoring-worker | `transactions`, `scoring_results`, `cases` (tạo), `unscored_queue` |
-| analyst-api | `case_actions`, `cases` (đổi trạng thái), `case_briefs` (tạo PENDING), `threshold_configs` |
-| llm-worker | `case_briefs` (cập nhật kết quả) |
-| cả ba | `audit_log` (chỉ INSERT) |
+```bash
+docker compose down -v
+```
 
-## 5. Những chỗ cần thay bằng code thật
-| File | Hiện tại | Thay bằng |
+### Cổng mặc định
+
+| Thành phần | Cổng | Ghi chú |
+|---|---:|---|
+| Nginx / dashboard / API gateway | `8080` | Cổng public duy nhất của stack |
+| Analyst API trực tiếp | `8000` | Chỉ mở trong compose dev |
+| PostgreSQL | `5432` | Chỉ mở trong compose dev |
+| Redis | `6379` | Chỉ mở trong compose dev |
+| PgBouncer write/read | `6432` / `6433` | Chỉ mở trong compose dev |
+| Prometheus | `9090` | Chỉ mở trong compose dev |
+
+## Dùng LLM online qua API
+
+Copy `.env.example` thành `.env` nếu chưa có, điền `LLM_API_KEY` trong editor trên
+máy của bạn và giữ `LLM_PROVIDER=api`. Cấu hình mẫu dùng `gpt-5.4-mini`; có thể đổi
+model hoặc endpoint mà không train lại LLM. `.env` không được commit vào Git.
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Điền API key vào .env trước khi chạy lệnh dưới.
+docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
+```
+
+Dashboard tiếp tục dùng tại <http://localhost:8080/>. Với `.env` đã điền đầy đủ,
+`docker compose up --build -d` cũng chuyển LLM worker sang API. Không cấu hình
+`LLM_PROVIDER` thì demo dùng stub. `LLM_RETRIEVER=playbook` dùng toàn bộ playbook
+nhỏ hiện có, không cần Ollama/GPU hay embedding model.
+
+Khi chạy Python/VS Code, cài requirements rồi kiểm tra:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test
+# Một request dữ liệu giả đến API thật, có thể phát sinh phí:
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test --live
+```
+
+Python tự nạp `.env` ở thư mục dự án; biến môi trường trong shell được ưu tiên.
+Smoke mặc định chỉ kiểm tra cấu hình; `--live` mới gọi API. LLM chọn evidence và
+checklist ID; ứng dụng kiểm tra nguồn và dựng brief có citation trước khi lưu DB.
+Chi tiết model, reasoning effort, token budget và lỗi quota/credit xem
+[API_ADAPTER.md](API_ADAPTER.md). Local Ollama được mô tả ở
+[LLM_INTEGRATION.md](LLM_INTEGRATION.md).
+
+## Chạy và debug trong VS Code
+
+Compose dev chỉ chạy hạ tầng và mở các cổng nội bộ ra máy host:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml \
+  up -d redis postgres pgbouncer-write pgbouncer-read
+```
+
+Sau đó chạy các process Python trong terminal hoặc VS Code:
+
+```bash
+python -m uvicorn analyst_api.main:app --host 0.0.0.0 --port 8000
+python -m scoring_worker.main
+python -m llm_worker.main
+```
+
+Nếu chạy ngoài Docker, các giá trị mặc định trong `fraud_common/config.py` sẽ
+trỏ tới Redis `localhost:6379` và PgBouncer `localhost:6432/6433`. Có thể đặt
+biến môi trường hoặc `.env` trước khi khởi động process nếu dùng endpoint khác.
+
+## Dashboard
+
+Dashboard được serve bởi Analyst API tại `/`. Sau khi đăng nhập, màn hình review
+queue hỗ trợ:
+
+- lọc theo risk level và trạng thái;
+- xem confidence, trạng thái brief và chi tiết transaction đã che PII;
+- thêm note, yêu cầu thêm thông tin, xác nhận simulated hoặc escalate;
+- risk lead xử lý case escalated;
+- analyst/risk lead yêu cầu tạo lại brief trong giới hạn cấu hình.
+
+Một số ô giao diện hiện là thông tin mẫu hoặc chưa nối backend (ví dụ analytics,
+audit trail và queue latency).
+
+## API
+
+API JSON có prefix `/api/v1`. Tài liệu OpenAPI tự sinh ở
+<http://localhost:8000/docs> khi dùng compose dev; qua Nginx có thể dùng
+<http://localhost:8080/docs>.
+
+### Đăng nhập
+
+```bash
+curl -s http://localhost:8080/api/v1/auth/login \
+  -H "content-type: application/json" \
+  -d "{\"username\":\"analyst1\",\"password\":\"analyst123\"}"
+```
+
+Tài khoản demo:
+
+| Username | Password | Role |
 |---|---|---|
-| `scoring_worker/pipeline/inference.py` | xác suất giả theo công thức | nạp model + calibrator từ Model Store |
-| `scoring_worker/pipeline/features.py` | vài đặc trưng đơn giản (đã query lịch sử đúng `t_history < t_current`) | đặc trưng thật cho mô hình |
-| `llm_worker/llm_client.py`, `api_client.py` | API online, Ollama hoặc stub qua `LLM_PROVIDER` | cấu hình model/endpoint; đánh giá trên case đại diện |
-| `llm_worker/rag.py` | playbook được phê duyệt cho API; semantic retrieval cho Ollama; stub cho demo | mở rộng retrieval khi KB lớn hơn |
-| `llm_worker/grounding.py` | kiểm tra citation ∈ ngữ cảnh RAG | kiểm tra số liệu, chống ảo giác sâu hơn |
-| `analyst_api/auth.py` | user cứng trong code | bảng `users` + băm mật khẩu |
+| `analyst1` | `analyst123` | Analyst |
+| `analyst2` | `analyst123` | Analyst |
+| `lead1` | `lead123` | Risk Lead |
+| `admin` | `admin123` | Admin |
 
-Để thử các đường lỗi: `LLM_STUB_FAIL_RATE=0.5` (circuit breaker, FAILED_TIMEOUT) · `--fault-rate 0.1` ở simulator (MANUAL_FALLBACK_UNSCORED) · tăng `--tps` để thấy 429 backpressure.
+Lưu `access_token` từ response rồi dùng header `Authorization: Bearer <token>`.
+Các mật khẩu trên chỉ dành cho demo; production cần thay bằng user store và
+mật khẩu đã hash.
 
-## 6. Hạn chế đã biết
-- Khung này chưa được chạy thử trên Docker trong môi trường soạn (không có mạng); mới kiểm tra cú pháp. Nếu có lỗi khi `up`, xem `docker compose logs <service>`.
-- Chưa có Replica PostgreSQL thật: cả hai PgBouncer cùng trỏ một Postgres.
-- Sau khi commit case mà Redis lỗi trước lúc phát `case_created` thì case chưa có brief (cần outbox pattern); tạm thời analyst dùng `brief:regenerate`.
-- Chưa có Grafana, Alert Service, Slack (Prometheus đã thu metrics), và chưa có UI.
-- Nginx OSS không tự kiểm tra JWT, nên xác thực nằm ở Analyst API; Nginx lo rate limit và định tuyến.
+### Các endpoint chính
+
+| Method | Path | Quyền | Mô tả |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/login` | Public | Đăng nhập, nhận JWT |
+| `POST` | `/api/v1/transactions` | `X-API-Key` | Queue giao dịch để chấm điểm |
+| `GET` | `/api/v1/transactions/{txn_id}/result` | API key hoặc JWT | Lấy kết quả bất đồng bộ |
+| `GET` | `/api/v1/cases` | Analyst, Risk Lead | Review queue, High trước |
+| `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
+| `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
+| `POST` | `/api/v1/cases/{case_id}/resolve` | Risk Lead | `CLOSE` hoặc `RETURN` case escalated |
+| `POST` | `/api/v1/cases/{case_id}/brief:regenerate` | Analyst, Risk Lead | Queue tạo lại brief |
+| `GET` / `PUT` | `/api/v1/admin/threshold-config` | Admin | Đọc/cập nhật ngưỡng risk có version |
+| `GET` | `/api/v1/admin/queues` | Admin | Độ sâu các queue |
+| `GET` | `/healthz` | Public | Health check |
+| `GET` | `/metrics` | Internal | Prometheus metrics |
+
+Ví dụ lấy queue:
+
+```bash
+curl -s http://localhost:8080/api/v1/cases \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Ví dụ chuyển case lên risk lead:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/cases/1/actions \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "content-type: application/json" \
+  -d "{\"action\":\"ESCALATE\",\"note\":\"Cần risk lead kiểm tra\"}"
+```
+
+## Simulator
+
+Simulator không gửi nhãn `is_fraud` vào API; nhãn được ghi riêng vào file CSV
+`data/labels.csv`. Nếu không truyền `--csv`, simulator tự sinh dữ liệu deterministic.
+
+```bash
+python -m simulator.replay --url http://localhost:8080 --tps 10 --limit 500
+python -m simulator.replay --csv data/fraudTrain.csv --tps 50 \
+  --limit 1000 --fault-rate 0.02 --concurrency 100
+```
+
+| Option | Mặc định | Ý nghĩa |
+|---|---:|---|
+| `--url` | `http://localhost:8080` | Base URL của gateway |
+| `--csv` | không có | Dataset Sparkov/fraudTrain tương thích |
+| `--tps` | `10` | Tốc độ phát giao dịch |
+| `--limit` | `500` | Số dòng; `0` là toàn bộ |
+| `--fault-rate` | `0` | Tỉ lệ payload bị tiêm lỗi |
+| `--concurrency` | `100` | Số request đồng thời tối đa |
+| `--labels` | `data/labels.csv` | File lưu nhãn thật |
+
+## Cấu hình
+
+Compose đã cung cấp các giá trị mặc định phù hợp cho local development. Production
+cần thay tối thiểu `JWT_SECRET`, `SIMULATOR_API_KEY`, `PII_SALT` và thông tin
+PostgreSQL bằng secret manager hoặc environment injection.
+
+| Biến | Mặc định | Mục đích |
+|---|---|---|
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
+| `DB_WRITE_URL` | PgBouncer write local | Kết nối ghi DB |
+| `DB_READ_URL` | PgBouncer read local | Kết nối đọc DB |
+| `JWT_SECRET` | `dev-only-change-me` | Ký JWT |
+| `JWT_TTL_S` | `28800` | Thời hạn JWT (giây) |
+| `SIMULATOR_API_KEY` | `dev-sim-key` | Xác thực simulator |
+| `PII_SALT` | `dev-salt` | Hash định danh PII |
+| `MAX_ML_QUEUE_DEPTH` | `5000` | Ngưỡng trả HTTP 429 |
+| `ML_CONCURRENCY` | `8` | Worker ML đồng thời |
+| `ML_JOB_TIMEOUT_S` | `2` | Timeout job ML |
+| `ML_MAX_ATTEMPTS` | `3` | Số lần thử job ML |
+| `LLM_CONCURRENCY` | `2` Python / `1` Compose | Worker LLM đồng thời |
+| `LLM_JOB_TIMEOUT_S` | `30` Python / `120` Compose | Timeout mỗi stage LLM (giây) |
+| `LLM_MAX_ATTEMPTS` | `3` | Số lần thử job LLM |
+| `BRIEF_TOKEN_BUDGET` | `5000` | Kiểm tra tổng token sau inference; chưa phải trần chi phí |
+| `REGEN_LIMIT_PER_HOUR` | `3` | Số lần regenerate/case/giờ |
+| `LLM_PROVIDER` | `stub`; `.env.example` bật `api` | `api`, `ollama` hoặc `stub` |
+| `LLM_API_BASE_URL` | `https://api.openai.com/v1` | HTTPS endpoint tương thích Chat Completions |
+| `LLM_API_MODEL` | `gpt-5.4-mini` | Model online được cấp quyền trong tài khoản API |
+| `LLM_API_KEY` | trống | API key; chỉ cấu hình cục bộ |
+| `LLM_API_MAX_COMPLETION_TOKENS` | `1024` | Trần output gồm cả reasoning token |
+| `LLM_API_REASONING_EFFORT` | trống | Tùy chọn theo khả năng của model |
+| `LLM_RETRIEVER` | `playbook` cho API / `ollama` cho Ollama | Nguồn context |
+| `LLM_STUB_LATENCY_S` | `1.0` | Độ trễ giả lập |
+| `LLM_STUB_FAIL_RATE` | `0.0` | Tỉ lệ lỗi giả lập |
+
+Để thử circuit breaker và fallback:
+
+```bash
+LLM_STUB_FAIL_RATE=0.5 docker compose up -d --build
+```
+
+## Observability
+
+- `GET /healthz`: kiểm tra API còn kết nối Redis.
+- Prometheus scrape Analyst API tại `/metrics/`.
+- Worker expose metrics ở `METRICS_PORT` (`9101` cho scoring, `9102` cho LLM).
+- `X-Request-Id` được truyền thành `trace_id` qua queue, log và audit record.
+- Redis queue có thống kê `ready`, `processing`, `dead` qua endpoint admin.
+
+Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
+
+## Test
+
+Test logic không cần hạ tầng:
+
+```bash
+python -m pytest tests/test_logic.py -q
+```
+
+Test toàn bộ:
+
+```bash
+python -m pytest -q
+```
+
+`tests/test_queue_integration.py` sẽ tự skip nếu Redis chưa chạy. Để chạy test
+integration, mở Redis bằng:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
+python -m pytest tests/test_queue_integration.py -q
+```
+
+Các bài API dùng MockTransport, không dùng key thật và không tính phí LLM.
+Để chạy đầy đủ workflow qua SQL/Redis thật, đặt URL của dịch vụ kiểm thử riêng:
+
+```powershell
+$env:LLM_PROVIDER = 'stub'
+$env:LLM_STUB_LATENCY_S = '0'
+$env:LLM_STUB_FAIL_RATE = '0'
+$env:FRAUD_TEST_DB_URL = 'postgresql://fraud:fraud@127.0.0.1:5432/fraud'
+$env:FRAUD_TEST_REDIS_URL = 'redis://127.0.0.1:6379/15'
+python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -q
+```
+
+Điều chỉnh URL theo dịch vụ dành riêng cho kiểm thử. `test_workflow_e2e.py` kiểm tra
+giao dịch LOW/MEDIUM/HIGH, dữ liệu sai/trùng, brief, phân quyền, chuyển cấp/đóng
+case, cấu hình ngưỡng, regenerate và retry/fallback ở cả stub lẫn API giả lập.
+Các bài cần DB/Redis sẽ tự skip khi chưa cấu hình dịch vụ tương ứng.
+
+## Cơ chế xử lý lỗi
+
+- Giao dịch trùng trong một giờ trả `200 DUPLICATE`.
+- ML queue đầy trả `429` kèm `Retry-After`.
+- Job ML lỗi quá số lần thử được đưa vào manual fallback.
+- Job LLM timeout được đánh dấu `FAILED_TIMEOUT` và tạo brief rule-based.
+- Job đang xử lý nhưng worker chết sẽ được requeue bởi visibility-timeout reaper.
+- Các handler được thiết kế idempotent để an toàn với at-least-once delivery.
+- Giao dịch và brief không đưa nhãn `is_fraud` vào luồng suy luận; transaction
+  hiển thị cho analyst đã được che PII.
+
+## Các phần cần thay thế
+
+| File | Hiện tại | Cần thay bằng |
+|---|---|---|
+| `scoring_worker/pipeline/inference.py` | Điểm giả theo công thức | Model và calibrator từ Model Store |
+| `scoring_worker/pipeline/features.py` | Một số feature đơn giản | Feature engineering production |
+| `llm_worker/llm_client.py`, `api_client.py` | API online, Ollama hoặc stub | Đánh giá model trên case đại diện |
+| `llm_worker/rag.py` | Playbook được phê duyệt; semantic retrieval cho Ollama | Mở rộng retrieval khi KB lớn hơn |
+| `llm_worker/grounding.py` | Kiểm tra citation cơ bản | Kiểm chứng số liệu và grounding sâu hơn |
+| `analyst_api/auth.py` | User hard-code | User table và password hash |
+
+Khi thay implementation, giữ nguyên interface và schema trong
+`fraud_common/schemas.py` để không phá vỡ contract giữa các service.
+
+## Cấu trúc thư mục
+
+```text
+analyst_api/       API, auth, case actions, admin và event consumer
+fraud_common/      config, DB, schema, queue, metrics, resilience
+scoring_worker/    validation, PII masking, feature và scoring pipeline
+llm_worker/        RAG, grounding, LLM client và brief worker
+simulator/         replay dataset hoặc dữ liệu tổng hợp
+db/                PostgreSQL schema khởi tạo
+nginx/             gateway và routing
+prometheus/        Prometheus scrape config
+static/            dashboard frontend
+tests/             unit test, API mock và PostgreSQL/Redis workflow integration test
+```

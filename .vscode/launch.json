@@ -48,7 +48,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "simulator.replay",
-      "args": ["--url", "http://localhost:8000", "--tps", "5", "--limit", "100"],
+      "args": ["--url", "http://localhost:8080", "--tps", "5", "--limit", "100"],
       "cwd": "${workspaceFolder}"
     }
   ],

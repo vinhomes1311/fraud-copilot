@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import make_asgi_app
 from redis.asyncio import Redis
 
@@ -53,6 +56,13 @@ app.include_router(ingest.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.mount("/metrics", make_asgi_app())
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+async def dashboard():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/healthz")
