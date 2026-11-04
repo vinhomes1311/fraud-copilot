@@ -74,6 +74,16 @@ def project_evidence(ctx):
     allowed = {'amt', 'dist_home_merchant_km', 'txn_count_24h', 'avg_amt_24h',
                'amt_vs_avg_ratio', 'hour_of_day'}
     features = ctx.get('features') or {}
+    history_count = features.get('txn_count_24h', 0)
+    history_avg = features.get('avg_amt_24h')
+    if history_count:
+        comparison = f"History comparison: {history_count} transactions in the last 24 hours"
+        if history_avg is not None:
+            comparison += f"; historical average amount {history_avg:.2f}"
+        add('EV-HISTORY', history_count, comparison)
+    else:
+        evidence['EV-HISTORY-GAP'] = {
+            'text': 'History comparison unavailable: no positive transaction count was supplied for the last 24 hours.'}
     for key in sorted(allowed & features.keys()):
         if key == 'avg_amt_24h' and not features.get('txn_count_24h', 0):
             continue  # SQL COALESCE zero is not an observed historical average.
@@ -85,8 +95,6 @@ def project_evidence(ctx):
         evidence['EV-FACTOR-' + str(i)] = {
             'text': f"{factor['feature']} = {factor['value']}; model contribution {factor['contribution']}; method and scale not supplied. This does not confirm fraud."}
     evidence['EV-LIMIT'] = {'text': 'Model signals do not confirm fraud. Final decision belongs to the analyst. Checklist actions are team proposals based on playbook principles.'}
-    if not features.get('txn_count_24h', 0):
-        evidence['EV-HISTORY-GAP'] = {'text': 'No positive historical transaction count supplied; no behavioral baseline can be established.'}
     return evidence
 
 
@@ -112,7 +120,7 @@ class OllamaClient:
         model = os.environ.get('OLLAMA_MODEL')
         if not model:
             raise ValueError('OLLAMA_MODEL must name an installed model')
-        result = await request('/api/chat', {'model':model,'stream':False,'format':schema,
+        result = await request('/api/chat', {'model':model,'stream':False,'think':False,'format':schema,
             'options':{'temperature':0,'num_predict':512}, 'messages':[
                 {'role':'system','content':SYSTEM_PROMPT},
                 {'role':'user','content':json.dumps({'evidence':evidence,'playbook':selected_chunks},ensure_ascii=False)}]})

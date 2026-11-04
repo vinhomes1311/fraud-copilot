@@ -184,7 +184,11 @@ mật khẩu đã hash.
 | `GET` | `/api/v1/transactions/{txn_id}/result` | API key hoặc JWT | Lấy kết quả bất đồng bộ |
 | `GET` | `/api/v1/cases` | Analyst, Risk Lead | Review queue, High trước |
 | `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
+| `POST` | `/api/v1/cases/manual` | Analyst, Risk Lead | Tạo case thủ công cho giao dịch LOW/unscored |
 | `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
+| `POST` | `/api/v1/cases/{case_id}/notes` | Analyst, Risk Lead | Thêm note append-only |
+| `PUT` | `/api/v1/cases/{case_id}/assign` | Analyst, Risk Lead | Gán hoặc bỏ gán case |
+| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Ghi nhận kết quả điều tra |
 | `POST` | `/api/v1/cases/{case_id}/resolve` | Risk Lead | `CLOSE` hoặc `RETURN` case escalated |
 | `POST` | `/api/v1/cases/{case_id}/brief:regenerate` | Analyst, Risk Lead | Queue tạo lại brief |
 | `GET` / `PUT` | `/api/v1/admin/threshold-config` | Admin | Đọc/cập nhật ngưỡng risk có version |

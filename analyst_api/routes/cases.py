@@ -34,6 +34,21 @@ class ResolveRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class ManualCaseRequest(BaseModel):
+    txn_id: str = Field(min_length=1)
+    risk_level: RiskLevel = RiskLevel.MEDIUM
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class AssignmentRequest(BaseModel):
+    assigned_to: str | None = Field(default=None, max_length=200)
+
+
+class OutcomeRequest(BaseModel):
+    outcome: str = Field(pattern="^(CONFIRMED_FRAUD|DISMISSED|INSUFFICIENT_EVIDENCE)$")
+    note: str | None = Field(default=None, max_length=2000)
+
+
 @router.get("")
 async def list_cases(
     user: User = Depends(any_reviewer),
@@ -76,6 +91,97 @@ async def get_case(case_id: int, user: User = Depends(any_reviewer)):
     actions = await state.db.rfetch(
         "SELECT actor, role, action, note, created_at FROM case_actions WHERE case_id=$1 ORDER BY id", case_id)
     return {**dict(row), "actions": [dict(a) for a in actions]}
+
+
+@router.post("/manual", status_code=201)
+async def create_manual_case(body: ManualCaseRequest, request: Request,
+                             user: User = Depends(require_roles(Role.ANALYST, Role.RISK_LEAD))):
+    trace_id = request.headers.get("x-request-id") or uuid4().hex
+    async with state.db.write_tx() as conn:
+        txn = await conn.fetchrow(
+            "SELECT txn_id FROM transactions WHERE txn_id=$1", body.txn_id)
+        if txn is None:
+            raise HTTPException(404, "Không tìm thấy giao dịch")
+        existing = await conn.fetchrow(
+            "SELECT case_id FROM cases WHERE txn_id=$1", body.txn_id)
+        if existing is not None:
+            raise HTTPException(409, f"Giao dịch đã có case #{existing['case_id']}")
+        case_id = await conn.fetchval(
+            """INSERT INTO cases (txn_id, risk_level, assigned_to)
+               VALUES ($1,$2,$3) RETURNING case_id""",
+            body.txn_id, body.risk_level.value, user.username)
+        await write_audit(
+            conn, actor=user.username, event="case.manual_created", entity="case",
+            entity_id=case_id, detail={"txn_id": body.txn_id, "reason": body.reason},
+            trace_id=trace_id)
+    await enqueue_brief(case_id=case_id, txn_id=body.txn_id, level=body.risk_level,
+                        trace_id=trace_id, requested_by=user.username)
+    return {"case_id": case_id, "txn_id": body.txn_id, "status": CaseStatus.OPEN}
+
+
+@router.post("/{case_id}/notes", status_code=201)
+async def add_case_note(case_id: int, body: ActionRequest, request: Request,
+                        user: User = Depends(require_roles(Role.ANALYST, Role.RISK_LEAD))):
+    if not body.note:
+        raise HTTPException(422, "Note không được để trống")
+    trace_id = request.headers.get("x-request-id") or uuid4().hex
+    async with state.db.write_tx() as conn:
+        exists = await conn.fetchval("SELECT 1 FROM cases WHERE case_id=$1", case_id)
+        if exists is None:
+            raise HTTPException(404, "Không tìm thấy case")
+        await conn.execute(
+            """INSERT INTO case_actions (case_id, actor, role, action, note)
+               VALUES ($1,$2,$3,'NOTE',$4)""",
+            case_id, user.username, user.role.value, body.note)
+        await write_audit(conn, actor=user.username, event="case.note_added",
+                          entity="case", entity_id=case_id, detail={"note": body.note},
+                          trace_id=trace_id)
+    return {"case_id": case_id, "action": "NOTE", "note": body.note}
+
+
+@router.put("/{case_id}/assign")
+async def assign_case(case_id: int, body: AssignmentRequest, request: Request,
+                      user: User = Depends(require_roles(Role.ANALYST, Role.RISK_LEAD))):
+    trace_id = request.headers.get("x-request-id") or uuid4().hex
+    async with state.db.write_tx() as conn:
+        row = await conn.fetchrow(
+            "UPDATE cases SET assigned_to=$2, updated_at=now() WHERE case_id=$1 RETURNING case_id, assigned_to",
+            case_id, body.assigned_to)
+        if row is None:
+            raise HTTPException(404, "Không tìm thấy case")
+        await write_audit(conn, actor=user.username, event="case.assigned",
+                          entity="case", entity_id=case_id,
+                          detail={"assigned_to": body.assigned_to}, trace_id=trace_id)
+    return dict(row)
+
+
+@router.put("/{case_id}/outcome")
+async def set_case_outcome(case_id: int, body: OutcomeRequest, request: Request,
+                           user: User = Depends(require_roles(Role.ANALYST, Role.RISK_LEAD))):
+    trace_id = request.headers.get("x-request-id") or uuid4().hex
+    status_by_outcome = {
+        "CONFIRMED_FRAUD": CaseStatus.CONFIRMED_SIMULATED,
+        "DISMISSED": CaseStatus.CLOSED,
+        "INSUFFICIENT_EVIDENCE": CaseStatus.RETURNED,
+    }
+    new_status = status_by_outcome[body.outcome]
+    if new_status == CaseStatus.CLOSED and user.role != Role.RISK_LEAD:
+        raise HTTPException(403, "Chỉ Risk Lead mới được đóng case")
+    async with state.db.write_tx() as conn:
+        row = await conn.fetchrow(
+            "UPDATE cases SET status=$2, updated_at=now() WHERE case_id=$1 RETURNING case_id, status",
+            case_id, new_status.value)
+        if row is None:
+            raise HTTPException(404, "Không tìm thấy case")
+        await conn.execute(
+            """INSERT INTO case_actions (case_id, actor, role, action, note)
+               VALUES ($1,$2,$3,$4,$5)""",
+            case_id, user.username, user.role.value, f"OUTCOME_{body.outcome}", body.note)
+        await write_audit(conn, actor=user.username, event="case.outcome_set",
+                          entity="case", entity_id=case_id,
+                          detail={"outcome": body.outcome, "status": new_status.value},
+                          trace_id=trace_id)
+    return {"case_id": case_id, "outcome": body.outcome, "status": new_status}
 
 
 @router.post("/{case_id}/actions")
