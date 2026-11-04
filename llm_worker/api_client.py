@@ -11,12 +11,42 @@ from fraud_common.config import get_settings
 from .local_integration import OllamaClient
 
 
+_429_HINTS = {
+    'insufficient_quota': 'Check API billing, available credits and usage limits; ChatGPT Plus does not fund API-key usage.',
+    'credit_balance_exhausted': 'No API credits remain; add credits in API Platform billing.',
+    'organization_spend_limit_exceeded': 'Check the organization API spend limit in API Platform.',
+    'project_spend_limit_exceeded': 'Check the API project spend limit in API Platform.',
+    'organization_usage_limit_exceeded': 'The organization API usage limit was reached; check API Platform limits.',
+    'rate_limit_exceeded': 'Request/token rate limit reached; wait before retrying and reduce request frequency.',
+    'rate_limit_error': 'Request rate limited; wait before retrying and reduce request frequency.',
+    'slow_down': 'Request traffic increased too quickly; wait before retrying and reduce request frequency.',
+}
+
+
+def _http_error(response):
+    """Expose only known 429 codes and our own hints, never provider message text."""
+    message = f'LLM API HTTP {response.status_code}'
+    if response.status_code == 429:
+        try:
+            error = response.json().get('error')
+            if isinstance(error, dict):
+                code = error.get('code')
+                if not isinstance(code, str) or code not in _429_HINTS:
+                    kind = error.get('type')
+                    code = kind if kind in ('insufficient_quota', 'rate_limit_error') else None
+                if code in _429_HINTS:
+                    message += f' ({code}): {_429_HINTS[code]}'
+        except (ValueError, TypeError, AttributeError):
+            pass
+    return RuntimeError(message)
+
+
 class APIClient(OllamaClient):
     """Reuse the same evidence projection, selection validation and brief renderer."""
 
     def __init__(self):
-        self.base_url = os.getenv('LLM_API_BASE_URL', '').strip().rstrip('/')
-        self.model = os.getenv('LLM_API_MODEL', '').strip()
+        self.base_url = os.getenv('LLM_API_BASE_URL', 'https://api.openai.com/v1').strip().rstrip('/')
+        self.model = os.getenv('LLM_API_MODEL', 'gpt-5.4-mini').strip()
         self._key = os.getenv('LLM_API_KEY', '').strip()
         if not self.base_url or not self.model or not self._key:
             raise ValueError('Set LLM_API_BASE_URL, LLM_API_MODEL and LLM_API_KEY')
@@ -33,6 +63,10 @@ class APIClient(OllamaClient):
         self.max_tokens = int(os.getenv('LLM_API_MAX_COMPLETION_TOKENS', '1024'))
         if self.max_tokens <= 0:
             raise ValueError('LLM_API_MAX_COMPLETION_TOKENS must be positive')
+        # Optional because compatible providers/models have different capabilities.
+        self.reasoning_effort = os.getenv('LLM_API_REASONING_EFFORT', '').strip()
+        if self.reasoning_effort not in ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'):
+            raise ValueError('Invalid LLM_API_REASONING_EFFORT')
 
     def model_name(self):
         return self.model
@@ -48,7 +82,7 @@ class APIClient(OllamaClient):
         if self.response_format == 'json_schema':
             fmt['json_schema'] = {'name': 'brief_selection', 'strict': True, 'schema': api_schema}
         payload = {
-            'model': model, 'stream': False, 'response_format': fmt,
+            'model': model, 'stream': False, 'store': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
                 {'role': 'system', 'content': SYSTEM_PROMPT +
@@ -58,6 +92,8 @@ class APIClient(OllamaClient):
                     {'evidence': evidence, 'playbook': selected_chunks}, ensure_ascii=False)},
             ],
         }
+        if self.reasoning_effort:
+            payload['reasoning_effort'] = self.reasoning_effort
         try:
             async with httpx.AsyncClient(timeout=get_settings().llm_job_timeout_s,
                                          follow_redirects=False) as client:
@@ -69,7 +105,7 @@ class APIClient(OllamaClient):
             raise RuntimeError('LLM API connection failed') from None
         # Do not persist provider response bodies, URLs or credentials in last_error.
         if not 200 <= response.status_code < 300:
-            raise RuntimeError(f'LLM API HTTP {response.status_code}')
+            raise _http_error(response) from None
         try:
             data = response.json()
             choices = data['choices']

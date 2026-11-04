@@ -55,7 +55,7 @@ def get_retriever() -> Retriever:
         return StubRetriever()
     if provider not in ('api', 'ollama'):
         raise ValueError('Unknown LLM_PROVIDER')
-    mode = os.getenv('LLM_RETRIEVER', 'playbook' if provider == 'api' else 'ollama')
+    mode = os.getenv('LLM_RETRIEVER') or ('playbook' if provider == 'api' else 'ollama')
     if mode == 'ollama':
         from .local_integration import SemanticRetriever
         return SemanticRetriever()

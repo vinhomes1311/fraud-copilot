@@ -3,15 +3,17 @@ import json
 import os
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from llm_worker.api_client import APIClient
+from llm_worker.api_client import APIClient, _http_error
 from llm_worker.local_integration import OllamaClient, SemanticRetriever, project_evidence
 from llm_worker.llm_client import get_llm_client, StubLLMClient
 from llm_worker.rag import get_retriever, ApprovedPlaybookRetriever
 from llm_worker.grounding import check_grounding
+from llm_worker.processor import BriefProcessor
+from fraud_common.schemas import JobEnvelope
 
 
 class APITests(unittest.IsolatedAsyncioTestCase):
@@ -68,10 +70,56 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body['response_format']['type'], 'json_schema')
         self.assertTrue(body['response_format']['json_schema']['strict'])
         self.assertEqual(body['max_completion_tokens'], 1024)
+        self.assertFalse(body['store'])
+        self.assertNotIn('reasoning_effort', body)
         self.assertEqual(result.tokens_used, 120)
         self.assertEqual(result.model_name, 'test-model')
         self.assertEqual(result.brief.citations[0].rule_code, 'PB-03')
         check_grounding(result.brief, self.chunks)
+
+    def test_online_defaults_require_only_key(self):
+        with patch.dict(os.environ, {'LLM_API_KEY': 'SECRET-KEY'}, clear=True):
+            client = APIClient()
+        self.assertEqual(client.base_url, 'https://api.openai.com/v1')
+        self.assertEqual(client.model_name(), 'gpt-5.4-mini')
+
+    async def test_reasoning_effort_is_explicit_and_model_can_change(self):
+        with patch.dict(os.environ, {'LLM_API_REASONING_EFFORT': 'low',
+                                    'LLM_API_MODEL': 'another-online-model'}):
+            result, requests = await self.run_api()
+        body = json.loads(requests[0].content)
+        self.assertEqual(body['reasoning_effort'], 'low')
+        self.assertEqual(body['model'], 'another-online-model')
+        self.assertEqual(result.model_name, 'another-online-model')
+
+    async def test_api_result_reaches_ready_with_grounded_citations(self):
+        db = AsyncMock()
+        db.wexec.return_value = 'UPDATE 1'
+        db.rfetchrow.return_value = self.ctx
+        real_client = httpx.AsyncClient
+        captured = []
+
+        def handler(request):
+            captured.append(request)
+            return httpx.Response(200, json=self.reply())
+
+        with patch('llm_worker.processor.get_llm_client', return_value=APIClient()), \
+             patch('llm_worker.processor.get_retriever', return_value=ApprovedPlaybookRetriever()), \
+             patch('llm_worker.api_client.httpx.AsyncClient',
+                   side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)):
+            processor = BriefProcessor(db)
+            env = JobEnvelope(job_type='generate_brief', trace_id='api-test',
+                              job_id='generation-api',
+                              payload={'case_id': 1, 'txn_id': 'PRIVATE-ID', 'risk_level': 'HIGH'})
+            await processor.handle(env)
+        self.assertEqual(len(captured), 1)
+        self.assertNotIn('PRIVATE', captured[0].content.decode())
+        sql, *args = db.wexec.await_args.args
+        self.assertIn("status='READY'", sql)
+        self.assertEqual(args[4], 'test-model')
+        self.assertEqual(args[6], 120)
+        self.assertEqual(args[7], 'generation-api')
+        self.assertEqual(args[1]['citations'][0]['rule_code'], 'PB-03')
 
     async def test_json_mode_and_legacy_token_parameter(self):
         with patch.dict(os.environ, {'LLM_API_RESPONSE_FORMAT': 'json_object',
@@ -132,6 +180,42 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, '^LLM API connection failed$'):
             await self.run_api(failure=httpx.ConnectError('SECRET-KEY'))
 
+    async def test_429_identifies_quota_and_rate_limits_without_provider_text(self):
+        hints = {
+            'insufficient_quota': 'Check API billing',
+            'credit_balance_exhausted': 'No API credits remain',
+            'organization_spend_limit_exceeded': 'organization API spend limit',
+            'project_spend_limit_exceeded': 'API project spend limit',
+            'organization_usage_limit_exceeded': 'organization API usage limit',
+            'rate_limit_exceeded': 'Request/token rate limit',
+            'slow_down': 'Request traffic increased too quickly',
+        }
+        for code, hint in hints.items():
+            with self.subTest(code=code):
+                reply = {'error': {'code': code, 'type': 'insufficient_quota',
+                                   'message': 'SECRET-KEY PRIVATE-EMAIL'}}
+                with self.assertRaises(RuntimeError) as caught:
+                    await self.run_api(reply, status=429)
+                message = str(caught.exception)
+                self.assertIn(f'HTTP 429 ({code})', message)
+                self.assertIn(hint, message)
+                self.assertNotIn('SECRET', message)
+                self.assertNotIn('PRIVATE', message)
+
+    def test_429_unknown_malformed_errors_and_type_fallback_are_safe(self):
+        bodies = [None, [], {'error': None}, {'error': []},
+                  {'error': {'code': 'SECRET-KEY', 'message': 'PRIVATE-EMAIL'}},
+                  {'error': {'code': [], 'type': {}}}]
+        for body in bodies:
+            with self.subTest(body=body):
+                error = _http_error(httpx.Response(429, json=body))
+                self.assertEqual(str(error), 'LLM API HTTP 429')
+        self.assertEqual(str(_http_error(httpx.Response(429, text='SECRET-KEY'))),
+                         'LLM API HTTP 429')
+        for kind in ('insufficient_quota', 'rate_limit_error'):
+            error = _http_error(httpx.Response(429, json={'error': {'type': kind}}))
+            self.assertIn(f'HTTP 429 ({kind})', str(error))
+
     def test_invalid_configuration(self):
         for name, value in (
             ('LLM_API_KEY', ''), ('LLM_API_MODEL', ''), ('LLM_API_BASE_URL', ''),
@@ -140,6 +224,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             ('LLM_API_BASE_URL', 'https://provider.example/v1?key=secret'),
             ('LLM_API_RESPONSE_FORMAT', 'text'), ('LLM_API_TOKEN_PARAMETER', 'bad'),
             ('LLM_API_MAX_COMPLETION_TOKENS', '0'),
+            ('LLM_API_REASONING_EFFORT', 'unsupported'),
         ):
             with self.subTest(name=name, value=value), patch.dict(os.environ, {name: value}):
                 with self.assertRaises(ValueError):
@@ -151,6 +236,8 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(get_llm_client(), cls)
         with patch('fraud_common.config.get_settings', return_value=SimpleNamespace(llm_provider='api')):
             self.assertIsInstance(get_retriever(), ApprovedPlaybookRetriever)
+            with patch.dict(os.environ, {'LLM_RETRIEVER': ''}):
+                self.assertIsInstance(get_retriever(), ApprovedPlaybookRetriever)
             self.assertEqual(len(await get_retriever().retrieve(['amt'], 'HIGH')), 5)
             with patch.dict(os.environ, {'LLM_RETRIEVER': 'ollama'}):
                 self.assertIsInstance(get_retriever(), SemanticRetriever)
@@ -159,3 +246,5 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                     get_retriever()
         with patch('fraud_common.config.get_settings', return_value=SimpleNamespace(llm_provider='ollama')):
             self.assertIsInstance(get_retriever(), SemanticRetriever)
+            with patch.dict(os.environ, {'LLM_RETRIEVER': ''}):
+                self.assertIsInstance(get_retriever(), SemanticRetriever)

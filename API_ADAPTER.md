@@ -1,80 +1,111 @@
-# API adapter alongside Ollama
+# LLM online qua API — không cần train lại
 
-`LLM_PROVIDER=api` selects an OpenAI-compatible Chat Completions endpoint.
-`LLM_PROVIDER=ollama` preserves the existing Ollama adapter. `stub` is unchanged.
-The API client reuses the Ollama adapter's evidence allowlist, approved-playbook
-validation, ID selection validator, and extractive brief rendering. Scores and
-routing are not recalculated. No provider SDK or new dependency is required.
+LLM worker gọi endpoint tương thích OpenAI Chat Completions. Model được nhà cung
+cấp vận hành; dự án không tải weights, chạy GPU hoặc fine-tune LLM. Playbook và
+evidence của case được đưa vào mỗi request, vì vậy có thể cập nhật kiến thức nghiệp
+vụ hoặc đổi model bằng cấu hình. Bộ chấm điểm giao dịch là thành phần riêng.
 
-## Host worker (PowerShell)
-
-Configure these before starting Python; application settings are loaded at import.
-The host worker does not automatically read `.env`.
+## Chạy bằng Docker
 
 ```powershell
-$env:LLM_PROVIDER = 'api'
-$env:LLM_API_BASE_URL = 'https://api.openai.com/v1'
-$env:LLM_API_MODEL = '<model enabled for your account>'
-$env:LLM_API_KEY = '<set your key locally; never commit it>'
-$env:LLM_RETRIEVER = 'playbook'
-$env:LLM_JOB_TIMEOUT_S = '120'
-$env:LLM_VISIBILITY_TIMEOUT_S = '300'
+Copy-Item .env.example .env
+# Điền LLM_API_KEY trong .env bằng editor trên máy của bạn.
+docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
+docker compose logs -f llm-worker
+```
+
+Không ghi đè `.env` nếu file đã tồn tại. Cấu hình tối thiểu trong file đó:
+
+```dotenv
+LLM_PROVIDER=api
+LLM_API_BASE_URL=https://api.openai.com/v1
+LLM_API_MODEL=gpt-5.4-mini
+LLM_API_KEY=<API key của bạn>
+LLM_RETRIEVER=playbook
+LLM_JOB_TIMEOUT_S=120
+LLM_VISIBILITY_TIMEOUT_S=300
+```
+
+File override `docker-compose.api.yml` bắt buộc có key ngay khi Compose đọc cấu
+hình. Với `.env` đã điền đầy đủ, `docker compose up --build -d` cũng chuyển worker
+sang API. Không có cấu hình `LLM_PROVIDER`, demo vẫn dùng `stub` để chạy offline.
+
+## Chạy Python / VS Code
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test
+# Một request dữ liệu giả, có thể phát sinh phí API:
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test --live
 .\.venv\Scripts\python.exe -m llm_worker.main
 ```
 
-Use a provider-specific HTTPS base URL (without `/chat/completions`). Configure
-DB_WRITE_URL, DB_READ_URL, REDIS_URL and apply the existing generation migration
-as described in LLM_INTEGRATION.md before using the queue worker.
+Python tự đọc `.env` ở thư mục dự án trước khi khởi tạo settings. Biến môi trường
+đã đặt trong shell/container được ưu tiên. Khởi động lại worker sau khi đổi cấu
+hình. Lệnh smoke mặc định chỉ kiểm tra cấu hình; `--live` mới gửi request. Smoke
+không cần PostgreSQL, Redis hay Ollama và không đọc case thật. Kết quả gồm model,
+token, thời gian phản hồi và brief có citation.
 
-The default `playbook` retriever supplies all five approved KB entries without
-semantic ranking or embeddings; this mode has no Ollama dependency. This is
-appropriate only for the current tiny KB, not a scalable semantic retriever.
-Set `LLM_RETRIEVER=ollama` to use existing semantic retrieval; then Ollama and
-embeddinggemma are still required. Ollama generation defaults to Ollama retrieval.
+Queue worker cần DB/Redis và schema theo [LLM_INTEGRATION.md](LLM_INTEGRATION.md).
+Worker kiểm tra cấu hình LLM trước khi kết nối DB.
 
-## Compatibility
+## Chọn model và tối ưu
 
-The endpoint must support non-streaming Chat Completions, Bearer authentication,
-and report integer prompt_tokens, completion_tokens, total_tokens usage.
-Default response format is strict `json_schema`. If the model only supports JSON
-mode, explicitly set `LLM_API_RESPONSE_FORMAT=json_object`; local ID validation
-remains mandatory. There is no automatic downgrade or provider fallback.
+Mặc định `gpt-5.4-mini` là điểm bắt đầu cho tác vụ chọn evidence và checklist có
+cấu trúc. Model này hỗ trợ Chat Completions và Structured Outputs theo
+[OpenAI Docs](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+Đây không phải kết luận về model tốt nhất cho dữ liệu của dự án: cần đo citation,
+tỷ lệ thành công, độ trễ và token trên bộ case đại diện trước khi triển khai.
 
-Output cap defaults to 1024 via `max_completion_tokens`; set
-`LLM_API_MAX_COMPLETION_TOKENS` to adjust it, or set
-`LLM_API_TOKEN_PARAMETER=max_tokens` for compatible endpoints requiring the older
-parameter. Model-specific capabilities must be checked with the provider.
-Reasoning models may need a higher cap; validate latency, completion and cost.
+- Đổi `LLM_API_MODEL` để dùng model khác đã được cấp quyền trong tài khoản.
+- Đổi `LLM_API_BASE_URL`, model và key để dùng dịch vụ tương thích khác. URL là
+  HTTPS base URL, ví dụ có `/v1`, không thêm `/chat/completions`.
+- `LLM_API_MAX_COMPLETION_TOKENS=1024` giới hạn output và cả reasoning token của
+  model reasoning. Khi cần reasoning sâu hơn, tăng cap và kiểm tra lại token budget.
+- `LLM_API_REASONING_EFFORT` để trống sẽ không gửi tham số này. Với `gpt-5.4-mini`,
+  có thể dùng `none` hoặc `low` để thử cân bằng độ trễ/chất lượng. Các model khác
+  có tập giá trị hỗ trợ riêng; không tự động suy đoán từ tên model.
+- Mặc định dùng `json_schema`. Provider chỉ hỗ trợ JSON mode có thể đặt
+  `LLM_API_RESPONSE_FORMAT=json_object`; việc kiểm tra ID tại ứng dụng vẫn bắt buộc.
+- Nếu provider yêu cầu tham số cũ, đặt `LLM_API_TOKEN_PARAMETER=max_tokens`.
+- `LLM_CONCURRENCY=1` là điểm bắt đầu để hạn chế request đồng thời.
 
-Refusals, truncation, invalid IDs, missing evidence and invalid usage fail the job.
-HTTP errors are sanitized; no response body or API key is saved to last_error.
-Timeouts map to TimeoutError. The client makes one attempt: existing queue retries,
-circuit breaker, token budget and terminal fallback remain responsible for jobs.
-HTTP 401/429/5xx currently use the existing bounded retry policy; Retry-After is not
-scheduled by this adapter. A token-budget check occurs after inference and cannot
-undo API charges. Tokens are recorded per successful attempt, not total retry cost.
+`LLM_RETRIEVER=playbook` đưa toàn bộ KB nhỏ hiện có vào context, không gọi
+embedding/Ollama. Đây chưa phải semantic retrieval cho KB lớn. Có thể dùng
+`LLM_RETRIEVER=ollama` cho semantic retrieval hiện có khi đã cài embedding model.
 
-## Docker
+## Hợp đồng dữ liệu và xử lý lỗi
 
-Set the same variables in the shell or untracked `.env`, then use the API override
-instead of the Ollama override:
+Client gửi evidence đã lọc theo allowlist và các đoạn playbook được phê duyệt.
+LLM chọn ID; ứng dụng xác minh ID, evidence đầy đủ, checklist không trùng và render
+brief từ nguồn đã kiểm tra. Model không tự thay đổi điểm rủi ro hay routing.
+Request đặt `store=false`, không theo redirect và không đưa key vào prompt.
+Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
+
+Endpoint phải trả `finish_reason=stop`, nội dung JSON và usage nguyên không âm
+gồm `prompt_tokens`, `completion_tokens`, `total_tokens`. Refusal, output bị cắt,
+ID sai, usage sai hoặc thiếu sẽ làm attempt thất bại. Lỗi HTTP/network được làm
+sạch trước khi lưu `last_error`; không lưu body lỗi từ provider hay key.
+
+Client gửi một lần mỗi attempt. Queue giữ retry có giới hạn, circuit breaker,
+timeout và brief rule-based khi hết retry. 401/429/5xx vẫn theo retry chung, chưa
+lập lịch theo `Retry-After`. Token budget kiểm tra sau inference nên không hoàn
+lại phí; usage lưu cho attempt thành công, chưa tổng hợp phí mọi lần retry.
+
+Để chạy local Ollama hoặc giả lập, dùng `LLM_PROVIDER=ollama` hoặc `stub` theo
+hướng dẫn tương ứng. Các chế độ này vẫn được giữ lại.
+
+## Kiểm thử
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-## Tests and smoke run
+Kiểm thử API dùng `httpx.MockTransport`: không gọi nhà cung cấp, không cần key
+thật, không tính phí. Bao gồm kiểm tra dữ liệu gửi đi, citation, usage, đổi model,
+reasoning effort, lỗi HTTP/timeout, `.env`, smoke test và API → worker → READY với
+DB giả lập. Kiểm thử tích hợp PostgreSQL/Redis chỉ chạy khi có URL test riêng.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_api_client.py tests/test_local_integration.py tests/test_brief_processor.py tests/test_generation_sql.py -v
-```
-
-The API tests use httpx.MockTransport, with no external requests or charges.
-For a live smoke test, set the API variables above and reuse the synthetic-case
-script that calls `get_retriever()` and `get_llm_client()`; no DB is needed for that
-script. Expect the selected API model name, valid citations and usage. A successful
-mock test does not establish compatibility, quality or latency of a real model.
-
-Protocol references:
-- https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
-- https://developers.openai.com/api/docs/guides/structured-outputs
+Tham khảo giao thức:
+[Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create),
+[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).

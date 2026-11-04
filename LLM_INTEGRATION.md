@@ -1,5 +1,11 @@
 # Local LLM integration
 
+For hosted models without local downloads/training, use [the online API setup](API_ADAPTER.md).
+The instructions below describe the optional Ollama mode. Python now loads the
+project `.env` automatically; shell variables take precedence. Set
+`LLM_RETRIEVER=ollama` explicitly when switching from the online `.env` example
+to local semantic retrieval.
+
 Source snapshot: vinhomes1311/fraud-copilot main at 38274b9f1a61d60acccf01ce7dd09d1aa1105e78.
 
 The Ollama adapter uses the local approved five-principle playbook and local
@@ -29,8 +35,9 @@ Docker:
     docker compose -f docker-compose.yml -f docker-compose.ollama.yml up --build -d
 
 The container must be able to reach Ollama on the configured endpoint. This change
-does not configure the host firewall or Ollama binding. Default Compose still uses
-the stub; the override explicitly enables the real adapter.
+does not configure the host firewall or Ollama binding. Without LLM_PROVIDER,
+Compose uses the stub; copying the current .env example enables online API mode.
+The Ollama override explicitly selects local generation.
 
 ## Validation and limits
 

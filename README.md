@@ -1,7 +1,19 @@
 # Fraud Copilot – Khung giao tiếp giữa các thành phần
 
 Khung chạy được bằng Docker Compose. Phần **giao tiếp** (API, hàng đợi Redis, hợp đồng dữ liệu, retry/timeout/circuit breaker, ghi DB qua PgBouncer, metrics) đã làm thật.
-Phần **nghiệp vụ AI** là hàm giả, có đánh dấu `>>> HÀM GIẢ <<<`, chỉ cần thay thân hàm, giữ nguyên chữ ký.
+LLM hỗ trợ **gọi API online** qua endpoint tương thích OpenAI, chọn model bằng cấu hình và dùng playbook làm context, không cần train lại LLM. Bộ chấm điểm ML và một số thành phần demo vẫn là hàm giả có đánh dấu `>>> HÀM GIẢ <<<`.
+
+### Dùng LLM online
+
+Copy `.env.example` thành `.env` (nếu chưa có), điền `LLM_API_KEY`, rồi chạy:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
+```
+
+Cấu hình mẫu dùng `LLM_PROVIDER=api`, `LLM_API_MODEL=gpt-5.4-mini` và playbook không cần Ollama/GPU. Có thể đổi model, endpoint, giới hạn token và reasoning effort trong `.env`. Python tự nạp file này; biến môi trường của shell được ưu tiên. Không có cấu hình thì demo vẫn dùng `stub`.
+
+Xem [hướng dẫn API online](API_ADAPTER.md) để chạy Python, kiểm tra cấu hình và gọi thử bằng dữ liệu giả (`python -m llm_worker.smoke_test --live`).
 
 ## 1. Sơ đồ giao tiếp
 
@@ -94,8 +106,8 @@ Mỗi queue gồm `:ready` (ZSET), `:processing` (HASH, có deadline) và `:dead
 |---|---|---|
 | `scoring_worker/pipeline/inference.py` | xác suất giả theo công thức | nạp model + calibrator từ Model Store |
 | `scoring_worker/pipeline/features.py` | vài đặc trưng đơn giản (đã query lịch sử đúng `t_history < t_current`) | đặc trưng thật cho mô hình |
-| `llm_worker/llm_client.py` | `StubLLMClient` | client gọi API/local LLM (giữ `LLMClient.generate`) |
-| `llm_worker/rag.py` | 4 đoạn playbook giả | truy vấn Vector Index |
+| `llm_worker/llm_client.py`, `api_client.py` | API online, Ollama hoặc stub qua `LLM_PROVIDER` | cấu hình model/endpoint; đánh giá trên case đại diện |
+| `llm_worker/rag.py` | playbook được phê duyệt cho API; semantic retrieval cho Ollama; stub cho demo | mở rộng retrieval khi KB lớn hơn |
 | `llm_worker/grounding.py` | kiểm tra citation ∈ ngữ cảnh RAG | kiểm tra số liệu, chống ảo giác sâu hơn |
 | `analyst_api/auth.py` | user cứng trong code | bảng `users` + băm mật khẩu |
 
