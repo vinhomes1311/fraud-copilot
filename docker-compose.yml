@@ -51,6 +51,29 @@ services:
       <<: *app-env
       SERVICE_NAME: scoring-worker
       METRICS_PORT: "9101"
+      MODEL_ARTIFACT_PATH: ${MODEL_ARTIFACT_PATH:-/app/data/models/fraud_xgboost.joblib}
+    volumes:
+      - ./data:/app/data
+
+  model-service:
+    <<: *python-service
+    command: uvicorn model_service.main:app --host 0.0.0.0 --port 8010
+    environment:
+      <<: *app-env
+      SERVICE_NAME: model-service
+      MODEL_ARTIFACT_PATH: ${MODEL_ARTIFACT_PATH:-/app/data/models/fraud_xgboost.joblib}
+    volumes:
+      - ./data:/app/data
+
+  ml-pipeline:
+    build:
+      context: .
+    profiles: ["training"]
+    command: python -m ml_pipeline --config ml_pipeline/config.json
+    environment:
+      ML_CONFIG_PATH: ${ML_CONFIG_PATH:-ml_pipeline/config.json}
+    volumes:
+      - ./data:/app/data
 
   llm-worker:
     <<: *python-service

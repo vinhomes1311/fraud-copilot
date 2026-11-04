@@ -41,6 +41,8 @@ class Settings:
     ml_visibility_timeout_s: float = _f("ML_VISIBILITY_TIMEOUT_S", 10.0)
     ml_max_attempts: int = _i("ML_MAX_ATTEMPTS", 3)
     threshold_cache_ttl_s: float = _f("THRESHOLD_CACHE_TTL_S", 30.0)
+    model_artifact_path: str = _s("MODEL_ARTIFACT_PATH", "data/models/fraud_xgboost.joblib")
+    model_required: bool = _s("MODEL_REQUIRED", "true").lower() == "true"
 
     # Hàng đợi LLM (Cold Path)
     llm_concurrency: int = _i("LLM_CONCURRENCY", 2)

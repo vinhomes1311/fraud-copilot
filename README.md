@@ -93,4 +93,54 @@ Mỗi queue gồm `:ready` (ZSET), `:processing` (HASH, có deadline) và `:dead
 
 Để thử các đường lỗi: `LLM_STUB_FAIL_RATE=0.5` (circuit breaker, FAILED_TIMEOUT) · `--fault-rate 0.1` ở simulator (MANUAL_FALLBACK_UNSCORED) · tăng `--tps` để thấy 429 backpressure.
 
+## 6. ML pipeline thật: preprocessing, training và serving
 
+Notebook đã được chuyển thành package `ml_pipeline` với các hàm độc lập:
+
+- `read_csv_safely` và `validate_schema`: kiểm tra file, cột bắt buộc và timestamp.
+- `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
+- `chronological_split`: chia train/validation/test không làm rò rỉ tương lai.
+- `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
+
+Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.
+
+Chạy toàn bộ DAG preprocessing -> training -> evaluation -> artifact:
+
+```bash
+python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Hoặc chạy profile Docker:
+
+```bash
+docker compose --profile training run --rm ml-pipeline
+```
+
+Để demo toàn bộ luồng bằng dữ liệu Kaggle, phát lại test set (nhãn chỉ được
+ghi vào `data/labels.csv`, không gửi vào hệ thống):
+
+```bash
+python -m simulator.replay --csv data/fraudTest.csv --tps 10 --limit 500
+```
+
+Các giao dịch đi qua scoring worker bằng artifact đã train; case Medium/High
+sẽ tiếp tục được đưa sang LLM worker để tạo brief.
+
+Artifact được ghi vào `data/models/fraud_xgboost.joblib`, metadata lineage vào file `.json` cạnh artifact. Scoring worker và `model-service` đều nạp cùng artifact qua `MODEL_ARTIFACT_PATH`; nếu artifact thiếu hoặc hỏng, request sẽ lỗi rõ ràng và worker chuyển sang retry/manual fallback, không âm thầm dùng heuristic.
+
+File [dvc.yaml](dvc.yaml) cung cấp stage `train` để version hóa đồng bộ input data, config, processed splits và model outputs khi team dùng DVC remote:
+
+```bash
+dvc repro
+dvc push
+```
+
+Inference service nội bộ:
+
+```bash
+curl -X POST http://localhost:8010/v1/predict \
+  -H "content-type: application/json" \
+  -d '{"features":{"amt":120.5,"transaction_hour":23,"trans_count_24h":2}}'
+```
+
+`model-service:8010/metrics` và các metric `fraud_inference_*`, `fraud_stage_seconds` được Prometheus scrape. Có thể kích hoạt workflow theo cron/Task Scheduler bằng lệnh `python -m ml_pipeline`; trigger sự kiện có dữ liệu mới chỉ cần gọi cùng lệnh sau khi file input được cập nhật. Nên lưu `data/models/*.joblib` và file metadata trong DVC/object storage ở môi trường production thay vì commit binary vào Git.

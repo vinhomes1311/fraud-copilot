@@ -1,0 +1,32 @@
+{
+  "data": {
+    "train_file": "data/fraudTrain.csv",
+    "test_file": "data/fraudTest.csv",
+    "single_file": "data/creditcard_transactions.csv",
+    "processed_dir": "data/processed",
+    "target": "is_fraud"
+  },
+  "split": {
+    "train_ratio": 0.7,
+    "validation_ratio": 0.15
+  },
+  "model": {
+    "artifact_path": "data/models/fraud_xgboost.joblib",
+    "random_state": 42,
+    "n_estimators": 1000,
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 1,
+    "reg_lambda": 1.0,
+    "early_stopping_rounds": 100,
+    "device": "cpu"
+  },
+  "evaluation": {
+    "threshold_min": 0.05,
+    "threshold_max": 0.95,
+    "threshold_step": 0.05,
+    "top_fraction": 0.01
+  }
+}

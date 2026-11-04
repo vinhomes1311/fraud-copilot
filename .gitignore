@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .env
 data/*.csv
+.pytest_cache/
+data/processed/
+data/models/
+*.joblib
