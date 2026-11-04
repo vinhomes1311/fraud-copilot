@@ -6,7 +6,7 @@
 
 Ví dụ:
   python -m simulator.replay --url http://localhost:8080 --tps 10 --limit 500
-  python -m simulator.replay --csv data/fraudTrain.csv --tps 50 --fault-rate 0.02
+  python -m simulator.replay --csv data/fraudTrain.csv --tps 10 --fault-rate 0.02
 """
 from __future__ import annotations
 

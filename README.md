@@ -71,6 +71,12 @@ curl http://localhost:8080/healthz
 
 Dashboard mở tại <http://localhost:8080/>.
 
+Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test với tốc độ 10 giao dịch/giây
+sau khi đăng nhập; nút **Dừng simulator** có thể dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
+nhưng chỉ MEDIUM/HIGH được tạo brief. Mục Analytics chỉ hiển thị MEDIUM/HIGH,
+được sắp xếp theo xác suất giảm dần; chọn một dòng để xem chi tiết và brief nếu
+có.
+
 Chạy simulator với dữ liệu tổng hợp:
 
 ```bash
@@ -171,6 +177,14 @@ Tài khoản demo:
 | `lead1` | `lead123` | Risk Lead |
 | `admin` | `admin123` | Admin |
 
+Người dùng mới có thể đăng ký trực tiếp trên màn hình đăng nhập hoặc gọi
+`POST /api/v1/auth/register` với `username`, `display_name` và `password`.
+Tài khoản đăng ký mới cần thêm email, được tạo ở vai trò Analyst; mật khẩu được
+lưu dưới dạng hash scrypt và phải xác thực email qua SMTP trước khi đăng nhập.
+Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu và nút Google OAuth. Để bật hai
+luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*` trong `.env`; secret không
+được đưa vào source code.
+
 Lưu `access_token` từ response rồi dùng header `Authorization: Bearer <token>`.
 Các mật khẩu trên chỉ dành cho demo; production cần thay bằng user store và
 mật khẩu đã hash.
@@ -180,6 +194,11 @@ mật khẩu đã hash.
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/api/v1/auth/login` | Public | Đăng nhập, nhận JWT |
+| `POST` | `/api/v1/auth/register` | Public | Tạo tài khoản Analyst và nhận JWT |
+| `GET` | `/api/v1/auth/verify` | Public | Xác thực email |
+| `POST` | `/api/v1/auth/forgot-password` | Public | Gửi email đặt lại mật khẩu |
+| `POST` | `/api/v1/auth/reset-password` | Public | Đặt mật khẩu mới bằng token |
+| `GET` | `/api/v1/auth/google` | Public | Bắt đầu Google OAuth |
 | `POST` | `/api/v1/transactions` | `X-API-Key` | Queue giao dịch để chấm điểm |
 | `GET` | `/api/v1/transactions/{txn_id}/result` | API key hoặc JWT | Lấy kết quả bất đồng bộ |
 | `GET` | `/api/v1/cases` | Analyst, Risk Lead | Review queue, High trước |
@@ -219,7 +238,7 @@ Simulator không gửi nhãn `is_fraud` vào API; nhãn được ghi riêng vào
 
 ```bash
 python -m simulator.replay --url http://localhost:8080 --tps 10 --limit 500
-python -m simulator.replay --csv data/fraudTrain.csv --tps 50 \
+python -m simulator.replay --csv data/fraudTrain.csv --tps 10 \
   --limit 1000 --fault-rate 0.02 --concurrency 100
 ```
 
@@ -319,7 +338,7 @@ python -m pytest tests/test_queue_integration.py -q
 | `llm_worker/llm_client.py` | `StubLLMClient` | Client LLM thật/local |
 | `llm_worker/rag.py` | Bốn đoạn playbook mẫu | Vector index/RAG thật |
 | `llm_worker/grounding.py` | Kiểm tra citation cơ bản | Kiểm chứng số liệu và grounding sâu hơn |
-| `analyst_api/auth.py` | User hard-code | User table và password hash |
+| `analyst_api/auth.py` | User table | Password hash scrypt và JWT |
 
 Khi thay implementation, giữ nguyên interface và schema trong
 `fraud_common/schemas.py` để không phá vỡ contract giữa các service.
@@ -338,3 +357,54 @@ prometheus/        Prometheus scrape config
 static/            dashboard frontend
 tests/             unit test và Redis queue integration test
 ```
+## 6. ML pipeline thật: preprocessing, training và serving
+
+Notebook đã được chuyển thành package `ml_pipeline` với các hàm độc lập:
+
+- `read_csv_safely` và `validate_schema`: kiểm tra file, cột bắt buộc và timestamp.
+- `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
+- `chronological_split`: chia train/validation/test không làm rò rỉ tương lai.
+- `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
+
+Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.
+
+Chạy toàn bộ DAG preprocessing -> training -> evaluation -> artifact:
+
+```bash
+python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Hoặc chạy profile Docker:
+
+```bash
+docker compose --profile training run --rm ml-pipeline
+```
+
+Để demo toàn bộ luồng bằng dữ liệu Kaggle, phát lại test set (nhãn chỉ được
+ghi vào `data/labels.csv`, không gửi vào hệ thống):
+
+```bash
+python -m simulator.replay --csv data/fraudTest.csv --tps 10 --limit 500
+```
+
+Các giao dịch đi qua scoring worker bằng artifact đã train; case Medium/High
+sẽ tiếp tục được đưa sang LLM worker để tạo brief.
+
+Artifact được ghi vào `data/models/fraud_xgboost.joblib`, metadata lineage vào file `.json` cạnh artifact. Scoring worker và `model-service` đều nạp cùng artifact qua `MODEL_ARTIFACT_PATH`; nếu artifact thiếu hoặc hỏng, request sẽ lỗi rõ ràng và worker chuyển sang retry/manual fallback, không âm thầm dùng heuristic.
+
+File [dvc.yaml](dvc.yaml) cung cấp stage `train` để version hóa đồng bộ input data, config, processed splits và model outputs khi team dùng DVC remote:
+
+```bash
+dvc repro
+dvc push
+```
+
+Inference service nội bộ:
+
+```bash
+curl -X POST http://localhost:8010/v1/predict \
+  -H "content-type: application/json" \
+  -d '{"features":{"amt":120.5,"transaction_hour":23,"trans_count_24h":2}}'
+```
+
+`model-service:8010/metrics` và các metric `fraud_inference_*`, `fraud_stage_seconds` được Prometheus scrape. Có thể kích hoạt workflow theo cron/Task Scheduler bằng lệnh `python -m ml_pipeline`; trigger sự kiện có dữ liệu mới chỉ cần gọi cùng lệnh sau khi file input được cập nhật. Nên lưu `data/models/*.joblib` và file metadata trong DVC/object storage ở môi trường production thay vì commit binary vào Git.

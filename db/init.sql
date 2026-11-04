@@ -4,6 +4,25 @@
 --   llm-worker     : case_briefs (cập nhật kết quả)
 --   audit_log      : append-only, mọi service được INSERT
 
+CREATE TABLE users (
+  user_id       BIGSERIAL PRIMARY KEY,
+  username      TEXT NOT NULL UNIQUE,
+  email         TEXT NOT NULL UNIQUE,
+  display_name  TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'analyst',
+  active        BOOLEAN NOT NULL DEFAULT true,
+  email_verified BOOLEAN NOT NULL DEFAULT false,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE auth_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ
+);
+
 CREATE TABLE threshold_configs (
   version     SERIAL PRIMARY KEY,
   low_max     NUMERIC(5,4) NOT NULL,   -- prob <  low_max  -> LOW

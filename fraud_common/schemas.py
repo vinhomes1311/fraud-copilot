@@ -117,6 +117,7 @@ class TransactionValidated(BaseModel):
     city: str | None = None
     state: str | None = None
     city_pop: int | None = None
+    dob: datetime | None = None
     unix_time: int | None = None
 
     @field_validator("cc_num", "trans_num", mode="before")

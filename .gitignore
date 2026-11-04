@@ -5,3 +5,5 @@ __pycache__/
 data/*.csv
 .pytest_cache/
 data/processed/
+data/models/
+*.joblib

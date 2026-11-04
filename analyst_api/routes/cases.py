@@ -57,7 +57,7 @@ async def list_cases(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """Review Queue: High trước, rồi theo xác suất giảm dần. Risk Lead mặc định chỉ thấy ESCALATED."""
+    """Review Queue: newest transactions first. Risk Lead defaults to ESCALATED."""
     if user.role == Role.RISK_LEAD and status is None:
         status = CaseStatus.ESCALATED
     rows = await state.db.rfetch(
@@ -67,10 +67,52 @@ async def list_cases(
            JOIN scoring_results s ON s.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
            WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)
-           ORDER BY (c.risk_level = 'HIGH') DESC, s.calibrated_prob DESC, c.created_at
+           ORDER BY c.created_at DESC, c.case_id DESC
            LIMIT $3 OFFSET $4""",
         risk_level, status, limit, offset)
-    return {"items": [dict(r) for r in rows], "limit": limit, "offset": offset}
+    total = await state.db.rfetchval(
+        """SELECT count(*)
+           FROM cases c
+           WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)""",
+        risk_level, status)
+    summary = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (WHERE c.status <> 'CLOSED' AND c.risk_level IN ('MEDIUM', 'HIGH')) AS open_count,
+                 count(*) FILTER (WHERE c.status <> 'CLOSED' AND c.risk_level = 'HIGH') AS high_count,
+                 coalesce(avg(s.calibrated_prob), 0) AS average_probability
+                 ,coalesce(avg(s.latency_ms) FILTER (WHERE s.status = 'SCORED'), 0) AS scoring_latency_ms
+          FROM cases c
+          JOIN scoring_results s ON s.txn_id = c.txn_id""")
+    return {
+        "items": [dict(r) for r in rows],
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "open_count": summary["open_count"],
+        "high_count": summary["high_count"],
+        "average_probability": summary["average_probability"],
+        "scoring_latency_ms": summary["scoring_latency_ms"],
+    }
+
+
+@router.get("/analytics/transactions")
+async def list_analytics_transactions(
+    user: User = Depends(any_reviewer),
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    rows = await state.db.rfetch(
+        """SELECT c.case_id, c.txn_id, c.risk_level, c.status, c.created_at,
+                  s.calibrated_prob, s.model_version, b.status AS brief_status
+           FROM cases c
+           JOIN scoring_results s ON s.txn_id = c.txn_id
+           LEFT JOIN case_briefs b ON b.case_id = c.case_id
+        WHERE c.risk_level IN ('HIGH', 'MEDIUM')
+        ORDER BY s.calibrated_prob DESC, c.created_at
+           LIMIT $1 OFFSET $2""",
+        limit, offset)
+    total = await state.db.rfetchval(
+        "SELECT count(*) FROM cases WHERE risk_level IN ('HIGH', 'MEDIUM')")
+    return {"items": [dict(r) for r in rows], "limit": limit, "offset": offset, "total": total}
 
 
 @router.get("/{case_id}")
@@ -114,8 +156,9 @@ async def create_manual_case(body: ManualCaseRequest, request: Request,
             conn, actor=user.username, event="case.manual_created", entity="case",
             entity_id=case_id, detail={"txn_id": body.txn_id, "reason": body.reason},
             trace_id=trace_id)
-    await enqueue_brief(case_id=case_id, txn_id=body.txn_id, level=body.risk_level,
-                        trace_id=trace_id, requested_by=user.username)
+    if body.risk_level != RiskLevel.LOW:
+        await enqueue_brief(case_id=case_id, txn_id=body.txn_id, level=body.risk_level,
+                            trace_id=trace_id, requested_by=user.username)
     return {"case_id": case_id, "txn_id": body.txn_id, "status": CaseStatus.OPEN}
 
 

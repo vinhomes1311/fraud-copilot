@@ -1,0 +1,11 @@
+stages:
+  train:
+    cmd: python -m ml_pipeline --config ml_pipeline/config.json
+    deps:
+      - ml_pipeline
+      - ml_pipeline/config.json
+      - data/fraudTrain.csv
+      - data/fraudTest.csv
+    outs:
+      - data/processed
+      - data/models

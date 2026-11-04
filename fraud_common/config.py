@@ -33,6 +33,15 @@ class Settings:
     jwt_ttl_s: int = _i("JWT_TTL_S", 8 * 3600)
     simulator_api_key: str = _s("SIMULATOR_API_KEY", "dev-sim-key")
     pii_salt: str = _s("PII_SALT", "dev-salt")
+    app_base_url: str = _s("APP_BASE_URL", "http://localhost:8080")
+    smtp_host: str = _s("SMTP_HOST", "")
+    smtp_port: int = _i("SMTP_PORT", 587)
+    smtp_username: str = _s("SMTP_USERNAME", "")
+    smtp_password: str = _s("SMTP_PASSWORD", "")
+    smtp_from: str = _s("SMTP_FROM", "")
+    google_client_id: str = _s("GOOGLE_CLIENT_ID", "")
+    google_client_secret: str = _s("GOOGLE_CLIENT_SECRET", "")
+    google_redirect_uri: str = _s("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/v1/auth/google/callback")
 
     # Hàng đợi ML (Hot Path)
     max_ml_queue_depth: int = _i("MAX_ML_QUEUE_DEPTH", 5000)   # vượt -> API trả 429
@@ -41,6 +50,8 @@ class Settings:
     ml_visibility_timeout_s: float = _f("ML_VISIBILITY_TIMEOUT_S", 10.0)
     ml_max_attempts: int = _i("ML_MAX_ATTEMPTS", 3)
     threshold_cache_ttl_s: float = _f("THRESHOLD_CACHE_TTL_S", 30.0)
+    model_artifact_path: str = _s("MODEL_ARTIFACT_PATH", "data/models/fraud_xgboost.joblib")
+    model_required: bool = _s("MODEL_REQUIRED", "true").lower() == "true"
 
     # Hàng đợi LLM (Cold Path)
     llm_concurrency: int = _i("LLM_CONCURRENCY", 2)
