@@ -337,13 +337,14 @@ python -m pytest tests/test_queue_integration.py -q
 
 Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tự chạy khi có
 Pull Request, push vào `main`/`master`, hoặc được kích hoạt thủ công trong
-GitHub Actions. Workflow gồm hai job:
+GitHub Actions. Workflow gồm bốn job:
 
-1. **Python tests**: tạo Redis và PostgreSQL tạm thời, compile mã Python, rồi
-   chạy toàn bộ pytest bao gồm queue và brief pipeline integration tests.
-2. **Docker build and smoke test**: kiểm tra Compose, build các image chính,
-   khởi động API stack và gọi `GET /healthz`; nếu endpoint không trả HTTP 2xx,
-   workflow thất bại và in log để tìm lỗi.
+1. **Code quality**: cài dependency và kiểm tra toàn bộ Python source compile được.
+2. **Unit and integration tests**: tạo Redis và PostgreSQL tạm thời rồi chạy
+   toàn bộ pytest, bao gồm queue và brief pipeline integration tests.
+3. **Docker build**: kiểm tra Compose và build các image chính.
+4. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
+   endpoint không trả HTTP 2xx, workflow thất bại và in log để tìm lỗi.
 
 Để trình diễn với giảng viên:
 
