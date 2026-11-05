@@ -357,29 +357,6 @@ python -m ml_pipeline.evaluate_artifact \
   --output data/models/fraud_xgboost.evaluation.json
 ```
 
-Lệnh trên dùng `.joblib` để dự đoán lại test set, sau đó ghi metric thực tế vào
-file JSON. Nếu PR-AUC, recall, precision hoặc F1 thấp hơn ngưỡng, lệnh trả
-exit code khác 0. CI dùng [`reports/ml-model-baseline.json`](reports/ml-model-baseline.json)
-để gate ổn định vì dataset và model binary đang nằm trong `.gitignore`; khi
-đã có artifact storage, có thể thay bước baseline bằng lệnh evaluator ở trên.
-
-Để trình diễn với giảng viên:
-
-1. Push code lên GitHub hoặc tạo Pull Request.
-2. Mở tab **Actions** → chọn **Fraud Copilot CI**.
-3. Mở một workflow run để xem từng bước, số test pass/fail, Docker build và
-   kết quả health check.
-
-Kết quả local tương đương có thể chạy bằng:
-
-```bash
-python -m pytest -q
-docker compose config --quiet
-docker compose up -d --build redis postgres pgbouncer-write pgbouncer-read analyst-api nginx
-curl http://localhost:8080/healthz
-docker compose down -v
-```
-
 ## Cơ chế xử lý lỗi
 
 - Giao dịch trùng trong một giờ trả `200 DUPLICATE`.
