@@ -870,8 +870,7 @@ tbody tr:hover { background: #fff8f9; }
 .risk-overview-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .review-workflow { font-size: 12px; color: #65616a; }
 .transaction-amount { margin-top: 22px; font: 700 38px "Space Grotesk", sans-serif; color: #28262d; letter-spacing: -1px; }
-.currency-note { margin: 4px 0 16px; font-size: 11px; color: #76717b; }
-.transaction-merchant { margin: 0 0 7px; color: #302d35; font-weight: 600; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.transaction-merchant { margin: 12px 0 7px; color: #302d35; font-weight: 600; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
 .transaction-category { display: inline-block; border-radius: 6px; padding: 4px 8px; background: #f1eff3; color: #645e6c; font-size: 12px; }
 .risk-estimate { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 14px 16px; background: #f7f6f8; border: 1px solid #ebe8ee; border-radius: 12px; color: #5a545f; font-size: 13px; }
 .risk-estimate strong { color: #302b35; font: 700 24px "Space Grotesk", sans-serif; white-space: nowrap; }

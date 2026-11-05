@@ -66,7 +66,6 @@ window.RiskReview = (() => {
       <div class="risk-overview-status"><span class="risk risk-${risk.toLowerCase()}">${escape(riskLabels[risk] || "Risk level unavailable")}</span>
         <span class="review-workflow">${escape(workflowLabels[item.status] || item.status || "Status unavailable")}</span></div>
       <div class="transaction-amount">${number(tx.amt)}</div>
-      <p class="currency-note">Currency not provided</p>
       <p class="transaction-merchant">${escape(tx.merchant || "Merchant unavailable")}</p>
       <span class="transaction-category">${escape(tx.category || "Category unavailable")}</span>
       <div class="risk-estimate"><span>Fraud probability</span><strong>${probability(item.calibrated_prob)}</strong></div>

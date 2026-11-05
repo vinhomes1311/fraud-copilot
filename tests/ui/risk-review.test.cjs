@@ -36,7 +36,7 @@ test('overview uses dashboard number formatting, retains copy target and invents
   assert.match(html, /High priority/);
   assert.match(html, /Open/);
   assert.match(html, /ab4b379d…126d72/);
-  assert.match(html, /Currency not provided/);
+  assert.doesNotMatch(html, /Currency not provided/);
   assert.doesNotMatch(html, /USD|VND|₫|\$/);
 });
 
