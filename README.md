@@ -462,6 +462,9 @@ db/                PostgreSQL schema khởi tạo
 nginx/             gateway và routing
 prometheus/        Prometheus scrape config
 static/            dashboard frontend
+static/media/      media assets served by the dashboard
+docs/              integration guides, including [LLM integration](docs/LLM_INTEGRATION.md)
+notebooks/         exploratory data preprocessing and ML notebooks
 tests/             unit test, API mock và PostgreSQL/Redis workflow integration test
 ```
 ## 6. ML pipeline thật: preprocessing, training và serving

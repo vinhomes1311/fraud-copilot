@@ -96,7 +96,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 @app.get("/static/dog-tracker.mp4", include_in_schema=False)
 async def dog_tracker_video():
-    video_path = Path(__file__).resolve().parent.parent / "gemini_generated_video_91033165.mp4"
+    video_path = Path(__file__).resolve().parent.parent / "static" / "media" / "dog-tracker.mp4"
     return FileResponse(video_path, media_type="video/mp4", headers={"Cache-Control": "public, max-age=86400"})
 
 
