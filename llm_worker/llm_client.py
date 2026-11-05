@@ -11,7 +11,7 @@ from fraud_common.schemas import BriefContent, ChecklistItem, Citation
 
 from .rag import Chunk
 
-PROMPT_VERSION = "extractive-team-v1"
+PROMPT_VERSION = "extractive-kaggle-sparkov-v2"
 
 
 @dataclass

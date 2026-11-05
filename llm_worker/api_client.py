@@ -71,6 +71,18 @@ class APIClient(OllamaClient):
     def model_name(self):
         return self.model
 
+    def selection_schema(self, evidence, selected_chunks):
+        # Preserve the hosted provider's existing evidence-selection contract.
+        schema = super().selection_schema(evidence, selected_chunks)
+        schema['required'] = ['evidence_ids', 'checklist_ids']
+        schema['properties']['evidence_ids'] = {
+            'type': 'array', 'minItems': len(evidence), 'maxItems': len(evidence),
+            'uniqueItems': True, 'items': {'type': 'string', 'enum': list(evidence)}}
+        return schema
+
+    def parse_selection(self, content, evidence):
+        return json.loads(content)
+
     async def chat(self, model, schema, evidence, selected_chunks):
         # Some strict schema implementations do not support uniqueItems or array
         # length constraints. Local validation still enforces all these rules.

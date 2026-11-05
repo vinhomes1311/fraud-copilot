@@ -69,6 +69,8 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('SECRET-KEY', req.content.decode())
         self.assertEqual(body['response_format']['type'], 'json_schema')
         self.assertTrue(body['response_format']['json_schema']['strict'])
+        self.assertEqual(set(body['response_format']['json_schema']['schema']['required']),
+                         {'evidence_ids', 'checklist_ids'})
         self.assertEqual(body['max_completion_tokens'], 1024)
         self.assertFalse(body['store'])
         self.assertNotIn('reasoning_effort', body)

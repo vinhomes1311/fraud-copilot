@@ -316,6 +316,12 @@ Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
 
 ## Test
 
+So sánh hiệu năng Ollama local và API online bằng bộ case chung:
+xem [BENCHMARKS.md](BENCHMARKS.md). Lệnh mặc định chỉ in kế hoạch;
+`--mock` chạy offline, `--live` mới gọi model thật.
+Phạm vi LLM/RAG theo tài liệu kiến trúc và cách đo retrieval + generation được
+đối chiếu tại [LLM_BENCHMARK_ARCHITECTURE.md](LLM_BENCHMARK_ARCHITECTURE.md).
+
 Test logic không cần hạ tầng:
 
 ```bash
@@ -365,6 +371,9 @@ Các bài cần DB/Redis sẽ tự skip khi chưa cấu hình dịch vụ tươn
   hiển thị cho analyst đã được che PII.
 
 ## Các phần cần thay thế
+
+Playbook LLM/RAG đã được điều chỉnh cho dataset `kartik2112/fraud-detection`.
+Xem [ánh xạ cột, nguồn và giới hạn suy luận](knowledge/KAGGLE_DATASET_PLAYBOOK.md).
 
 | File | Hiện tại | Cần thay bằng |
 |---|---|---|
