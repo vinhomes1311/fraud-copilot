@@ -334,6 +334,30 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
 python -m pytest tests/test_queue_integration.py -q
 ```
 
+### Kiểm thử tự động trên CI/CD
+
+Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tự chạy khi có
+Pull Request, push vào `main`/`master`, hoặc được kích hoạt thủ công trong
+GitHub Actions. Workflow gồm bốn job:
+
+1. **Code quality**: cài dependency và kiểm tra toàn bộ Python source compile được.
+2. **Unit and integration tests**: tạo Redis và PostgreSQL tạm thời rồi chạy
+   toàn bộ pytest, bao gồm queue và brief pipeline integration tests.
+3. **Docker build**: kiểm tra Compose và build các image chính.
+4. **ML quality gate**: kiểm tra PR-AUC/precision/recall/F1 của model baseline
+   đã commit và upload report làm artifact.
+5. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
+   endpoint không trả HTTP 2xx, workflow thất bại và in log để tìm lỗi.
+
+Đánh giá lại model đã có mà không train lại:
+
+```bash
+python -m ml_pipeline.evaluate_artifact \
+  --artifact data/models/fraud_xgboost.joblib \
+  --test-data data/fraudTest.csv \
+  --output data/models/fraud_xgboost.evaluation.json
+```
+
 ## Cơ chế xử lý lỗi
 
 - Giao dịch trùng trong một giờ trả `200 DUPLICATE`.
