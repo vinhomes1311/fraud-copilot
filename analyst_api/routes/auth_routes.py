@@ -21,7 +21,7 @@ router = APIRouter(tags=["auth"])
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=7, max_length=128)
 
 
 class RegisterRequest(LoginRequest):
@@ -34,7 +34,7 @@ class EmailRequest(BaseModel):
 
 class ResetRequest(BaseModel):
     token: str = Field(min_length=20)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=7, max_length=128)
 
 
 def _token() -> tuple[str, str]:

@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 
 import pytest
+from pydantic import ValidationError
 
 from analyst_api.auth import verify_password
-from analyst_api.routes.auth_routes import RegisterRequest, register
+from analyst_api.routes.auth_routes import RegisterRequest, ResetRequest, register
 from analyst_api.state import state
 
 
@@ -34,7 +35,7 @@ async def test_register_creates_email_optional_user_and_returns_login_token():
     state.db = database
     try:
         assert set(RegisterRequest.model_fields) == {"username", "password"}
-        body = RegisterRequest(username="new-analyst", password="secure-pass-123")
+        body = RegisterRequest.model_validate({"username": "new-analyst", "password": "analyst123"})
         result = await register(body)
     finally:
         state.db = previous_db
@@ -45,3 +46,11 @@ async def test_register_creates_email_optional_user_and_returns_login_token():
     assert result["access_token"]
     assert result["token_type"] == "bearer"
     assert result["role"] == "analyst"
+
+
+def test_password_models_allow_7_char_passwords():
+    RegisterRequest.model_validate({"username": "new-analyst", "password": "lead123"})
+    ResetRequest.model_validate({"token": "x" * 20, "password": "lead123"})
+
+    with pytest.raises(ValidationError):
+        RegisterRequest.model_validate({"username": "new-analyst", "password": "lead12"})
