@@ -37,7 +37,7 @@ def test_brief_pipeline():
         try:
             await admin.execute(f'CREATE SCHEMA "{schema}"')
             await admin.execute(f'SET search_path TO "{schema}"')
-            await admin.execute((Path(__file__).resolve().parents[1] / "db/init.sql").read_text(encoding="utf-8"))
+            await admin.execute((Path(__file__).resolve().parents[2] / "db/init.sql").read_text(encoding="utf-8"))
             db.write = await asyncpg.create_pool(os.environ["FRAUD_TEST_DB_URL"], min_size=1, max_size=2,
                                                 init=_init_conn, server_settings={"search_path": schema})
             db.read = db.write

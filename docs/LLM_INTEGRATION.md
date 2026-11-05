@@ -87,7 +87,7 @@ An opt-in integration test is also provided:
 
     $env:FRAUD_TEST_DB_URL = 'postgresql://USER:PASSWORD@localhost:5432/TEST_DATABASE'
     $env:FRAUD_TEST_REDIS_URL = 'redis://localhost:6379/15'
-    python -m pytest tests/test_brief_pipeline_integration.py -v
+    python -m pytest tests/unit_integration/test_brief_pipeline_integration.py -v
 
 Use disposable test services and a direct PostgreSQL connection. The test creates
 and removes a uniquely named schema and Redis queue, exercising enqueue, READY,

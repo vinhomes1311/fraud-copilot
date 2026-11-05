@@ -462,7 +462,7 @@ Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
 Test logic không cần hạ tầng:
 
 ```bash
-python -m pytest tests/test_logic.py -q
+python -m pytest tests/unit_integration/test_logic.py -q
 ```
 
 Test toàn bộ:
@@ -471,12 +471,12 @@ Test toàn bộ:
 python -m pytest -q
 ```
 
-`tests/test_queue_integration.py` sẽ tự skip nếu Redis chưa chạy. Để chạy test
+`tests/unit_integration/test_queue_integration.py` sẽ tự skip nếu Redis chưa chạy. Để chạy test
 integration, mở Redis bằng:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
-python -m pytest tests/test_queue_integration.py -q
+python -m pytest tests/unit_integration/test_queue_integration.py -q
 ```
 
 ### Kiểm thử tự động trên CI/CD
@@ -500,7 +500,7 @@ Test transaction thật qua simulator cần một stack đang chạy và đượ
 ```powershell
 $env:FRAUD_E2E_URL = "http://localhost:8080"
 $env:SIMULATOR_API_KEY = "dev-sim-key"
-python -m pytest tests/test_transaction_e2e.py -q
+python -m pytest tests/e2e_smoke/test_transaction_e2e.py -q
 ```
 
 Test này dùng chính `simulator.replay`, gửi transaction qua Nginx/Analyst API,
@@ -557,7 +557,7 @@ static/            dashboard frontend
 static/media/      media assets served by the dashboard
 docs/              integration guides, including [LLM integration](docs/LLM_INTEGRATION.md)
 notebooks/         exploratory data preprocessing and ML notebooks
-tests/             unit test và Redis queue integration test
+tests/             test được chia theo các job CI: unit_integration, ml_evaluation, e2e_smoke
 ```
 ## 6. ML pipeline thật: preprocessing, training và serving
 

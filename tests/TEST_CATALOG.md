@@ -8,13 +8,13 @@ không phải là test passed.
 
 ## Tổng quan
 
-- **12 file test**.
+- **12 file test**, được chia theo 5 job CI.
 - **43 hàm test**.
 - Có kiểm thử unit, integration, SQL lifecycle, queue, ML và E2E.
 - Lần chạy gần nhất: `54 passed, 2 skipped, 1 warning`.
 - Các test parameterized trong `test_logic.py` chạy nhiều bộ dữ liệu khác nhau.
 
-## `test_logic.py`
+## `unit_integration/test_logic.py`
 
 Kiểm thử validation, routing, bảo mật PII và circuit breaker bằng dữ liệu trong
 bộ nhớ, không cần Redis hoặc PostgreSQL.
@@ -34,7 +34,7 @@ bộ nhớ, không cần Redis hoặc PostgreSQL.
 `test_validation_accepts_numeric_boundary_values` có 6 trường hợp.
 `test_validation_rejects_bad_data` có 4 trường hợp.
 
-## `test_ml_pipeline.py`
+## `ml_evaluation/test_ml_pipeline.py`
 
 Kiểm thử tạo feature và chia dữ liệu theo thời gian.
 
@@ -44,7 +44,7 @@ Kiểm thử tạo feature và chia dữ liệu theo thời gian.
 | `test_chronological_split_preserves_time_order` | Kiểm tra chia train/validation/test theo thời gian. | Mốc cuối train trước validation và mốc cuối validation trước test. | Dữ liệu bị xáo trộn gây leakage. |
 | `test_schema_rejects_missing_timestamp` | Kiểm tra timestamp là trường bắt buộc. | Thiếu timestamp phát sinh `ValueError`. | Dataframe thiếu timestamp vẫn qua schema. |
 
-## `test_local_integration.py`
+## `unit_integration/test_local_integration.py`
 
 Kiểm thử local RAG/LLM contract bằng Ollama request giả và dữ liệu mock.
 
@@ -57,7 +57,7 @@ Kiểm thử local RAG/LLM contract bằng Ollama request giả và dữ liệu 
 | `test_invalid_citation_rejected` | Kiểm tra citation không tồn tại bị từ chối. | Citation `FAKE` làm phát sinh `ValueError`. | Citation sai vẫn được chấp nhận. |
 | `test_embedding_dimension_rejected` | Kiểm tra embedding sai kích thước. | Vector sai dimension làm phát sinh `ValueError`. | Vector sai kích thước vẫn được sử dụng. |
 
-## `test_brief_processor.py`
+## `unit_integration/test_brief_processor.py`
 
 Kiểm thử failure path của Brief Worker với database, retriever và LLM được
 mock bằng `AsyncMock`.
@@ -71,7 +71,7 @@ mock bằng `AsyncMock`.
 | `test_token_budget_records_terminal_fallback` | Kiểm tra vượt token budget. | Job tạo fallback `rule_based`, trạng thái `FAILED` và ghi token usage. | Job retry vô hạn hoặc không ghi fallback. |
 | `test_visibility_timeout_is_classified_and_null_signals_supported` | Kiểm tra visibility timeout và `explanations=None`. | Trạng thái là `FAILED_TIMEOUT` và dữ liệu null không gây crash. | Timeout bị coi là success hoặc null gây lỗi. |
 
-## `test_generation_sql.py`
+## `unit_integration/test_generation_sql.py`
 
 Kiểm thử SQL lifecycle, generation fencing và deadline.
 
@@ -87,7 +87,7 @@ Kiểm thử SQL lifecycle, generation fencing và deadline.
 | `test_valid_stage_deadlines` | Kiểm tra deadline hợp lệ. | Cấu hình timeout hợp lệ được chấp nhận. | Cấu hình hợp lệ bị từ chối. |
 | `test_invalid_stage_deadlines` | Kiểm tra deadline không hợp lệ. | Các cấu hình sai phát sinh `ValueError`. | Cấu hình sai vẫn được chấp nhận. |
 
-## `test_queue_integration.py`
+## `unit_integration/test_queue_integration.py`
 
 Kiểm thử Redis queue thật với priority, acknowledgement, retry, dead-letter và
 reaper.
@@ -98,7 +98,7 @@ reaper.
 
 Test này **skip** nếu Redis tại `localhost:6379` không chạy.
 
-## `test_brief_pipeline_integration.py`
+## `unit_integration/test_brief_pipeline_integration.py`
 
 Kiểm thử luồng Redis → Brief Worker → PostgreSQL bằng database schema tạm và
 LLM/retriever stub.
@@ -110,7 +110,7 @@ LLM/retriever stub.
 Test này **skip** nếu thiếu `FRAUD_TEST_DB_URL` hoặc
 `FRAUD_TEST_REDIS_URL`.
 
-## `test_transaction_e2e.py`
+## `e2e_smoke/test_transaction_e2e.py`
 
 Kiểm thử transaction thật qua simulator, gateway/API, Redis, Scoring Worker và
 PostgreSQL; nếu transaction tạo case thì kiểm tra tiếp case và brief.
@@ -121,7 +121,7 @@ PostgreSQL; nếu transaction tạo case thì kiểm tra tiếp case và brief.
 
 Test này **skip** nếu chưa đặt `FRAUD_E2E_URL`.
 
-## `test_demo_simulator.py`
+## `unit_integration/test_demo_simulator.py`
 
 Kiểm thử state và runner của simulator bằng Redis giả.
 
@@ -130,7 +130,7 @@ Kiểm thử state và runner của simulator bằng Redis giả.
 | `test_simulator_controls_share_state_and_preserve_progress` | Kiểm tra start, set speed và stop dùng chung state. | Offset được giữ, `running`, `ever_started`, TPS và version thay đổi đúng. | State bị reset, offset đổi sai hoặc version không tăng. |
 | `test_simulator_runner_publishes_one_shared_batch` | Kiểm tra runner publish batch theo Redis state. | Batch có size/offset đúng, offset mới được cập nhật và lock được giải phóng. | Publish sai batch/offset hoặc lock còn sót. |
 
-## `test_case_outcomes.py`
+## `unit_integration/test_case_outcomes.py`
 
 Kiểm thử mapping kết quả điều tra và quyền reclassify case.
 
@@ -141,7 +141,7 @@ Kiểm thử mapping kết quả điều tra và quyền reclassify case.
 | `test_final_outcomes_can_be_reclassified_only_when_a_decision_is_in_history` | Kiểm tra reclassify khi có decision history. | Chỉ cho reclassify khi có quyết định trước đó. | Cho phép sai điều kiện history. |
 | `test_closed_and_simulated_cases_cannot_be_reclassified` | Kiểm tra case terminal không được reclassify. | `CLOSED` và `CONFIRMED_SIMULATED` bị từ chối. | Case terminal vẫn bị cập nhật. |
 
-## `test_case_summary.py`
+## `unit_integration/test_case_summary.py`
 
 Kiểm thử các chỉ số dashboard của review và analytics.
 
@@ -149,7 +149,7 @@ Kiểm thử các chỉ số dashboard của review và analytics.
 |---|---|---|---|
 | `test_review_and_analytics_return_consistent_dashboard_metrics` | So sánh open count, high count, average probability và latency. | Hai API trả cùng metrics; `open_count` đúng và query không lọc theo `risk_level`. | Metrics lệch hoặc query lọc sai. |
 
-## `test_auth_routes.py`
+## `unit_integration/test_auth_routes.py`
 
 Kiểm thử đăng ký analyst và phát hành token.
 
@@ -173,21 +173,21 @@ XFAIL   Test được phép thất bại theo chủ đích (hiện không dùng 
 python -m pytest -q
 
 # Test worker mock, không cần service ngoài
-python -m pytest tests/test_brief_processor.py -q
+python -m pytest tests/unit_integration/test_brief_processor.py -q
 
 # Bật Redis integration
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
-python -m pytest tests/test_queue_integration.py -q
+python -m pytest tests/unit_integration/test_queue_integration.py -q
 
 # Bật brief integration với PostgreSQL và Redis
 $env:FRAUD_TEST_DB_URL = "postgresql://fraud:fraud@localhost:5432/fraud"
 $env:FRAUD_TEST_REDIS_URL = "redis://localhost:6379/0"
-python -m pytest tests/test_brief_pipeline_integration.py -q
+python -m pytest tests/unit_integration/test_brief_pipeline_integration.py -q
 
 # Bật transaction E2E với gateway và các worker đang chạy
 $env:FRAUD_E2E_URL = "http://localhost:8080"
 $env:SIMULATOR_API_KEY = "dev-sim-key"
-python -m pytest tests/test_transaction_e2e.py -q
+python -m pytest tests/e2e_smoke/test_transaction_e2e.py -q
 ```
 
 Trong CI, job `tests` khởi động Redis và PostgreSQL bằng GitHub Actions
