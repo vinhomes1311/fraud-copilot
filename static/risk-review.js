@@ -110,7 +110,6 @@ window.RiskReview = (() => {
   function renderTechnicalDetails(item) {
     const rows = signalsFor(item).map((signal) => `<tr><th scope="row">${escape(signal.feature)}</th><td>${Number(signal.contribution) > 0 ? "+" : ""}${number(signal.contribution, 4)}</td></tr>`).join("");
     return `<details class="model-details"><summary>Chi tiết mô hình</summary><div class="model-details-content">
-      <p>Đóng góp vào điểm mô hình, không phải xác suất hay phần trăm. Dấu dương làm tăng điểm; dấu âm làm giảm điểm.</p>
       ${rows ? `<table class="contribution-table"><thead><tr><th>Đặc trưng</th><th>Đóng góp</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
       <dl><div><dt>Raw model score</dt><dd>${number(item.raw_model_score, 5)}</dd></div>
       <div><dt>Phiên bản model</dt><dd>${escape(item.model_version || "Chưa có dữ liệu")}</dd></div>

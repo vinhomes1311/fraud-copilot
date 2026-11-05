@@ -72,18 +72,16 @@ function renderBrief(brief, riskLevel) {
   if (!brief) return riskLevel === "LOW"
     ? "Giao dịch LOW không tự tạo brief. Bạn vẫn có thể xem xét và ghi chú."
     : "Brief đang được tạo hoặc chưa có dữ liệu.";
-  if (typeof brief === "string") return escapeHtml(brief);
+  if (typeof brief === "string") return "Chưa có checklist điều tra.";
   const checklist = (brief.checklist || []).map((item) =>
     `<li>${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</li>`
   ).join("");
-  const signals = (brief.key_signals || []).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   const citations = (brief.citations || []).map((citation) =>
     `<li><b>${escapeHtml(citation.rule_code || "")}</b>: ${escapeHtml(citation.quote || "")}</li>`
   ).join("");
   return (brief.source === "rule_based" ? `<p class="brief-fallback-label">Tóm tắt dự phòng theo luật</p>` : "")
     + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>Chưa có checklist điều tra.</p>`)
-    + (citations ? `<details class="brief-reference"><summary>Nguồn tham chiếu (${brief.citations.length})</summary><ul>${citations}</ul></details>` : "")
-    + ((brief.summary || signals) ? `<details class="brief-reference"><summary>Bản tóm tắt gốc</summary><p>${escapeHtml(brief.summary || "")}</p>${signals ? `<h5>Tín hiệu trong brief gốc</h5><ul>${signals}</ul>` : ""}</details>` : "");
+    + (citations ? `<details class="brief-reference"><summary>Nguồn tham chiếu (${brief.citations.length})</summary><ul>${citations}</ul></details>` : "");
 }
 function renderEvidence(item) {
   if (!item.brief_status) return `<span class="evidence muted-label">No brief</span>`;
@@ -331,7 +329,7 @@ async function openDetail(caseId, editDecision = false) {
       + window.RiskReview.renderReviewContext(item)
       + `<section class="detail-section"><h4>Checklist điều tra</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>`
       + window.RiskReview.renderTechnicalDetails(item)
-      + `<details class="transaction-details"><summary>Dữ liệu giao dịch đã che thông tin cá nhân</summary><div class="data-grid">${transaction}</div></details><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
+      + `<details class="transaction-details"><summary>Dữ liệu chi tiết</summary><div class="data-grid">${transaction}</div></details><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
     $("#detail-content .copy-transaction-id")?.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(String(item.txn_id || ""));

@@ -54,6 +54,7 @@ test('positive, negative and zero effects stay separate without modifying stored
   assert.match(html, /Số tiền giao dịch/);
   assert.doesNotMatch(html, /6,31|2,41/);
   assert.match(view.renderTechnicalDetails(item), /-6,31/);
+  assert.doesNotMatch(view.renderTechnicalDetails(item), /Đóng góp vào điểm mô hình|Dấu dương làm tăng/);
   assert.match(view.renderTechnicalDetails(item), /\+2,41/);
   assert.equal(JSON.stringify(item), before);
 });
@@ -95,7 +96,7 @@ test('context proposes checks without claiming an anomaly or using missing compa
   assert.doesNotMatch(html, /bất thường|vượt|gian lận|ban đêm/);
 });
 
-test('original summary, signals and citations remain available under expandable sections', () => {
+test('checklist and citations remain while original summary and raw signals are hidden', () => {
   const app = readFileSync(resolve(root, 'static/app.js'), 'utf8');
   const functionText = app.slice(app.indexOf('function renderBrief('), app.indexOf('function renderEvidence('));
   const escapeHtml = (value) => String(value ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -103,9 +104,8 @@ test('original summary, signals and citations remain available under expandable 
   const html = render({ summary: 'Original summary', key_signals: ['amt đóng góp 6.31'],
     checklist: [{ action: 'Review evidence', rule_code: 'PB-01' }],
     citations: [{ rule_code: 'PB-01', quote: 'Approved reference' }] }, 'HIGH');
-  assert.match(html, /<details[^>]*><summary>Bản tóm tắt gốc/);
-  assert.match(html, /Original summary/);
-  assert.match(html, /amt đóng góp 6.31/);
+  assert.doesNotMatch(html, /Bản tóm tắt gốc|Original summary|amt đóng góp 6.31/);
+  assert.doesNotMatch(render('Legacy summary', 'HIGH'), /Legacy summary/);
   assert.match(html, /Review evidence/);
   assert.match(html, /Approved reference/);
   assert.match(render(null, 'LOW'), /LOW không tự tạo brief/);
@@ -142,6 +142,8 @@ test('case drawer integrates the new sections and copies the full ID without cha
   assert.match(html, /Tổng quan giao dịch/);
   assert.match(html, /Nội dung cần đối chiếu/);
   assert.match(html, /Chi tiết mô hình/);
+  assert.match(html, /Dữ liệu chi tiết/);
+  assert.doesNotMatch(html, /Dữ liệu giao dịch đã che/);
   assert.match(html, /data-action="CONFIRMED_FRAUD"/);
   assert.ok(element('#detail-panel').classList.contains('open'));
   await element('#detail-content .copy-transaction-id').handlers.click();
