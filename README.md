@@ -333,6 +333,35 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
 python -m pytest tests/test_queue_integration.py -q
 ```
 
+### Kiểm thử tự động trên CI/CD
+
+Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tự chạy khi có
+Pull Request, push vào `main`/`master`, hoặc được kích hoạt thủ công trong
+GitHub Actions. Workflow gồm hai job:
+
+1. **Python tests**: tạo Redis và PostgreSQL tạm thời, compile mã Python, rồi
+   chạy toàn bộ pytest bao gồm queue và brief pipeline integration tests.
+2. **Docker build and smoke test**: kiểm tra Compose, build các image chính,
+   khởi động API stack và gọi `GET /healthz`; nếu endpoint không trả HTTP 2xx,
+   workflow thất bại và in log để tìm lỗi.
+
+Để trình diễn với giảng viên:
+
+1. Push code lên GitHub hoặc tạo Pull Request.
+2. Mở tab **Actions** → chọn **Fraud Copilot CI**.
+3. Mở một workflow run để xem từng bước, số test pass/fail, Docker build và
+   kết quả health check.
+
+Kết quả local tương đương có thể chạy bằng:
+
+```bash
+python -m pytest -q
+docker compose config --quiet
+docker compose up -d --build redis postgres pgbouncer-write pgbouncer-read analyst-api nginx
+curl http://localhost:8080/healthz
+docker compose down -v
+```
+
 ## Cơ chế xử lý lỗi
 
 - Giao dịch trùng trong một giờ trả `200 DUPLICATE`.
