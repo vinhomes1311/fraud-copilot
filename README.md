@@ -343,8 +343,25 @@ GitHub Actions. Workflow gồm bốn job:
 2. **Unit and integration tests**: tạo Redis và PostgreSQL tạm thời rồi chạy
    toàn bộ pytest, bao gồm queue và brief pipeline integration tests.
 3. **Docker build**: kiểm tra Compose và build các image chính.
-4. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
+4. **ML quality gate**: kiểm tra PR-AUC/precision/recall/F1 của model baseline
+   đã commit và upload report làm artifact.
+5. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
    endpoint không trả HTTP 2xx, workflow thất bại và in log để tìm lỗi.
+
+Đánh giá lại model đã có mà không train lại:
+
+```bash
+python -m ml_pipeline.evaluate_artifact \
+  --artifact data/models/fraud_xgboost.joblib \
+  --test-data data/fraudTest.csv \
+  --output data/models/fraud_xgboost.evaluation.json
+```
+
+Lệnh trên dùng `.joblib` để dự đoán lại test set, sau đó ghi metric thực tế vào
+file JSON. Nếu PR-AUC, recall, precision hoặc F1 thấp hơn ngưỡng, lệnh trả
+exit code khác 0. CI dùng [`reports/ml-model-baseline.json`](reports/ml-model-baseline.json)
+để gate ổn định vì dataset và model binary đang nằm trong `.gitignore`; khi
+đã có artifact storage, có thể thay bước baseline bằng lệnh evaluator ở trên.
 
 Để trình diễn với giảng viên:
 
