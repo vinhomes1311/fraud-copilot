@@ -1,5 +1,6 @@
 """Luồng 2 (Cold Path): lấy job theo ưu tiên -> RAG -> LLM -> grounding -> ghi brief vào DB."""
 from __future__ import annotations
+from llm_worker.retrieval_policy import retrieve_context
 
 import asyncio
 import logging
@@ -44,7 +45,7 @@ class BriefProcessor:
 
         with STAGE_SECONDS.labels("rag").time():
             chunks = await asyncio.wait_for(
-                self.retriever.retrieve(signals, ctx["risk_level"]), self.s.llm_job_timeout_s)
+                retrieve_context(self.retriever, ctx), self.s.llm_job_timeout_s)
 
         # Timeout + circuit breaker bao quanh lời gọi LLM
         async def _call_llm():

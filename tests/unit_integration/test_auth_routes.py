@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 
 import pytest
+from pydantic import ValidationError
 
 from analyst_api.auth import verify_password
-from analyst_api.routes.auth_routes import RegisterRequest, register
+from analyst_api.routes.auth_routes import LoginRequest, RegisterRequest, register
 from analyst_api.state import state
 
 
@@ -51,3 +52,11 @@ async def test_register_creates_email_optional_user_and_returns_login_token():
     assert result["access_token"]
     assert result["token_type"] == "bearer"
     assert result["role"] == "analyst"
+
+
+def test_login_accepts_legacy_short_password_but_registration_enforces_minimum():
+    login = LoginRequest(username="lead1", password="lead123")
+    assert login.password == "lead123"
+
+    with pytest.raises(ValidationError):
+        RegisterRequest(username="new-analyst", password="short7")

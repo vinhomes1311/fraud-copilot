@@ -21,13 +21,15 @@ async def main() -> None:
     s = get_settings()
     s.validate_llm_timeouts()
     setup_logging("llm-worker")
+    # Validate provider/key/retrieval configuration before opening infrastructure.
+    db = Database(s.db_write_url, s.db_read_url)
+    processor = BriefProcessor(db)
+    log.info("LLM configured", extra={"ctx": {"provider": s.llm_provider}})
     start_http_server(s.metrics_port)
 
     redis = Redis.from_url(s.redis_url, decode_responses=True)
-    db = Database(s.db_write_url, s.db_read_url)
     await db.connect()
 
-    processor = BriefProcessor(db)
     llm_queue = ReliableQueue(
         redis, QUEUE_LLM_JOBS, visibility_timeout_s=s.llm_visibility_timeout_s,
         max_attempts=s.llm_max_attempts, on_dead=processor.handle_dead)

@@ -8,10 +8,10 @@ không phải là test passed.
 
 ## Tổng quan
 
-- **12 file test**, được chia theo 5 job CI.
-- **43 hàm test**.
+- **25 file test**, được chia theo 5 job CI.
+- **127 hàm test**.
 - Có kiểm thử unit, integration, SQL lifecycle, queue, ML và E2E.
-- Lần chạy gần nhất: `54 passed, 2 skipped, 1 warning`.
+- Kết quả ghi nhận trước khi bổ sung test PR #5: `54 passed, 2 skipped, 1 warning`.
 - Các test parameterized trong `test_logic.py` chạy nhiều bộ dữ liệu khác nhau.
 
 ## `unit_integration/test_logic.py`
@@ -194,3 +194,29 @@ Trong CI, job `tests` khởi động Redis và PostgreSQL bằng GitHub Actions
 service containers. Job `e2e-smoke` khởi động API stack, Scoring Worker và
 LLM Worker bằng Docker Compose, đặt `FRAUD_E2E_URL` rồi chạy transaction E2E
 thật qua gateway.
+
+## Test bổ sung từ PR #5
+
+Các test được đặt trong nhóm hiện có để lệnh pytest của CI thu thập tự động.
+API/Ollama dùng transport mock; workflow cần DB/Redis kiểm thử riêng.
+
+| Đường dẫn |
+|---|
+| `unit_integration/test_api_client.py` |
+| `unit_integration/test_expanded_playbook.py` |
+| `unit_integration/test_kaggle_playbook.py` |
+| `unit_integration/test_llm_benchmark.py` |
+| `unit_integration/test_llm_ml_features.py` |
+| `unit_integration/test_logging_utils.py` |
+| `unit_integration/test_ollama_cache.py` |
+| `unit_integration/test_online_configuration.py` |
+| `unit_integration/test_playbook_v2_eval.py` |
+| `unit_integration/test_required_gap.py` |
+| `unit_integration/test_retrieval_policy.py` |
+| `e2e_smoke/test_workflow_e2e.py` |
+
+## Review queue cho LOW
+
+`unit_integration/test_scoring_review.py` kiểm tra LOW/MEDIUM/HIGH đều tạo case,
+nhưng chỉ MEDIUM/HIGH phát sự kiện tạo brief. Workflow integration kiểm tra LOW
+xuất hiện trong review queue và không có bản ghi brief.

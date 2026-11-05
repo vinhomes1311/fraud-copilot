@@ -1,0 +1,351 @@
+[
+  {
+    "id": "boundary-1",
+    "reference_any_rules": [
+      "PB-01",
+      "PB-08"
+    ],
+    "context": {
+      "case_id": 500,
+      "txn_id": "synthetic-boundary-1",
+      "risk_level": "HIGH",
+      "raw_model_score": 3.0,
+      "calibrated_prob": 0.95,
+      "transaction": {
+        "amt": 5000,
+        "category": "shopping_net"
+      },
+      "features": {
+        "amt": 5000,
+        "txn_count_24h": 1,
+        "avg_amt_24h": 0.01,
+        "amt_vs_avg_ratio": 100,
+        "hour_of_day": 14
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 100,
+          "contribution": 2.0
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-08",
+        "PB-01"
+      ]
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-07"
+    ],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-2",
+    "reference_any_rules": [
+      "PB-03",
+      "PB-06"
+    ],
+    "context": {
+      "case_id": 501,
+      "txn_id": "synthetic-boundary-2",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.1,
+      "calibrated_prob": 0.52,
+      "transaction": {
+        "amt": 900,
+        "category": "misc_net"
+      },
+      "features": {
+        "txn_count_24h": 0,
+        "avg_amt_24h": 500,
+        "amt_vs_avg_ratio": 1,
+        "hour_of_day": 12
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 1,
+          "contribution": 0.2
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-06",
+        "PB-03"
+      ]
+    ],
+    "forbidden_rules": [
+      "PB-08"
+    ],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-3",
+    "reference_any_rules": [
+      "PB-03",
+      "PB-13",
+      "PB-28"
+    ],
+    "context": {
+      "case_id": 502,
+      "txn_id": "synthetic-boundary-3",
+      "risk_level": "HIGH",
+      "raw_model_score": 0.9,
+      "calibrated_prob": 0.85,
+      "transaction": {
+        "amt": 500,
+        "category": "shopping_net"
+      },
+      "features": {
+        "amt": 500,
+        "trans_count_24h": 3,
+        "sum_amt_24h": 150,
+        "trans_count_7d": 9,
+        "avg_amt_7d": 0,
+        "max_amt_7d": 200,
+        "std_amt_7d": 10,
+        "amt_to_avg_7d_ratio": 9.8039215686,
+        "amt_to_max_7d_ratio": 2.4875621891,
+        "transaction_hour": 2,
+        "customer_merchant_distance_km": 40
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 9.8039215686,
+          "contribution": 0.3
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-13",
+        "PB-28",
+        "PB-03"
+      ]
+    ],
+    "forbidden_rules": [
+      "PB-14",
+      "PB-12"
+    ],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-4",
+    "context": {
+      "case_id": 503,
+      "txn_id": "synthetic-boundary-4",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.6,
+      "calibrated_prob": 0.5,
+      "transaction": {
+        "amt": 100,
+        "category": "grocery_pos"
+      },
+      "features": {
+        "trans_count_24h": 5,
+        "avg_amt_24h": 50,
+        "trans_count_7d": 15,
+        "avg_amt_7d": 70,
+        "max_amt_7d": 0,
+        "amt_to_max_7d_ratio": 0.8264462809917356
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_max_7d_ratio",
+          "value": 0.8264462809917356,
+          "contribution": 0.2
+        }
+      ]
+    },
+    "reference_any_rules": [
+      "PB-28"
+    ],
+    "reference_groups": [
+      [
+        "PB-28"
+      ]
+    ],
+    "forbidden_rules": [
+      "PB-15"
+    ],
+    "reference_rationale": "A valid mean does not replace a missing maximum; the maximum-ratio explanation is unavailable and needs an information-gap action.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-5",
+    "context": {
+      "case_id": 504,
+      "txn_id": "synthetic-boundary-5",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.6,
+      "calibrated_prob": 0.5,
+      "transaction": {
+        "amt": 100,
+        "category": "grocery_pos"
+      },
+      "features": {
+        "trans_count_24h": 5,
+        "avg_amt_24h": 50,
+        "trans_count_7d": 2,
+        "avg_amt_7d": 70,
+        "max_amt_7d": 120,
+        "std_amt_7d": 0
+      },
+      "explanations": [
+        {
+          "feature": "std_amt_7d",
+          "value": 0,
+          "contribution": 0.2
+        }
+      ]
+    },
+    "reference_any_rules": [
+      "PB-16"
+    ],
+    "reference_groups": [
+      [
+        "PB-16"
+      ]
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-6",
+    "reference_any_rules": [
+      "PB-07",
+      "PB-18",
+      "PB-24"
+    ],
+    "context": {
+      "case_id": 505,
+      "txn_id": "synthetic-boundary-6",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.6,
+      "calibrated_prob": 0.5,
+      "transaction": {
+        "amt": 150,
+        "category": "travel"
+      },
+      "features": {
+        "amt": 150,
+        "trans_count_24h": 1,
+        "trans_count_7d": 5,
+        "avg_amt_7d": 100,
+        "max_amt_7d": 200,
+        "std_amt_7d": 20,
+        "amt_to_avg_7d_ratio": 1.4851485149,
+        "amt_to_max_7d_ratio": 0.7462686567,
+        "transaction_hour": 18,
+        "customer_merchant_distance_km": 900
+      },
+      "explanations": [
+        {
+          "feature": "customer_merchant_distance_km",
+          "value": 900,
+          "contribution": 0.2
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ],
+      [
+        "PB-07",
+        "PB-24"
+      ]
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-12"
+    ],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-7",
+    "reference_any_rules": [
+      "PB-19"
+    ],
+    "context": {
+      "case_id": 506,
+      "txn_id": "synthetic-boundary-7",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.5,
+      "calibrated_prob": 0.62,
+      "transaction": {
+        "amt": 30,
+        "category": "food_dining"
+      },
+      "features": {
+        "txn_count_24h": 2,
+        "avg_amt_24h": 35,
+        "amt_vs_avg_ratio": 0.86,
+        "hour_of_day": 23
+      },
+      "explanations": [
+        {
+          "feature": "hour_of_day",
+          "value": 23,
+          "contribution": 0.3
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-19"
+      ]
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  },
+  {
+    "id": "boundary-8",
+    "reference_any_rules": [
+      "PB-18"
+    ],
+    "context": {
+      "case_id": 507,
+      "txn_id": "synthetic-boundary-8",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 0.4,
+      "calibrated_prob": 0.6,
+      "transaction": {
+        "amt": 150,
+        "category": "travel"
+      },
+      "features": {
+        "dist_home_merchant_km": 0.1,
+        "txn_count_24h": 3,
+        "avg_amt_24h": 120,
+        "hour_of_day": 10
+      },
+      "explanations": [
+        {
+          "feature": "dist_home_merchant_km",
+          "value": 0.1,
+          "contribution": 0.8
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ]
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Boundary mutation of history validity or feature magnitude; applicability follows actual supplied context, not case identity.",
+    "reference_version": "boundary-pre-run-1"
+  }
+]

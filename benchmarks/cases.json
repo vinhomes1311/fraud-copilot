@@ -1,0 +1,57 @@
+[
+  {
+    "id": "amount-high",
+    "reference_any_rules": ["PB-01", "PB-03"],
+    "context": {
+      "case_id": 1, "txn_id": "synthetic-amount", "risk_level": "HIGH",
+      "raw_model_score": 3.0, "calibrated_prob": 0.95,
+      "transaction": {"amt": 5000},
+      "features": {"amt": 5000, "txn_count_24h": 5, "avg_amt_24h": 100, "amt_vs_avg_ratio": 50},
+      "explanations": [{"feature": "amt", "value": 5000, "contribution": 3.0}]
+    }
+  },
+  {
+    "id": "velocity-high",
+    "reference_any_rules": ["PB-01", "PB-03"],
+    "context": {
+      "case_id": 2, "txn_id": "synthetic-velocity", "risk_level": "HIGH",
+      "raw_model_score": 2.1, "calibrated_prob": 0.89,
+      "transaction": {"amt": 200},
+      "features": {"txn_count_24h": 40, "avg_amt_24h": 90, "amt_vs_avg_ratio": 2.22},
+      "explanations": [{"feature": "txn_count_24h", "value": 40, "contribution": 2.0}]
+    }
+  },
+  {
+    "id": "distance-medium",
+    "reference_any_rules": ["PB-01", "PB-03"],
+    "context": {
+      "case_id": 3, "txn_id": "synthetic-distance", "risk_level": "MEDIUM",
+      "raw_model_score": 0.4, "calibrated_prob": 0.6,
+      "transaction": {"amt": 150},
+      "features": {"dist_home_merchant_km": 900, "txn_count_24h": 3, "avg_amt_24h": 120},
+      "explanations": [{"feature": "dist_home_merchant_km", "value": 900, "contribution": 0.8}]
+    }
+  },
+  {
+    "id": "history-gap",
+    "reference_any_rules": ["PB-03", "PB-05"],
+    "context": {
+      "case_id": 4, "txn_id": "synthetic-history-gap", "risk_level": "MEDIUM",
+      "raw_model_score": 0.1, "calibrated_prob": 0.52,
+      "transaction": {"amt": 900},
+      "features": {"txn_count_24h": 0, "avg_amt_24h": 0},
+      "explanations": [{"feature": "amt", "value": 900, "contribution": 0.7}]
+    }
+  },
+  {
+    "id": "baseline-low",
+    "reference_any_rules": ["PB-02", "PB-03"],
+    "context": {
+      "case_id": 5, "txn_id": "synthetic-baseline", "risk_level": "LOW",
+      "raw_model_score": -2.8, "calibrated_prob": 0.06,
+      "transaction": {"amt": 20},
+      "features": {"txn_count_24h": 4, "avg_amt_24h": 25, "amt_vs_avg_ratio": 0.8},
+      "explanations": []
+    }
+  }
+]

@@ -1,5 +1,11 @@
 # Local LLM integration
 
+For hosted models without local downloads/training, use [the online API setup](API_ADAPTER.md).
+The instructions below describe the optional Ollama mode. Python now loads the
+project `.env` automatically; shell variables take precedence. Set
+`LLM_RETRIEVER=ollama` explicitly when switching from the online `.env` example
+to local semantic retrieval.
+
 Source snapshot: vinhomes1311/fraud-copilot main at 38274b9f1a61d60acccf01ce7dd09d1aa1105e78.
 
 The Ollama adapter uses the local approved five-principle playbook and local
@@ -29,8 +35,9 @@ Docker:
     docker compose -f docker-compose.yml -f docker-compose.ollama.yml up --build -d
 
 The container must be able to reach Ollama on the configured endpoint. This change
-does not configure the host firewall or Ollama binding. Default Compose still uses
-the stub; the override explicitly enables the real adapter.
+does not configure the host firewall or Ollama binding. Without LLM_PROVIDER,
+Compose uses the stub; copying the current .env example enables online API mode.
+The Ollama override explicitly selects local generation.
 
 ## Validation and limits
 
@@ -41,8 +48,15 @@ visibility timeout greater than their combined deadlines plus database overhead.
 Ollama prompt_eval_count + eval_count are recorded for the existing token budget.
 HTTP timeouts are converted to TimeoutError for the team's FAILED_TIMEOUT handling.
 Network and model/output errors propagate to the existing retry/circuit breaker.
-The five document embeddings are recomputed with each query to avoid stale model
-or playbook indexes; this can increase cold-start latency. Profile before increasing concurrency.
+The playbook document embeddings are cached in each retriever instance for 300 seconds.
+The cache key includes endpoint, embedding model name and exact document texts;
+every query still receives a fresh embedding. Concurrent jobs share a cache fill.
+Set `OLLAMA_EMBED_CACHE_TTL_S=0` to disable caching. If model weights are replaced
+under the same tag, restart the worker immediately or wait for TTL expiry.
+The cache is in memory, not a persisted vector index. Profile before increasing concurrency.
+
+See [LLM_DEMO.md](LLM_DEMO.md) for the local demo configuration, current ML feature
+compatibility and the real-model validation procedure.
 
 Each enqueue stores its job ID as the active brief generation. RUNNING, READY and
 failure writes are conditional on that generation; a superseded job cannot replace
@@ -94,3 +108,7 @@ and removes a uniquely named schema and Redis queue, exercising enqueue, READY,
 duplicate delivery, stale generation, timeout/dead-letter fallback, and unchanged
 ML risk/probability. It uses the stub LLM; it does not validate Ollama quality.
 This live integration test has not been run here.
+
+## Context-aware applicability update
+
+The worker and benchmark now share context-aware retrieval. Semantic ranking is combined with rule applicability and explicit selection roles. See [conditions](../knowledge/PLAYBOOK_APPLICABILITY.md) and the [benchmark procedure](../BENCHMARKS.md). Restart the worker after updating code/playbook.

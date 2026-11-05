@@ -1,7 +1,11 @@
 .git
+.env
+.env.*
+!.env.example
 .venv
 __pycache__
 *.pyc
 data/
 .vscode/
 tests/
+benchmark_results/
