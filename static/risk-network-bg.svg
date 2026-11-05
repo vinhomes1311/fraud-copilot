@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620" fill="none">
+  <defs>
+    <radialGradient id="wash" cx="0" cy="0" r="1" gradientTransform="matrix(-380 350 -340 -370 900 0)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCE7EC" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#FFF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.25" fill="#D61F45" fill-opacity=".12"/>
+    </pattern>
+  </defs>
+  <path fill="url(#wash)" d="M0 0h900v620H0z"/>
+  <path fill="url(#dots)" d="M350 0h550v500H350z" opacity=".6"/>
+  <g stroke="#D61F45" stroke-opacity=".1" stroke-width="2">
+    <path d="m548 145 104-50 101 61 47 112-66 105-124 20-91-72-16-113 45-63Z"/>
+    <path d="m652 95 35 161 66-100m-66 100 113 12m-113-12-91 132m91-132-120-48m120 48 35 178m47-290 66 112"/>
+    <path d="M594 446c74-48 146-48 218 0"/>
+    <path d="M560 482c96-63 188-63 278 0"/>
+  </g>
+  <g fill="#D61F45" fill-opacity=".22">
+    <circle cx="548" cy="145" r="5"/><circle cx="652" cy="95" r="5"/>
+    <circle cx="753" cy="156" r="5"/><circle cx="800" cy="268" r="5"/>
+    <circle cx="734" cy="373" r="5"/><circle cx="610" cy="393" r="5"/>
+    <circle cx="519" cy="321" r="5"/><circle cx="503" cy="208" r="5"/>
+    <circle cx="687" cy="256" r="7"/><circle cx="629" cy="434" r="4"/>
+    <circle cx="775" cy="434" r="4"/>
+  </g>
+  <path d="M687 224c-24 18-51 26-80 29v54c0 52 33 97 80 114 47-17 80-62 80-114v-54c-29-3-56-11-80-29Z" stroke="#D61F45" stroke-opacity=".12" stroke-width="3"/>
+</svg>

@@ -71,8 +71,12 @@ curl http://localhost:8080/healthz
 
 Dashboard mở tại <http://localhost:8080/>.
 
-Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test với tốc độ 10 giao dịch/giây
-sau khi đăng nhập; nút **Dừng simulator** có thể dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
+Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test sau khi đăng nhập. Có thể chỉnh tốc độ
+từ 1 đến 1.000 giao dịch/giây ở ô bên cạnh nút chạy; lựa chọn được lưu trên trình duyệt và có hiệu lực
+ở lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
+hệ thống. Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động.
+Nút **Dừng simulator**
+dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
 nhưng chỉ MEDIUM/HIGH được tạo brief. Mục Analytics chỉ hiển thị MEDIUM/HIGH,
 được sắp xếp theo xác suất giảm dần; chọn một dòng để xem chi tiết và brief nếu
 có.
@@ -148,11 +152,12 @@ queue hỗ trợ:
 - lọc theo risk level và trạng thái;
 - xem confidence, trạng thái brief và chi tiết transaction đã che PII;
 - thêm note, yêu cầu thêm thông tin, xác nhận simulated hoặc escalate;
+- phân loại fraud/an toàn/chưa đủ bằng chứng và chỉnh sửa quyết định đã lưu; mỗi lần chỉnh sửa được thêm vào lịch sử/audit;
 - risk lead xử lý case escalated;
 - analyst/risk lead yêu cầu tạo lại brief trong giới hạn cấu hình.
 
-Một số ô giao diện hiện là thông tin mẫu hoặc chưa nối backend (ví dụ analytics,
-audit trail và queue latency).
+Một số ô giao diện hiện là thông tin mẫu hoặc chưa nối backend (ví dụ analytics
+và queue latency).
 
 ## API
 
@@ -202,18 +207,28 @@ mật khẩu đã hash.
 | `POST` | `/api/v1/transactions` | `X-API-Key` | Queue giao dịch để chấm điểm |
 | `GET` | `/api/v1/transactions/{txn_id}/result` | API key hoặc JWT | Lấy kết quả bất đồng bộ |
 | `GET` | `/api/v1/cases` | Analyst, Risk Lead | Review queue, High trước |
+| `GET` | `/api/v1/cases/classifications` | Analyst, Risk Lead | Giao dịch đã được analyst phân loại/chuyển tiếp; hỗ trợ `decision`, `search`, `limit`, `offset` |
+| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Cập nhật hoặc phân loại lại kết quả; mọi lần chỉnh sửa được lưu trong lịch sử và audit log |
 | `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
 | `POST` | `/api/v1/cases/manual` | Analyst, Risk Lead | Tạo case thủ công cho giao dịch LOW/unscored |
 | `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
 | `POST` | `/api/v1/cases/{case_id}/notes` | Analyst, Risk Lead | Thêm note append-only |
 | `PUT` | `/api/v1/cases/{case_id}/assign` | Analyst, Risk Lead | Gán hoặc bỏ gán case |
-| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Ghi nhận kết quả điều tra |
+| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | `CONFIRMED_FRAUD`, `DISMISSED`, `INSUFFICIENT_EVIDENCE`; ghi lịch sử và audit |
 | `POST` | `/api/v1/cases/{case_id}/resolve` | Risk Lead | `CLOSE` hoặc `RETURN` case escalated |
 | `POST` | `/api/v1/cases/{case_id}/brief:regenerate` | Analyst, Risk Lead | Queue tạo lại brief |
 | `GET` / `PUT` | `/api/v1/admin/threshold-config` | Admin | Đọc/cập nhật ngưỡng risk có version |
 | `GET` | `/api/v1/admin/queues` | Admin | Độ sâu các queue |
 | `GET` | `/healthz` | Public | Health check |
 | `GET` | `/metrics` | Internal | Prometheus metrics |
+
+Analyst decisions are stored in the case status, action history, and audit log.
+The dashboard's **Manual decisions** section reads those persisted action records,
+showing the latest classification or handoff per case with reviewer, timestamp,
+and masked transaction details.
+Confirming fraud or dismissing a case does not itself block a payment, blacklist
+a card, or suspend an account; those effects require integration with the
+payment/account systems.
 
 Ví dụ lấy queue:
 

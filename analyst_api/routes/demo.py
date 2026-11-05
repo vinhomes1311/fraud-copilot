@@ -27,7 +27,7 @@ NUMERIC_FIELDS = {
 
 @router.post("/test-batch")
 async def enqueue_test_batch(
-    batch_size: int = Query(50, ge=1, le=200),
+    batch_size: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     _: User = Depends(demo_user),
 ) -> dict[str, int | bool]:

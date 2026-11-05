@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#08111f" />
     <title>Fraud Copilot | Risk operations</title>
-    <link rel="stylesheet" href="/static/styles.css?v=omni-7" />
+    <link rel="stylesheet" href="/static/styles.css?v=sidebar-red-3" />
   </head>
   <body>
     <div id="toast" class="toast" role="status"></div>
     <main id="login-view" class="login-view">
       <section class="login-card">
-        <div class="brand-mark">✦</div>
+        <img class="brand-mark" src="/static/fraud-copilot-logo.png?v=brand-3" alt="Fraud Copilot logo" />
         <p class="eyebrow">RISK OPERATIONS PLATFORM</p>
         <h1>Fraud Copilot</h1>
         <p id="auth-subtitle" class="muted">Tập trung tín hiệu rủi ro. Ra quyết định nhanh hơn.</p>
@@ -30,12 +30,12 @@
 
     <main id="app-view" class="app-shell hidden">
       <aside class="sidebar">
-        <div class="brand"><div class="brand-mark small">✦</div><span>Fraud <b>Copilot</b></span></div>
+        <div class="brand"><img class="brand-mark small" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" /><span>Fraud <b>Copilot</b></span></div>
         <div class="workspace-label">WORKSPACE</div>
         <nav>
-          <button id="review-nav" class="nav-item active"><span class="nav-icon">⌁</span> Review queue <span id="nav-count" class="nav-count">—</span></button>
+          <button id="review-nav" class="nav-item active"><img class="nav-icon review-nav-logo" src="/static/review-queue-logo.png?v=2" alt="" /> Review queue <span id="nav-count" class="nav-count">—</span></button>
           <button id="analytics-nav" class="nav-item"><span class="nav-icon">◈</span> Analytics</button>
-          <button class="nav-item"><span class="nav-icon">◌</span> Audit trail</button>
+          <button id="classifications-nav" class="nav-item"><span class="nav-icon">◌</span> Manual decisions <span id="classification-count" class="nav-count">—</span></button>
         </nav>
         <div class="sidebar-bottom">
           <div class="system-status"><span class="status-dot"></span><div><b>All systems normal</b><small>Updated just now</small></div></div>
@@ -48,17 +48,41 @@
           <div class="topbar-actions"><span class="live-status"><i></i> Scoring online</span><button id="refresh-button" class="icon-button" title="Làm mới">↻</button><div class="avatar" id="user-avatar">A</div><div class="user-meta"><b id="user-name">Analyst</b><small id="user-role">Risk analyst</small></div></div>
         </header>
         <div class="page-body">
-          <div class="kpi-grid">
+          <div id="kpi-grid" class="kpi-grid">
             <article class="kpi-card accent"><div class="kpi-icon">⚡</div><div><small>Open review cases</small><strong id="open-count">—</strong><span class="trend">Human review workload</span></div></article>
             <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>High priority</small><strong id="high-count">—</strong><span class="trend orange-text">Needs attention</span></div></article>
             <article class="kpi-card"><div class="kpi-icon green">✓</div><div><small>Average fraud probability</small><strong id="confidence-count">—</strong><span class="trend green-text">Calibrated ML signal</span></div></article>
             <article class="kpi-card"><div class="kpi-icon purple">◴</div><div><small>Average scoring latency</small><strong id="latency-count">—</strong><span class="trend green-text">Validation → routing</span></div></article>
           </div>
-          <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><button id="load-test-batch" class="primary-button">▶ Chạy simulator (10 giao dịch/giây)</button><button id="export-button" class="secondary-button">⇩ Export view</button></div></div>
-          <section class="queue-card">
-            <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="search-input" placeholder="Search case ID or transaction..." /></div><select id="risk-filter"><option value="">All risk levels</option><option value="HIGH">High risk</option><option value="MEDIUM">Medium risk</option><option value="LOW">Low risk</option></select><select id="status-filter"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="CLOSED">Closed</option></select></div>
-            <div class="table-wrap"><table><thead><tr><th>Case / transaction</th><th>Priority</th><th>Fraud probability</th><th>Workflow</th><th>Received</th><th>Evidence</th></tr></thead><tbody id="cases-body"><tr><td colspan="6" class="loading">Loading cases<span class="loader"></span></td></tr></tbody></table></div>
-            <div class="table-footer"><span id="result-count">—</span><div><button id="prev-page" class="page-button" disabled>‹</button><span id="page-number" class="page-button active">1</span><button id="next-page" class="page-button" disabled>›</button></div></div>
+          <section id="review-content">
+            <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><label class="simulator-rate">Tốc độ <input id="simulator-tps" type="number" min="1" max="1000" step="1" value="10" inputmode="numeric" aria-label="Số giao dịch mỗi giây"><span>giao dịch/giây</span></label><button id="load-test-batch" class="primary-button">▶ Chạy simulator</button><div id="simulator-tracker" class="simulator-tracker hidden" aria-hidden="true"><video id="tracker-video" muted loop playsinline preload="metadata"><source src="/static/dog-tracker.mp4" type="video/mp4"></video></div><button id="export-button" class="secondary-button">⇩ Export view</button></div></div>
+            <section class="queue-card">
+              <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="search-input" placeholder="Search case ID or transaction..." /></div><select id="risk-filter"><option value="">All risk levels</option><option value="HIGH">High risk</option><option value="MEDIUM">Medium risk</option><option value="LOW">Low risk</option></select><select id="status-filter"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="CONFIRMED_FRAUD">Confirmed fraud</option><option value="DISMISSED">Dismissed / safe</option><option value="CLOSED">Closed</option></select></div>
+              <div class="table-wrap"><table><thead><tr><th>Case / transaction</th><th>Priority</th><th>Fraud probability</th><th>Workflow</th><th>Received</th><th>Evidence</th></tr></thead><tbody id="cases-body"><tr><td colspan="6" class="loading">Loading cases<span class="loader"></span></td></tr></tbody></table></div>
+              <div class="table-footer"><span id="result-count">—</span><div><button id="prev-page" class="page-button" disabled>‹</button><span id="page-number" class="page-button active">1</span><button id="next-page" class="page-button" disabled>›</button></div></div>
+            </section>
+          </section>
+          <section id="classifications-content" class="hidden">
+            <div class="section-heading classification-heading">
+              <div><h3>Manually classified transactions</h3><p>Saved analyst decisions and escalations, including reviewer and decision time.</p></div>
+              <button id="export-classifications" class="secondary-button">⇩ Export decisions</button>
+            </div>
+            <section class="queue-card">
+              <div class="toolbar">
+                <label class="search-wrap"><span>⌕</span><input id="classification-search" placeholder="Search case, transaction, merchant, reviewer..." /></label>
+                <select id="classification-filter" aria-label="Filter manual decision">
+                  <option value="">All decisions</option>
+                  <option value="CONFIRMED_FRAUD">Confirmed fraud</option>
+                  <option value="DISMISSED">Dismissed / safe</option>
+                  <option value="ESCALATE">Escalated</option>
+                  <option value="NEEDS_MORE_INFO">Needs more info</option>
+                  <option value="INSUFFICIENT_EVIDENCE">Insufficient evidence</option>
+                  <option value="CONFIRM_SIMULATED">Confirmed (demo)</option>
+                </select>
+              </div>
+              <div class="table-wrap"><table class="classification-table"><thead><tr><th>Case / transaction</th><th>Merchant</th><th>Model risk</th><th>Analyst decision</th><th>Reviewer</th><th>Amount</th><th>Decision time</th><th>Action</th></tr></thead><tbody id="classifications-body"><tr><td colspan="8" class="loading">Loading decisions<span class="loader"></span></td></tr></tbody></table></div>
+              <div class="table-footer"><span id="classification-result-count">—</span><div><button id="classification-prev" class="page-button" disabled>‹</button><span id="classification-page" class="page-button active">1</span><button id="classification-next" class="page-button" disabled>›</button></div></div>
+            </section>
           </section>
         </div>
       </section>
@@ -69,6 +93,6 @@
       <div id="detail-content"></div>
     </aside>
     <div id="panel-backdrop" class="panel-backdrop"></div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=simulator-tracker-2"></script>
   </body>
 </html>
