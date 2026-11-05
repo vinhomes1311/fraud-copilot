@@ -863,3 +863,57 @@ tbody tr:hover { background: #fff8f9; }
     transition-duration: .01ms !important;
   }
 }
+
+/* Evidence-first risk review */
+.detail-panel { width: min(600px, 100%); }
+.risk-overview { padding: 24px 0 22px; border-bottom: 1px solid var(--line); }
+.risk-overview-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.review-workflow { font-size: 12px; color: #65616a; }
+.transaction-amount { margin-top: 22px; font: 700 38px "Space Grotesk", sans-serif; color: #28262d; letter-spacing: -1px; }
+.transaction-merchant { margin: 12px 0 7px; color: #302d35; font-weight: 600; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.transaction-category { display: inline-block; border-radius: 6px; padding: 4px 8px; background: #f1eff3; color: #645e6c; font-size: 12px; }
+.risk-estimate { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 14px 16px; background: #f7f6f8; border: 1px solid #ebe8ee; border-radius: 12px; color: #5a545f; font-size: 13px; }
+.risk-estimate strong { color: #302b35; font: 700 24px "Space Grotesk", sans-serif; white-space: nowrap; }
+.model-context { color: #6f6976; font-size: 12px; line-height: 1.6; margin: 10px 0 18px; }
+.transaction-reference { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #77717c; font-size: 11px; }
+.transaction-reference code { color: #5a5361; font-size: 11px; }
+.copy-transaction-id { border: 1px solid #ded9e3; border-radius: 6px; background: #fff; color: #62596d; font-size: 11px; padding: 5px 8px; }
+.copy-transaction-id:hover { background: #f5f2f8; border-color: #bdb2c9; }
+.copy-transaction-id:focus-visible, .model-details summary:focus-visible, .transaction-details summary:focus-visible { outline: 2px solid #8177cf; outline-offset: 4px; }
+.risk-factor-group + .risk-factor-group { margin-top: 22px; }
+.risk-explanation h4 { font-size: 13px; letter-spacing: 0; text-transform: none; margin-bottom: 12px; }
+.risk-factors { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.risk-factor { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 10px; border: 1px solid #ebe6ec; border-radius: 12px; padding: 14px 12px; background: #fff; }
+.factor-rank { display: grid; place-items: center; height: 26px; width: 26px; border-radius: 8px; color: #a02b48; background: #fbeef1; font-size: 11px; font-weight: 600; }
+.decrease .factor-rank { color: #27745a; background: #edf7f1; }
+.neutral .factor-rank { color: #66616d; background: #f2f0f4; }
+.factor-name { display: block; color: #38313f; font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.factor-value { display: block; margin-top: 5px; font-size: 12px; color: #766d7e; line-height: 1.5; overflow-wrap: anywhere; }
+.factor-impact { color: #766d7e; font-size: 10px; line-height: 1.6; padding-top: 2px; }
+.factor-context { font-size: 11px; color: #766d7e; line-height: 1.7; margin: 12px 0 0; }
+.investigation-checklist { margin: 0; padding-left: 18px; }
+.investigation-checklist li + li { margin-top: 12px; }
+.brief-fallback-label { color: #88601e; margin: 0 0 12px; font-size: 11px; }
+.model-details, .transaction-details { border-bottom: 1px solid var(--line); padding: 20px 0; }
+.model-details > summary, .transaction-details > summary { cursor: pointer; color: #675c70; font-size: 12px; font-weight: 600; line-height: 1.6; }
+.model-details-content { font-size: 12px; color: #706577; }
+.model-details-content > p { line-height: 1.8; margin: 14px 0; }
+.contribution-table { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; border-collapse: collapse; }
+.contribution-table th, .contribution-table td { padding: 10px 8px; font-size: 11px; line-height: 1.6; vertical-align: top; white-space: normal; overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; text-align: left; }
+.contribution-table th:first-child { width: 65%; }
+.contribution-table th:last-child, .contribution-table td:last-child { text-align: right; }
+.contribution-table td { font-variant-numeric: tabular-nums; }
+.model-details dl { margin: 16px 0 0; }
+.model-details dl > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; padding: 8px 0; }
+.model-details dt { color: #817487; }
+.model-details dd { margin: 0; overflow-wrap: anywhere; color: #514659; }
+.transaction-details .data-grid { margin-top: 16px; }
+@media (max-width: 480px) {
+  .detail-panel { padding: 22px 18px; }
+  .transaction-amount { font-size: 34px; }
+  .risk-factor { grid-template-columns: 26px minmax(0, 1fr); gap: 7px 10px; }
+  .factor-impact { grid-column: 2; padding: 0; }
+  .risk-estimate { padding: 12px; }
+  .risk-estimate strong { font-size: 21px; }
+  .model-details dl > div { grid-template-columns: 1fr; gap: 4px; }
+}

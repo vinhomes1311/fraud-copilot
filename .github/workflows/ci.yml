@@ -28,6 +28,17 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
 
+      - name: Set up Node.js for dashboard tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check dashboard JavaScript and risk presentation
+        run: |
+          node --check static/app.js
+          node --check static/risk-review.js
+          node --test tests/ui/risk-review.test.cjs
+
   tests:
     name: Unit and integration tests
     runs-on: ubuntu-latest
