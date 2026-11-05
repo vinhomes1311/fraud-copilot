@@ -898,9 +898,10 @@ tbody tr:hover { background: #fff8f9; }
 .model-details > summary, .transaction-details > summary { cursor: pointer; color: #675c70; font-size: 12px; font-weight: 600; line-height: 1.6; }
 .model-details-content { font-size: 12px; color: #706577; }
 .model-details-content > p { line-height: 1.8; margin: 14px 0; }
-.contribution-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
-.contribution-table th, .contribution-table td { padding: 10px 8px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; text-align: left; }
-.contribution-table th:first-child { width: 75%; }
+.contribution-table { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; border-collapse: collapse; }
+.contribution-table th, .contribution-table td { padding: 10px 8px; font-size: 11px; line-height: 1.6; vertical-align: top; white-space: normal; overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; text-align: left; }
+.contribution-table th:first-child { width: 65%; }
+.contribution-table th:last-child, .contribution-table td:last-child { text-align: right; }
 .contribution-table td { font-variant-numeric: tabular-nums; }
 .model-details dl { margin: 16px 0 0; }
 .model-details dl > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; padding: 8px 0; }
