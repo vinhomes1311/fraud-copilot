@@ -71,12 +71,13 @@ curl http://localhost:8080/healthz
 
 Dashboard mở tại <http://localhost:8080/>.
 
-Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test sau khi đăng nhập. Có thể chỉnh tốc độ
-từ 1 đến 1.000 giao dịch/giây ở ô bên cạnh nút chạy; lựa chọn được lưu trên trình duyệt và có hiệu lực
-ở lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
-hệ thống. Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động.
-Nút **Dừng simulator**
-dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
+Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test ở lần đăng nhập đầu tiên nếu chưa từng được
+điều khiển. Trạng thái,
+tiến độ và tốc độ được lưu dùng chung trên server nên các tab dashboard đồng bộ với nhau; dừng ở một tab
+sẽ dừng ở các tab còn lại. Có thể chỉnh tốc độ từ 1 đến 1.000 giao dịch/giây; tốc độ mới có hiệu lực từ
+lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
+hệ thống. Đóng tab không tự dừng simulator; dùng nút **Dừng simulator** để dừng hoặc chạy lại.
+Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động. Review queue hiển thị cả LOW,
 nhưng chỉ MEDIUM/HIGH được tạo brief. Mục Analytics chỉ hiển thị MEDIUM/HIGH,
 được sắp xếp theo xác suất giảm dần; chọn một dòng để xem chi tiết và brief nếu
 có.
@@ -183,12 +184,12 @@ Tài khoản demo:
 | `admin` | `admin123` | Admin |
 
 Người dùng mới có thể đăng ký trực tiếp trên màn hình đăng nhập hoặc gọi
-`POST /api/v1/auth/register` với `username`, `display_name` và `password`.
-Tài khoản đăng ký mới cần thêm email, được tạo ở vai trò Analyst; mật khẩu được
-lưu dưới dạng hash scrypt và phải xác thực email qua SMTP trước khi đăng nhập.
-Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu và nút Google OAuth. Để bật hai
-luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*` trong `.env`; secret không
-được đưa vào source code.
+`POST /api/v1/auth/register` chỉ với `username` và `password`. Tài khoản được
+lưu vào PostgreSQL ở vai trò Analyst, mật khẩu được lưu dưới dạng hash scrypt
+và đăng nhập ngay sau khi tạo; không cần email hay Gmail.
+Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu cho tài khoản có email và nút
+Google OAuth. Để bật các luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*`
+trong `.env`; secret không được đưa vào source code.
 
 Lưu `access_token` từ response rồi dùng header `Authorization: Bearer <token>`.
 Các mật khẩu trên chỉ dành cho demo; production cần thay bằng user store và

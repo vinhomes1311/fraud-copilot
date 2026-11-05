@@ -30,6 +30,23 @@ OUTCOME_TO_STATUS = {
 OUTCOME_ACTIONS = tuple(f"OUTCOME_{outcome.value}" for outcome in CaseOutcome)
 
 
+async def _case_summary() -> dict:
+    row = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (
+                     WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                 ) AS open_count,
+                 count(*) FILTER (
+                     WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                       AND c.risk_level = 'HIGH'
+                 ) AS high_count,
+                 coalesce(avg(s.calibrated_prob) FILTER (WHERE s.status = 'SCORED'), 0) AS average_probability,
+                 coalesce(avg(s.latency_ms) FILTER (WHERE s.status = 'SCORED'), 0) AS scoring_latency_ms
+          FROM cases c
+          JOIN scoring_results s ON s.txn_id = c.txn_id"""
+    )
+    return dict(row)
+
+
 def can_update_outcome(status: CaseStatus | str, has_previous_outcome: bool) -> bool:
     status_value = status.value if isinstance(status, CaseStatus) else status
     if status_value in {CaseStatus.CLOSED.value, CaseStatus.CONFIRMED_SIMULATED.value}:
@@ -90,24 +107,13 @@ async def list_cases(
            FROM cases c
            WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)""",
         risk_level, status)
-    summary = await state.db.rfetchrow(
-        """SELECT count(*) FILTER (WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
-                                     AND c.risk_level IN ('MEDIUM', 'HIGH')) AS open_count,
-                 count(*) FILTER (WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
-                                     AND c.risk_level = 'HIGH') AS high_count,
-                 coalesce(avg(s.calibrated_prob), 0) AS average_probability
-                 ,coalesce(avg(s.latency_ms) FILTER (WHERE s.status = 'SCORED'), 0) AS scoring_latency_ms
-          FROM cases c
-          JOIN scoring_results s ON s.txn_id = c.txn_id""")
+    summary = await _case_summary()
     return {
         "items": [dict(r) for r in rows],
         "limit": limit,
         "offset": offset,
         "total": total,
-        "open_count": summary["open_count"],
-        "high_count": summary["high_count"],
-        "average_probability": summary["average_probability"],
-        "scoring_latency_ms": summary["scoring_latency_ms"],
+        **summary,
     }
 
 
@@ -129,7 +135,8 @@ async def list_analytics_transactions(
         limit, offset)
     total = await state.db.rfetchval(
         "SELECT count(*) FROM cases WHERE risk_level IN ('HIGH', 'MEDIUM')")
-    return {"items": [dict(r) for r in rows], "limit": limit, "offset": offset, "total": total}
+    summary = await _case_summary()
+    return {"items": [dict(r) for r in rows], "limit": limit, "offset": offset, "total": total, **summary}
 
 
 @router.get("/classifications")
