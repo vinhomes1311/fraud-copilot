@@ -21,7 +21,7 @@
     "min_child_weight": 1,
     "reg_lambda": 1.0,
     "early_stopping_rounds": 100,
-    "device": "cpu"
+    "device": "cuda"
   },
   "evaluation": {
     "threshold_min": 0.05,
