@@ -40,7 +40,7 @@ def test_simulator_transaction_reaches_scoring_result():
                 "trans_num,trans_date_trans_time,cc_num,merchant,category,amt,"
                 "lat,long,merch_lat,merch_long,city_pop,is_fraud\n"
                 f"{txn_id},2024-01-01 10:00:00,4111111111111111,test_merchant,"
-                "grocery_pos,25.5,10,20,10.01,1000,0\n",
+                "grocery_pos,25.5,10,20,10.01,20.01,1000,0\n",
                 encoding="utf-8",
             )
             await run(Namespace(
@@ -59,7 +59,7 @@ def test_simulator_transaction_reaches_scoring_result():
                     if response.status_code == 200:
                         result = response.json()
                         assert result["txn_id"] == txn_id
-                        assert result["status"] in {"SCORED", "MANUAL_FALLBACK_UNSCORED"}
+                        assert result["status"] == "SCORED"
                         if result.get("case_id") is not None:
                             login = await client.post(
                                 "/api/v1/auth/login",
@@ -78,9 +78,14 @@ def test_simulator_transaction_reaches_scoring_result():
                                 case = detail.json()
                                 if case.get("brief_status") in {"READY", "FAILED", "FAILED_TIMEOUT"}:
                                     break
+                                if case.get("brief_status") is None:
+                                    break
                                 await asyncio.sleep(0.5)
                             assert case["txn_id"] == txn_id
-                            assert case["brief_status"] in {"READY", "FAILED", "FAILED_TIMEOUT"}
+                            if result["risk_level"] == "LOW":
+                                assert case["brief_status"] is None
+                            else:
+                                assert case["brief_status"] in {"READY", "FAILED", "FAILED_TIMEOUT"}
                         return
                     assert response.status_code == 202
                     await asyncio.sleep(0.5)

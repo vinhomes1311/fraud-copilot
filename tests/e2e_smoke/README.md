@@ -6,5 +6,6 @@ File [test_transaction_e2e.py](./test_transaction_e2e.py) là test transaction
 thật qua simulator, API, Redis, Scoring Worker và PostgreSQL. Test cần
 `FRAUD_E2E_URL`.
 
-Hiện workflow `e2e-smoke` mới health-check `/healthz`; nó chưa gọi file pytest
-này và cũng chưa khởi động Scoring Worker/LLM Worker.
+Workflow `e2e-smoke` khởi động Redis, PostgreSQL, PgBouncer, Analyst API,
+Scoring Worker, LLM Worker và Nginx, sau đó chạy file pytest này với
+`FRAUD_E2E_URL=http://localhost:8080`.

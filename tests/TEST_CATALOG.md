@@ -191,6 +191,6 @@ python -m pytest tests/e2e_smoke/test_transaction_e2e.py -q
 ```
 
 Trong CI, job `tests` khởi động Redis và PostgreSQL bằng GitHub Actions
-service containers. Job `e2e-smoke` khởi động API stack bằng Docker Compose,
-nhưng transaction E2E chỉ chạy khi workflow khởi động thêm Scoring Worker,
-LLM Worker, Simulator và đặt `FRAUD_E2E_URL`.
+service containers. Job `e2e-smoke` khởi động API stack, Scoring Worker và
+LLM Worker bằng Docker Compose, đặt `FRAUD_E2E_URL` rồi chạy transaction E2E
+thật qua gateway.

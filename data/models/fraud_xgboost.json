@@ -1,0 +1,41 @@
+{
+  "model_version": "xgb-20261105144517",
+  "created_at": "2026-11-05T14:45:17.715341+00:00",
+  "metrics": {
+    "pr_auc": 0.9897541461230225,
+    "precision": 0.9799666110183639,
+    "recall": 0.9376996805111821,
+    "f1": 0.9583673469387755
+  },
+  "test_metrics": {
+    "pr_auc": 0.968962140306854,
+    "precision": 0.9834625322997416,
+    "recall": 0.8871794871794871,
+    "f1": 0.932843137254902
+  },
+  "threshold": 0.45,
+  "feature_columns": [
+    "merchant",
+    "category",
+    "amt",
+    "city_pop",
+    "transaction_hour",
+    "transaction_dayofweek",
+    "transaction_month",
+    "transaction_day",
+    "is_weekend",
+    "customer_age",
+    "customer_merchant_distance_km",
+    "time_since_last_trans_sec",
+    "trans_count_1h",
+    "trans_count_24h",
+    "trans_count_7d",
+    "sum_amt_24h",
+    "avg_amt_7d",
+    "std_amt_7d",
+    "max_amt_7d",
+    "amt_to_avg_7d_ratio",
+    "amt_to_max_7d_ratio"
+  ],
+  "source_sha256": "a07efde0cbc777641e690f4188e0c62cf301092bd3e02cd189c85da909ac0d92"
+}
