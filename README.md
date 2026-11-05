@@ -12,6 +12,7 @@ Toàn bộ stack có thể chạy bằng Docker Compose.
 
 - [Kiến trúc](#kiến-trúc)
 - [Yêu cầu](#yêu-cầu)
+- [Thiết lập cho thành viên mới và train lại model](#thiết-lập-cho-thành-viên-mới-và-train-lại-model)
 - [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
 - [Chạy và debug trong VS Code](#chạy-và-debug-trong-vs-code)
 - [Dashboard](#dashboard)
@@ -58,6 +59,150 @@ Các queue dùng at-least-once delivery. Mỗi queue có vùng `ready`, `process
 - Docker Desktop có hỗ trợ Docker Compose v2
 - Hoặc Python 3.12+ và Redis/PostgreSQL khi chạy service ngoài Docker
 - PowerShell, bash hoặc terminal tương đương để chạy các lệnh ví dụ
+
+## Thiết lập cho thành viên mới và train lại model
+
+Mỗi thành viên clone repository cần tự tải dataset từ Kaggle về máy và train
+model local. Các file dataset, processed data và model binary không được commit
+vào Git vì chúng có kích thước lớn và đang nằm trong `.gitignore`.
+
+### 1. Clone repository và cài dependency
+
+Từ PowerShell:
+
+```powershell
+git clone https://github.com/NTT1602/fraud-copilot.git
+Set-Location fraud-copilot
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Nếu PowerShell chặn activate script, có thể chạy trực tiếp bằng Python đã cài
+dependency hoặc mở PowerShell với policy phù hợp trong phạm vi user.
+
+### 2. Tải dataset Kaggle
+
+Tải bộ dữ liệu fraud detection Sparkov từ Kaggle, sau đó đặt đúng hai file vào
+folder `data/`:
+
+```text
+data/
+├── fraudTrain.csv
+└── fraudTest.csv
+```
+
+Tên file phải đúng như trên vì [ml_pipeline/config.json](ml_pipeline/config.json)
+đang trỏ tới:
+
+```json
+{
+  "data": {
+    "train_file": "data/fraudTrain.csv",
+    "test_file": "data/fraudTest.csv"
+  }
+}
+```
+
+Dataset cần có tối thiểu các cột mà pipeline yêu cầu, gồm `is_fraud`, `amt`,
+`cc_num` và timestamp (`trans_date_trans_time` hoặc cột timestamp tương thích),
+cùng các cột địa lý/merchant nếu muốn tạo đầy đủ feature như pipeline hiện tại.
+Không đổi tên hoặc trộn train/test trước khi chạy; pipeline tự xử lý theo thứ
+tự thời gian và loại bỏ PII khỏi feature.
+
+Có thể kiểm tra nhanh file đã đặt đúng chỗ:
+
+```powershell
+Test-Path data\fraudTrain.csv
+Test-Path data\fraudTest.csv
+```
+
+Cả hai lệnh phải trả về `True`.
+
+### 3. Chọn GPU hoặc CPU
+
+Mặc định hiện tại trong `ml_pipeline/config.json` là:
+
+```json
+"device": "cuda"
+```
+
+Nếu máy có NVIDIA GPU, driver hoạt động và XGBoost bản cài hỗ trợ CUDA, giữ
+`cuda` để phần train XGBoost chạy nhanh hơn. Kiểm tra GPU:
+
+```powershell
+nvidia-smi
+```
+
+Nếu không có NVIDIA GPU hoặc gặp lỗi CUDA, đổi thành:
+
+```json
+"device": "cpu"
+```
+
+Các bước đọc CSV, preprocessing bằng pandas, calibration và ghi file vẫn chạy
+trên CPU; chỉ phần XGBoost training có thể dùng GPU.
+
+### 4. Chạy lại preprocessing và train từ đầu
+
+Chạy tại thư mục gốc repository:
+
+```powershell
+python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Lệnh này chạy toàn bộ workflow:
+
+```text
+fraudTrain.csv + fraudTest.csv
+        ↓
+feature engineering và chronological split
+        ↓
+data/processed/train.csv
+data/processed/validation.csv
+data/processed/test.csv
+        ↓
+train XGBoost + validation/calibration/evaluation
+        ↓
+data/models/fraud_xgboost.joblib
+data/models/fraud_xgboost.json
+```
+
+Không chạy trực tiếp file `fraud_xgboost.json`; đó chỉ là metadata metric và
+lineage được tạo sau khi train. Mỗi lần chạy workflow sẽ ghi đè processed data
+và model artifact local.
+
+Nếu muốn chạy training trong Docker:
+
+```powershell
+docker compose --profile training run --rm ml-pipeline
+```
+
+Profile Docker này thuận tiện cho môi trường không cần debug Python local,
+nhưng GPU chỉ được dùng khi Docker đã được cấu hình NVIDIA Container Toolkit.
+Để dùng GPU đơn giản trên Windows, chạy lệnh Python local ở trên.
+
+### 5. Kiểm tra artifact sau khi train
+
+```powershell
+Get-ChildItem data\processed
+Get-Item data\models\fraud_xgboost.joblib
+Get-Content data\models\fraud_xgboost.json
+```
+
+Đánh giá lại artifact mà không train lại:
+
+```powershell
+python -m ml_pipeline.evaluate_artifact `
+  --artifact data\models\fraud_xgboost.joblib `
+  --test-data data\fraudTest.csv `
+  --output reports\ml-model-evaluation.json
+```
+
+Sau khi có artifact, scoring worker sẽ dùng file
+`data/models/fraud_xgboost.joblib`. Nếu xóa artifact hoặc chưa train, scoring
+worker không thể chấm điểm các giao dịch mới.
 
 ## Chạy nhanh bằng Docker
 
