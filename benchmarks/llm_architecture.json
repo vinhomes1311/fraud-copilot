@@ -18,7 +18,7 @@
   "exclusions": ["Hot Path p95 <= 500 ms", "transaction TPS", "analyst concurrency", "UI and ML model accuracy"],
   "known_limits": [
     "The document does not define a numeric LLM latency SLA. Do not apply Hot Path's 500 ms target to this benchmark.",
-    "The current semantic retriever embeds the small KB on every call; a persistent vector index is not verified by this benchmark.",
+    "Semantic retrieval caches public playbook vectors in worker memory with a bounded TTL; query embeddings still run per case. No persistent vector index is verified by this benchmark.",
     "Worker currently uses FAILED for non-timeout failures; the document says FAILED_TIMEOUT for LLM errors/timeouts. This remains a contract clarification, not a benchmark pass.",
     "Worker persistence, retries, priority and fallback are covered by integration tests separately, not by the adapter timing benchmark."
   ]

@@ -103,7 +103,10 @@ class APITests(unittest.IsolatedAsyncioTestCase):
 
         def handler(request):
             captured.append(request)
-            return httpx.Response(200, json=self.reply())
+            reply = self.reply()
+            selection = dict(self.selection, checklist_ids=['PB-06'])
+            reply['choices'][0]['message']['content'] = json.dumps(selection)
+            return httpx.Response(200, json=reply)
 
         with patch('llm_worker.processor.get_llm_client', return_value=APIClient()), \
              patch('llm_worker.processor.get_retriever', return_value=ApprovedPlaybookRetriever()), \
@@ -121,7 +124,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[4], 'test-model')
         self.assertEqual(args[6], 120)
         self.assertEqual(args[7], 'generation-api')
-        self.assertEqual(args[1]['citations'][0]['rule_code'], 'PB-03')
+        self.assertEqual(args[1]['citations'][0]['rule_code'], 'PB-06')
 
     async def test_json_mode_and_legacy_token_parameter(self):
         with patch.dict(os.environ, {'LLM_API_RESPONSE_FORMAT': 'json_object',

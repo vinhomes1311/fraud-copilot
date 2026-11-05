@@ -18,8 +18,8 @@ class KagglePlaybookTests(unittest.IsolatedAsyncioTestCase):
 
     def test_playbook_provenance_and_stable_citations(self):
         kb = load(KB_PATH)
-        self.assertEqual(kb['version'], '1.1-kaggle-sparkov')
-        self.assertEqual([c['id'] for c in kb['chunks']], [f'PB-0{i}' for i in range(1, 6)])
+        self.assertEqual(kb['version'], '2.0-detailed-ml-playbook')
+        self.assertEqual([c['id'] for c in kb['chunks'][:5]], [f'PB-0{i}' for i in range(1, 6)])
         self.assertIn('team_dataset_adaptation', kb['source_status'])
         self.assertIn('https://www.kaggle.com/datasets/kartik2112/fraud-detection', kb['source_note'])
         for chunk in kb['chunks']:

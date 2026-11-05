@@ -26,7 +26,7 @@ thể gần hai lần timeout nếu cả hai stage đều chậm.
 | Yêu cầu kiến trúc | Kiểm tra / bằng chứng | Giới hạn |
 |---|---|---|
 | FR-05: brief/checklist có citation | Selection ID được kiểm tra; renderer dùng nguồn phê duyệt; grounding check | Checklist cần analyst đánh giá mức phù hợp |
-| RAG truy xuất ngữ nghĩa | `--scope rag-llm --retriever ollama`; đo `retrieval_s` | Retriever hiện embed lại KB nhỏ mỗi lượt; chưa xác minh persistent vector index |
+| RAG truy xuất ngữ nghĩa | `--scope rag-llm --retriever ollama`; đo `retrieval_s` | Vector KB cache RAM theo endpoint/model/text với TTL; mỗi query vẫn được embed; chưa xác minh persistent vector index |
 | Mỗi brief tối đa 5.000 token | Budget là min(cấu hình worker, 5000); ghi lỗi `token_budget` | Theo cách dự án đếm input + output; embedding usage được tách khỏi budget brief |
 | FR-09: tối thiểu hóa định danh | Projection allowlist và test privacy của API adapter | Không xem mọi trường `payload_masked` là an toàn để gửi đi |
 | Timeout và lỗi từng bước | `failure_stage`, timeout retrieval/generation riêng, success rate và usage | Benchmark không retry để giữ phép đo minh bạch |

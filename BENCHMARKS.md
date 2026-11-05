@@ -98,7 +98,9 @@ ghi vào report. Không tự retry để tránh trộn chi phí/độ trễ retr
   Ollama. Vì nhiệm vụ đầu ra khác nhau, không dùng kết quả để khẳng định model
   nào có năng lực tốt hơn chỉ từ latency hoặc số output token.
 - `--completion-cap` mặc định 1024 được áp dụng cho cả hai provider. Ollama worker
-  thường vẫn mặc định 512 như trước; benchmark truyền cap riêng qua constructor.
+  thường mặc định 128, cấu hình bằng `OLLAMA_MAX_COMPLETION_TOKENS`;
+  benchmark truyền cap riêng qua constructor. Để đo đúng cấu hình demo, thêm
+  `--completion-cap 128`.
 - Dùng chung playbook và seed để xáo thứ tự case giống nhau. Hai provider chạy từng
   batch nối tiếp để tránh tranh tài nguyên. Thử đảo `--providers api ollama` và lặp
   nhiều lần khi cần giảm ảnh hưởng thứ tự, cache và nhiệt độ máy.

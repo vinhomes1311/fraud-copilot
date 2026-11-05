@@ -1,5 +1,6 @@
 """Compare the project's Ollama/API brief adapters; default is a no-request plan."""
 from __future__ import annotations
+from llm_worker.retrieval_policy import retrieve_context
 
 import argparse
 import asyncio
@@ -180,9 +181,10 @@ async def measure(provider, factory, case, chunks, config, phase, repeat, retrie
             try:
                 signals = [e['feature'] for e in context.get('explanations', [])]
                 active_chunks = await asyncio.wait_for(
-                    retriever.retrieve(signals, context['risk_level'], top_k=5), config.timeout_s)
+                    retrieve_context(retriever, context, top_k=5), config.timeout_s)
             finally:
                 row['retrieval_s'] = time.perf_counter() - timer
+        row['retrieved_rules'] = [c.rule_code for c in active_chunks]
         stage = 'generation'
         row['generation_started'] = True
         timer = time.perf_counter()
@@ -289,7 +291,9 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                   'kind': config.retriever if config.scope == 'rag-llm' else 'shared-playbook',
                   'embedding_model': (os.getenv('OLLAMA_EMBED_MODEL', 'embeddinggemma:300m')
                                       if config.scope == 'rag-llm' and config.retriever == 'ollama' else None),
-                  'top_k': 5},
+                    'top_k': 5,
+                    'document_cache': 'per-retriever memory; endpoint/model/text keyed; queries always embedded',
+                    'document_cache_ttl_s': float(os.getenv('OLLAMA_EMBED_CACHE_TTL_S', '300'))},
               'config': asdict(config), 'case_ids': [case['id'] for case in cases],
               'cases_sha256': hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
               'playbook_sha256': hashlib.sha256(local_module.KB_PATH.read_bytes()).hexdigest(),
@@ -314,7 +318,8 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                            temperature='provider_default')
         else:
             options.update(selection_contract='checklist-only-v1', evidence_source='backend-all-evidence',
-                           response_format='json_schema', temperature=0, keep_alive='provider_default')
+                             response_format='json_schema', temperature=0,
+                             keep_alive=os.getenv('OLLAMA_KEEP_ALIVE', '10m'))
         report['provider_options'][provider] = options
     for provider in config.providers:
         rows = []
@@ -356,6 +361,8 @@ def mock_response(request):
         return httpx.Response(200, json={'embeddings': [[1.0, float(i + 1)] for i in range(len(payload['input']))]})
     evidence = json.loads(payload['messages'][1]['content'])['evidence']
     ids = ['PB-03', 'PB-05'] if 'EV-HISTORY-GAP' in evidence else ['PB-01', 'PB-03']
+    available = [c['id'] for c in json.loads(payload['messages'][1]['content'])['playbook']]
+    ids = [i for i in ids if i in available] or available[:1]
     content = json.dumps({'evidence_ids': list(evidence), 'checklist_ids': ids})
     if request.url.path.endswith('/chat/completions'):
         return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': content}}],
