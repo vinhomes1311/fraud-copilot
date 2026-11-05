@@ -42,6 +42,9 @@ junit*.xml
 /PLAYBOOK_OPTIMIZATION_*.md
 /PLAYBOOK_V2_BENCHMARK.md
 
+# Local documentation: test catalogs, run notes and working drafts
+/local-docs/
+
 # Runtime and operating system artifacts
 *.log
 .DS_Store
