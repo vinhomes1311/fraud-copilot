@@ -197,6 +197,8 @@ async def test_entire_workflow(monkeypatch, provider):
                         assert result['status'] == 'SCORED' and result['risk_level'] == level, result
                         if level == 'LOW':
                             assert result['case_id'] is None
+                            assert await state.db.rfetchval(
+                                'SELECT count(*) FROM cases WHERE txn_id=$1', txn_id) == 0
                             continue
                         case_id = result['case_id']
                         ids[level + '_case'] = case_id

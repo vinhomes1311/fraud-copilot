@@ -104,10 +104,12 @@ class ScoringProcessor:
                 [e.model_dump() for e in pred.explanations], latency_ms, trace_id)
             if inserted is None:       # job bị giao lại -> đã xử lý rồi
                 return None
-            case_id = await conn.fetchval(
-                """INSERT INTO cases (txn_id, risk_level) VALUES ($1,$2)
-                   ON CONFLICT (txn_id) DO UPDATE SET risk_level=EXCLUDED.risk_level,
-                   updated_at=now() RETURNING case_id""", txn_id, level.value)
+            case_id = None
+            if level != RiskLevel.LOW:
+                case_id = await conn.fetchval(
+                    """INSERT INTO cases (txn_id, risk_level) VALUES ($1,$2)
+                       ON CONFLICT (txn_id) DO UPDATE SET risk_level=EXCLUDED.risk_level,
+                       updated_at=now() RETURNING case_id""", txn_id, level.value)
             await conn.execute(
                 "INSERT INTO audit_log (actor, event, entity, entity_id, detail, trace_id) VALUES ($1,$2,$3,$4,$5,$6)",
                 "scoring-worker", "transaction.scored", "transaction", txn_id,
