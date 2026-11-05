@@ -8,7 +8,7 @@ from llm_worker.local_integration import SemanticRetriever, KB_PATH
 from llm_worker.retrieval_policy import applicability, retrieve_context
 
 def cases():
-    return load_cases(ROOT/'benchmarks/playbook_v2_cases.json')
+    return load_cases(ROOT/'benchmarks/fixtures/playbook_v2_cases.json')
 
 def test_applicability_excludes_invalid_rules_for_all_contexts():
     for c in cases():
@@ -41,7 +41,7 @@ async def test_semantic_query_includes_history_state_but_not_identifiers():
 
 def test_boundary_references_and_conditions_are_consistent():
     allowed={c['rule_code'] for c in json.loads(KB_PATH.read_text(encoding='utf-8'))['chunks']}
-    data=load_cases(ROOT/'benchmarks/playbook_v2_boundary_cases.json')
+    data=load_cases(ROOT/'benchmarks/fixtures/playbook_v2_boundary_cases.json')
     validate_references(data,allowed)
     for c in data:
         assert not set(c['forbidden_rules']) & applicability(c['context']).keys()

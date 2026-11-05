@@ -7,7 +7,7 @@ def main():
     b=r/'benchmark_results'
     new=json.loads((b/'playbook_v2_20261105/results.json').read_text())
     old=json.loads((b/'playbook_v1_control_20261105/results.json').read_text())
-    cases=json.loads((r/'benchmarks/playbook_v2_cases.json').read_text(encoding='utf-8'))
+    cases=json.loads((r/'benchmarks/fixtures/playbook_v2_cases.json').read_text(encoding='utf-8'))
     control=json.loads((b/'playbook_v1_control_cases.json').read_text(encoding='utf-8'))
     assert [(c['id'],c['context']) for c in cases]==[(c['id'],c['context']) for c in control]
     for key in ('repeats','warmup','concurrency','completion_cap','seed','scope','retriever'):

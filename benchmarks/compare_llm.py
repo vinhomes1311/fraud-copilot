@@ -33,8 +33,8 @@ from llm_worker.grounding import check_grounding
 from llm_worker.rag import ApprovedPlaybookRetriever
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CASES = Path(__file__).with_name('cases.json')
-ARCHITECTURE = json.loads(Path(__file__).with_name('llm_architecture.json').read_text(encoding='utf-8'))
+DEFAULT_CASES = ROOT / 'benchmarks/fixtures/cases.json'
+ARCHITECTURE = json.loads((ROOT / 'benchmarks/config/llm_architecture.json').read_text(encoding='utf-8'))
 
 
 def brief_budget():

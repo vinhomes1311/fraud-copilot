@@ -7,7 +7,7 @@ Toàn bộ stack có thể chạy bằng Docker Compose.
 > **Trạng thái hiện tại:** hạ tầng giao tiếp, hợp đồng dữ liệu, retry/timeout,
 > circuit breaker, RBAC, audit log, metrics và dashboard đã có implementation. LLM hỗ trợ
 > API online, Ollama và stub; phần chấm điểm ML vẫn là implementation demo.
-> Xem [hướng dẫn API online](API_ADAPTER.md) để chọn model mà không cần train lại LLM.
+> Xem [hướng dẫn API online](docs/llm/api-adapter.md) để chọn model mà không cần train lại LLM.
 
 ## Mục lục
 
@@ -65,8 +65,9 @@ Các queue dùng at-least-once delivery. Mỗi queue có vùng `ready`, `process
 ## Thiết lập cho thành viên mới và train lại model
 
 Mỗi thành viên clone repository cần tự tải dataset từ Kaggle về máy và train
-model local. Các file dataset, processed data và model binary không được commit
-vào Git vì chúng có kích thước lớn và đang nằm trong `.gitignore`.
+model local. Dataset, processed data và artifact mới sinh ra được bỏ qua bởi
+`.gitignore`. Model baseline đã được theo dõi trong Git vẫn được giữ để serving
+và kiểm thử scoring thật trên CI; tránh commit đè bằng model của từng máy.
 
 ### 1. Clone repository và cài dependency
 
@@ -315,8 +316,8 @@ Python tự nạp `.env` ở thư mục dự án; biến môi trường trong sh
 Smoke mặc định chỉ kiểm tra cấu hình; `--live` mới gọi API. LLM chọn evidence và
 checklist ID; ứng dụng kiểm tra nguồn và dựng brief có citation trước khi lưu DB.
 Chi tiết model, reasoning effort, token budget và lỗi quota/credit xem
-[API_ADAPTER.md](API_ADAPTER.md). Local Ollama được mô tả ở
-[LLM_INTEGRATION.md](LLM_INTEGRATION.md).
+[docs/llm/api-adapter.md](docs/llm/api-adapter.md). Local Ollama được mô tả ở
+[hướng dẫn Ollama local](docs/llm/local-integration.md).
 
 ## Chạy và debug trong VS Code
 
@@ -515,10 +516,10 @@ Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
 ## Test
 
 So sánh hiệu năng Ollama local và API online bằng bộ case chung:
-xem [BENCHMARKS.md](BENCHMARKS.md). Lệnh mặc định chỉ in kế hoạch;
+xem [docs/benchmarks/README.md](docs/benchmarks/README.md). Lệnh mặc định chỉ in kế hoạch;
 `--mock` chạy offline, `--live` mới gọi model thật.
 Phạm vi LLM/RAG theo tài liệu kiến trúc và cách đo retrieval + generation được
-đối chiếu tại [LLM_BENCHMARK_ARCHITECTURE.md](LLM_BENCHMARK_ARCHITECTURE.md).
+đối chiếu tại [docs/benchmarks/architecture.md](docs/benchmarks/architecture.md).
 
 Test logic không cần hạ tầng:
 
@@ -609,7 +610,7 @@ python -m ml_pipeline.evaluate_artifact \
 ## Các phần cần thay thế
 
 Playbook LLM/RAG đã được điều chỉnh cho dataset `kartik2112/fraud-detection`.
-Xem [ánh xạ cột, nguồn và giới hạn suy luận](knowledge/KAGGLE_DATASET_PLAYBOOK.md).
+Xem [ánh xạ cột, nguồn và giới hạn suy luận](docs/playbooks/kaggle-dataset.md).
 
 | File | Hiện tại | Cần thay bằng |
 |---|---|---|
@@ -636,7 +637,12 @@ nginx/             gateway và routing
 prometheus/        Prometheus scrape config
 static/            dashboard frontend
 static/media/      media assets served by the dashboard
-docs/              integration guides, including [LLM integration](docs/LLM_INTEGRATION.md)
+docs/llm/          hướng dẫn LLM local, demo và API tùy chọn
+docs/benchmarks/   quy trình benchmark, kiến trúc và reference
+docs/playbooks/    giải thích playbook, dataset và điều kiện áp dụng
+benchmarks/        script benchmark; fixtures/ và config/ được version
+knowledge/         playbook đang dùng khi chạy worker
+reports/           baseline CI và report local được Git ignore
 notebooks/         exploratory data preprocessing and ML notebooks
 tests/             test được chia theo các job CI: unit_integration, ml_evaluation, e2e_smoke
 ```
@@ -691,3 +697,10 @@ curl -X POST http://localhost:8010/v1/predict \
 ```
 
 `model-service:8010/metrics` và các metric `fraud_inference_*`, `fraud_stage_seconds` được Prometheus scrape. Có thể kích hoạt workflow theo cron/Task Scheduler bằng lệnh `python -m ml_pipeline`; trigger sự kiện có dữ liệu mới chỉ cần gọi cùng lệnh sau khi file input được cập nhật. Nên lưu `data/models/*.joblib` và file metadata trong DVC/object storage ở môi trường production thay vì commit binary vào Git.
+
+## Tổ chức tài liệu và dữ liệu local
+
+Xem [mục lục tài liệu](docs/README.md) và [cấu trúc benchmark](benchmarks/README.md).
+Fixture/config benchmark được version để tái lập kiểm thử. Dataset, model mới,
+kết quả benchmark, report sinh ra, cache và cấu hình VS Code cá nhân được bỏ qua
+bởi `.gitignore`. File baseline đang được CI sử dụng vẫn được giữ trong Git.

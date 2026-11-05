@@ -71,7 +71,7 @@ def evaluate(report, cases):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('report', type=Path)
-    parser.add_argument('--cases', type=Path, default=Path(__file__).with_name('playbook_v2_cases.json'))
+    parser.add_argument('--cases', type=Path, default=Path(__file__).parent / 'fixtures/playbook_v2_cases.json')
     args = parser.parse_args()
     from llm_worker.local_integration import KB_PATH
     cases = json.loads(args.cases.read_text(encoding='utf-8'))

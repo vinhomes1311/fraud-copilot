@@ -79,8 +79,8 @@ Từ PowerShell trên máy có repo, Python requirements và Ollama:
 
 ```powershell
 $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
-python -B -m benchmarks.compare_llm --live --providers ollama --scope rag-llm --retriever ollama --cases benchmarks/kaggle_cases.json --repeats 3 --warmup 1 --completion-cap 128
-python -B -m benchmarks.compare_llm --live --providers ollama --scope rag-llm --retriever ollama --cases benchmarks/ml_contract_cases.json --repeats 2 --warmup 1 --completion-cap 128
+python -B -m benchmarks.compare_llm --live --providers ollama --scope rag-llm --retriever ollama --cases benchmarks/fixtures/kaggle_cases.json --repeats 3 --warmup 1 --completion-cap 128
+python -B -m benchmarks.compare_llm --live --providers ollama --scope rag-llm --retriever ollama --cases benchmarks/fixtures/ml_contract_cases.json --repeats 2 --warmup 1 --completion-cap 128
 ```
 
 Hai lệnh chỉ gọi Ollama với dữ liệu giả, không cần API key, database hay Redis.
@@ -101,4 +101,4 @@ https://docs.ollama.com/api/embed và https://docs.ollama.com/faq.
 
 ## Cập nhật retrieval
 
-Xem [hướng dẫn benchmark](BENCHMARKS.md) và [điều kiện áp dụng rule](knowledge/PLAYBOOK_APPLICABILITY.md). Query dùng context đã projection; các rule không đủ baseline được loại trước top 5. Model vẫn chọn 1–3 checklist, guard từ chối rule trái điều kiện.
+Xem [hướng dẫn benchmark](../benchmarks/README.md) và [điều kiện áp dụng rule](../playbooks/applicability.md). Query dùng context đã projection; các rule không đủ baseline được loại trước top 5. Model vẫn chọn 1–3 checklist, guard từ chối rule trái điều kiện.

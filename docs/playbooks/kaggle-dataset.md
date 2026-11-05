@@ -60,7 +60,7 @@ Chạy test LLM/RAG không dùng API trả phí:
 được trích từ CSV Kaggle và không phải đánh giá fraud accuracy):
 
 ```powershell
-.\.venv\Scripts\python.exe -m benchmarks.compare_llm --live --scope rag-llm --providers ollama --cases benchmarks/kaggle_cases.json --completion-cap 512 --repeats 1 --warmup 0
+.\.venv\Scripts\python.exe -m benchmarks.compare_llm --live --scope rag-llm --providers ollama --cases benchmarks/fixtures/kaggle_cases.json --completion-cap 512 --repeats 1 --warmup 0
 ```
 
 Retriever trong `llm_worker` đọc KB mới khi khởi tạo; khởi động lại worker nếu đã

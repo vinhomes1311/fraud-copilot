@@ -13,7 +13,7 @@ from llm_worker.rag import ApprovedPlaybookRetriever
 
 class KagglePlaybookTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.cases = load_cases(ROOT / 'benchmarks/kaggle_cases.json')
+        self.cases = load_cases(ROOT / 'benchmarks/fixtures/kaggle_cases.json')
         self.ctx = copy.deepcopy(self.cases[0]['context'])
 
     def test_playbook_provenance_and_stable_citations(self):

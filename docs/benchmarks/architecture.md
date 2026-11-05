@@ -2,7 +2,7 @@
 
 Nguồn: [Tài liệu Đặc tả Kiến trúc Hệ thống của nhóm](https://docs.google.com/document/d/1-2mwhZHakWOM58tmmEZ3Djpv_ZTLCV_F8KpChOtvgYg/edit),
 đọc ngày 2026-11-04. URL, ngày đọc và SHA-256 của bản text export được lưu trong
-`benchmarks/llm_architecture.json` và mỗi report để truy vết phiên bản tham chiếu.
+`benchmarks/config/llm_architecture.json` và mỗi report để truy vết phiên bản tham chiếu.
 
 Phạm vi chỉ là LLM/RAG trong Cold Path. Không dùng mốc Hot Path p95 <= 500 ms để
 chấm LLM. Tài liệu chưa đặt SLA latency bằng số cho LLM; report ghi p50/p95,

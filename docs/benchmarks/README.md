@@ -5,7 +5,7 @@ tổng hợp, evidence và playbook được phê duyệt. Cả hai tạo cùng 
 đi qua kiểm tra ID/citation hiện có. Không cần PostgreSQL, Redis hoặc dashboard.
 
 Đối chiếu với tài liệu kiến trúc của nhóm, chỉ trong phạm vi LLM/RAG:
-xem [LLM_BENCHMARK_ARCHITECTURE.md](LLM_BENCHMARK_ARCHITECTURE.md).
+xem [docs/benchmarks/architecture.md](architecture.md).
 `--scope generation` giữ context chung để so sánh hai adapter;
 `--scope rag-llm --retriever ollama` đo thêm semantic retrieval trước generation.
 
@@ -144,9 +144,9 @@ timeout, output chưa tồn tại và việc không ghi credentials vào report.
 ## Đánh giá lựa chọn playbook
 
 Các case tham chiếu và rationale được giữ trong
-[`benchmarks/playbook_v2_cases.json`](benchmarks/playbook_v2_cases.json),
-[`benchmarks/playbook_v2_boundary_cases.json`](benchmarks/playbook_v2_boundary_cases.json)
-và [`benchmarks/PLAYBOOK_V2_REFERENCES.md`](benchmarks/PLAYBOOK_V2_REFERENCES.md).
+[`benchmarks/fixtures/playbook_v2_cases.json`](../../benchmarks/fixtures/playbook_v2_cases.json),
+[`benchmarks/fixtures/playbook_v2_boundary_cases.json`](../../benchmarks/fixtures/playbook_v2_boundary_cases.json)
+và [`docs/benchmarks/playbook-v2-references.md`](playbook-v2-references.md).
 Đây là fixture phát triển tổng hợp, không phải bộ kiểm định độc lập.
 
 Sau khi có `results.json` từ benchmark, chấm độ phủ nhóm rule, forbidden rules

@@ -9,7 +9,7 @@ from llm_worker.retrieval_policy import required_review_rules, rank_applicable
 from llm_worker.rag import Chunk
 
 def context():
-    data=json.loads((ROOT/'benchmarks/playbook_v2_boundary_cases.json').read_text())
+    data=json.loads((ROOT/'benchmarks/fixtures/playbook_v2_boundary_cases.json').read_text())
     return copy.deepcopy(next(c['context'] for c in data if c['id']=='boundary-4'))
 
 def test_requirement_depends_on_evidence_not_case_id_and_ranks_first():

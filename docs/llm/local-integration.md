@@ -1,6 +1,6 @@
 # Local LLM integration
 
-For hosted models without local downloads/training, use [the online API setup](API_ADAPTER.md).
+For hosted models without local downloads/training, use [the online API setup](api-adapter.md).
 The instructions below describe the optional Ollama mode. Python now loads the
 project `.env` automatically; shell variables take precedence. Set
 `LLM_RETRIEVER=ollama` explicitly when switching from the online `.env` example
@@ -55,7 +55,7 @@ Set `OLLAMA_EMBED_CACHE_TTL_S=0` to disable caching. If model weights are replac
 under the same tag, restart the worker immediately or wait for TTL expiry.
 The cache is in memory, not a persisted vector index. Profile before increasing concurrency.
 
-See [LLM_DEMO.md](LLM_DEMO.md) for the local demo configuration, current ML feature
+See [docs/llm/demo.md](demo.md) for the local demo configuration, current ML feature
 compatibility and the real-model validation procedure.
 
 Each enqueue stores its job ID as the active brief generation. RUNNING, READY and
@@ -111,4 +111,4 @@ This live integration test has not been run here.
 
 ## Context-aware applicability update
 
-The worker and benchmark now share context-aware retrieval. Semantic ranking is combined with rule applicability and explicit selection roles. See [conditions](../knowledge/PLAYBOOK_APPLICABILITY.md) and the [benchmark procedure](../BENCHMARKS.md). Restart the worker after updating code/playbook.
+The worker and benchmark now share context-aware retrieval. Semantic ranking is combined with rule applicability and explicit selection roles. See [conditions](../playbooks/applicability.md) and the [benchmark procedure](../benchmarks/README.md). Restart the worker after updating code/playbook.

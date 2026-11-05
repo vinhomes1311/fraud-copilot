@@ -46,7 +46,7 @@ hình. Lệnh smoke mặc định chỉ kiểm tra cấu hình; `--live` mới g
 không cần PostgreSQL, Redis hay Ollama và không đọc case thật. Kết quả gồm model,
 token, thời gian phản hồi và brief có citation.
 
-Queue worker cần DB/Redis và schema theo [LLM_INTEGRATION.md](LLM_INTEGRATION.md).
+Queue worker cần DB/Redis và schema theo [hướng dẫn tích hợp local](local-integration.md).
 Worker kiểm tra cấu hình LLM trước khi kết nối DB.
 
 ## Chọn model và tối ưu

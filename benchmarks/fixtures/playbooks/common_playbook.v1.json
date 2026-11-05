@@ -2,7 +2,7 @@
   "document_id": "common-fraud-investigation-playbook",
   "version": "1.1-kaggle-sparkov",
   "source_status": "confirmed_principles_with_team_dataset_adaptation",
-  "source_note": "Giữ năm nguyên tắc Common Knowledge Base được người dùng xác nhận ngày 2026-10-21. Hướng dẫn áp dụng và checklist do nhóm đề xuất cho dataset mô phỏng https://www.kaggle.com/datasets/kartik2112/fraud-detection, đối chiếu metadata/header ngày 2026-11-04 và nguồn sinh dữ liệu https://github.com/namebrandon/Sparkov_Data_Generation. Đây không phải chính sách điều tra do Kaggle ban hành. Xem knowledge/KAGGLE_DATASET_PLAYBOOK.md về nguồn, ánh xạ cột và giới hạn.",
+  "source_note": "Giữ năm nguyên tắc Common Knowledge Base được người dùng xác nhận ngày 2026-10-21. Hướng dẫn áp dụng và checklist do nhóm đề xuất cho dataset mô phỏng https://www.kaggle.com/datasets/kartik2112/fraud-detection, đối chiếu metadata/header ngày 2026-11-04 và nguồn sinh dữ liệu https://github.com/namebrandon/Sparkov_Data_Generation. Đây không phải chính sách điều tra do Kaggle ban hành. Xem docs/playbooks/kaggle-dataset.md về nguồn, ánh xạ cột và giới hạn.",
   "chunks": [
     {
       "id": "PB-01",

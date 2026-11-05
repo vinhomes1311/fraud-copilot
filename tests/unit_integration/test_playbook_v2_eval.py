@@ -10,7 +10,7 @@ from llm_worker.local_integration import KB_PATH, project_evidence
 
 
 def fixtures():
-    return load_cases(ROOT/'benchmarks/playbook_v2_cases.json')
+    return load_cases(ROOT/'benchmarks/fixtures/playbook_v2_cases.json')
 
 
 def test_references_valid_and_cover_detailed_rules():
