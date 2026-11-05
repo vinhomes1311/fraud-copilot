@@ -22,21 +22,21 @@ const example = {
 
 test('missing or invalid probability is not presented as zero; rounding stays explicit', () => {
   for (const value of [null, undefined, '', ' ', false, [], {}, NaN, Infinity, -1, 2]) {
-    assert.equal(view.probability(value), 'Chưa có điểm');
+    assert.equal(view.probability(value), 'Not available');
   }
   assert.equal(view.probability(0), '0%');
   assert.equal(view.probability(1), '100%');
   assert.equal(view.probability(0.999999), '≈100%');
-  assert.equal(view.probability(0.000001), '<0,01%');
+  assert.equal(view.probability(0.000001), '<0.01%');
 });
 
-test('overview uses local number formatting, retains copy target and invents no currency', () => {
+test('overview uses dashboard number formatting, retains copy target and invents no currency', () => {
   const html = view.renderOverview(example);
-  assert.match(html, /780,52/);
-  assert.match(html, /Rủi ro cao/);
-  assert.match(html, /Chờ xem xét/);
+  assert.match(html, /780.52/);
+  assert.match(html, /High priority/);
+  assert.match(html, /Open/);
   assert.match(html, /ab4b379d…126d72/);
-  assert.match(html, /Đơn vị tiền tệ chưa được cung cấp/);
+  assert.match(html, /Currency not provided/);
   assert.doesNotMatch(html, /USD|VND|₫|\$/);
 });
 
@@ -48,23 +48,23 @@ test('positive, negative and zero effects stay separate without modifying stored
   ] };
   const before = JSON.stringify(item);
   const html = view.renderSignals(item);
-  assert.match(html, /làm tăng điểm rủi ro/);
-  assert.match(html, /làm giảm điểm rủi ro/);
-  assert.match(html, /không làm thay đổi điểm/);
-  assert.match(html, /Số tiền giao dịch/);
-  assert.doesNotMatch(html, /6,31|2,41/);
-  assert.match(view.renderTechnicalDetails(item), /-6,31/);
-  assert.doesNotMatch(view.renderTechnicalDetails(item), /Đóng góp vào điểm mô hình|Dấu dương làm tăng/);
-  assert.match(view.renderTechnicalDetails(item), /\+2,41/);
+  assert.match(html, /Factors increasing risk score/);
+  assert.match(html, /Factors decreasing risk score/);
+  assert.match(html, /Factors with no score impact/);
+  assert.match(html, /Transaction amount/);
+  assert.doesNotMatch(html, /6.31|2.41/);
+  assert.match(view.renderTechnicalDetails(item), /-6.31/);
+  assert.doesNotMatch(view.renderTechnicalDetails(item), /Đóng góp vào điểm mô hình|Dấu dương làm tăng|Contributions to the model score/);
+  assert.match(view.renderTechnicalDetails(item), /\+2.41/);
   assert.equal(JSON.stringify(item), before);
 });
 
 test('original feature values take precedence and categorical encoding is never shown as fact', () => {
   assert.match(view.featureValue(example, { feature: 'transaction_hour', value: 1 }), /23:00/);
   assert.equal(view.featureValue({ transaction: {}, features: { avg_amt_7d: null } },
-    { feature: 'avg_amt_7d', value: 999 }), 'Chưa có giá trị gốc');
+    { feature: 'avg_amt_7d', value: 999 }), 'Original value unavailable');
   assert.equal(view.featureValue({ transaction: {}, features: {} },
-    { feature: 'merchant', value: 1 }), 'Chưa có giá trị gốc');
+    { feature: 'merchant', value: 1 }), 'Original value unavailable');
   assert.equal(view.featureValue({ transaction: {}, features: { trans_count_7d: 0 } },
     { feature: 'trans_count_7d', value: 99 }), '0');
 });
@@ -77,7 +77,7 @@ test('untrusted text is escaped across overview, features and model details', ()
   const html = view.renderOverview(item) + view.renderSignals(item) + view.renderTechnicalDetails(item);
   assert.doesNotMatch(html, /<img|onerror="/);
   assert.match(html, /&lt;img/);
-  assert.match(html, /Chưa có dữ liệu/);
+  assert.match(html, /No data/);
 });
 
 test('fallback score is not presented as an attributed risk factor', () => {
@@ -85,15 +85,15 @@ test('fallback score is not presented as an attributed risk factor', () => {
     { feature: 'model_probability', value: .9, contribution: .9 },
     { feature: 'amt', value: 10, contribution: null },
   ] });
-  assert.match(html, /Chưa có giải thích theo đặc trưng/);
+  assert.match(html, /No explanation signals available/);
   assert.doesNotMatch(html, /làm tăng/);
 });
 
-test('context proposes checks without claiming an anomaly or using missing comparisons', () => {
-  const html = view.renderReviewContext(example);
-  assert.match(html, /chỉ so sánh khi có baseline hợp lệ/);
-  assert.match(html, /cần xác nhận múi giờ/);
-  assert.doesNotMatch(html, /bất thường|vượt|gian lận|ban đêm/);
+test('impact annotations use English labels consistent with the main dashboard', () => {
+  const html = view.renderSignals(example);
+  assert.match(html, /Highest impact/);
+  assert.match(html, /Lower impact/);
+  assert.doesNotMatch(html, /Tác động lớn nhất|Tác động tiếp theo/);
 });
 
 test('checklist and citations remain while original summary and raw signals are hidden', () => {
@@ -108,7 +108,7 @@ test('checklist and citations remain while original summary and raw signals are 
   assert.doesNotMatch(render('Legacy summary', 'HIGH'), /Legacy summary/);
   assert.match(html, /Review evidence/);
   assert.match(html, /Approved reference/);
-  assert.match(render(null, 'LOW'), /LOW không tự tạo brief/);
+  assert.match(render(null, 'LOW'), /Low-risk cases do not generate briefs automatically/);
 });
 
 test('case drawer integrates the new sections and copies the full ID without changing server data', async () => {
@@ -139,10 +139,10 @@ test('case drawer integrates the new sections and copies the full ID without cha
   vm.runInContext(readFileSync(resolve(root, 'static/app.js'), 'utf8'), sandbox);
   await sandbox.openDetail(101);
   const html = element('#detail-content').innerHTML;
-  assert.match(html, /Tổng quan giao dịch/);
-  assert.match(html, /Nội dung cần đối chiếu/);
-  assert.match(html, /Chi tiết mô hình/);
-  assert.match(html, /Dữ liệu chi tiết/);
+  assert.match(html, /Transaction overview/);
+  assert.doesNotMatch(html, /Nội dung cần đối chiếu|Đối chiếu giờ ghi nhận|Kiểm tra độ đầy đủ của lịch sử/);
+  assert.match(html, /Model details/);
+  assert.match(html, /Transaction details/);
   assert.doesNotMatch(html, /Dữ liệu giao dịch đã che/);
   assert.match(html, /data-action="CONFIRMED_FRAUD"/);
   assert.ok(element('#detail-panel').classList.contains('open'));

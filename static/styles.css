@@ -882,7 +882,7 @@ tbody tr:hover { background: #fff8f9; }
 .copy-transaction-id:hover { background: #f5f2f8; border-color: #bdb2c9; }
 .copy-transaction-id:focus-visible, .model-details summary:focus-visible, .transaction-details summary:focus-visible, .brief-reference summary:focus-visible { outline: 2px solid #8177cf; outline-offset: 4px; }
 .risk-factor-group + .risk-factor-group { margin-top: 22px; }
-.risk-explanation h4, .review-context h4 { font-size: 13px; letter-spacing: 0; text-transform: none; margin-bottom: 12px; }
+.risk-explanation h4 { font-size: 13px; letter-spacing: 0; text-transform: none; margin-bottom: 12px; }
 .risk-factors { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .risk-factor { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 10px; border: 1px solid #ebe6ec; border-radius: 12px; padding: 14px 12px; background: #fff; }
 .factor-rank { display: grid; place-items: center; height: 26px; width: 26px; border-radius: 8px; color: #a02b48; background: #fbeef1; font-size: 11px; font-weight: 600; }
@@ -892,8 +892,6 @@ tbody tr:hover { background: #fff8f9; }
 .factor-value { display: block; margin-top: 5px; font-size: 12px; color: #766d7e; line-height: 1.5; overflow-wrap: anywhere; }
 .factor-impact { color: #766d7e; font-size: 10px; line-height: 1.6; padding-top: 2px; }
 .factor-context { font-size: 11px; color: #766d7e; line-height: 1.7; margin: 12px 0 0; }
-.review-context ul { margin: 0; padding-left: 18px; color: #605867; font-size: 12px; line-height: 1.8; }
-.review-context li + li { margin-top: 6px; }
 .investigation-checklist { margin: 0; padding-left: 18px; }
 .investigation-checklist li + li { margin-top: 12px; }
 .brief-reference { border-top: 1px solid #e9e2ec; margin-top: 14px; padding-top: 12px; }
