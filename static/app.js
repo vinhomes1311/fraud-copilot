@@ -7,7 +7,7 @@ const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulato
   : DEFAULT_SIMULATOR_TPS;
 const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
-const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "review", page: 0, pageSize: 200, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, lastSimulatorViewRefresh: 0, authMode: "login" };
+const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "review", page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, lastSimulatorViewRefresh: 0, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
@@ -99,7 +99,7 @@ function renderCases() {
   $("#cases-body").innerHTML = items.length ? items.map((item) => {
     const probability = Number(item.calibrated_prob || 0) * 100;
     const date = item.created_at ? new Date(item.created_at).toLocaleDateString("vi-VN") : "—";
-    return `<tr data-case-id="${escapeHtml(item.case_id)}"><td><b class="case-id">#${escapeHtml(item.case_id)}</b><div class="txn">${escapeHtml(item.txn_id)}</div></td><td><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))}</span></td><td><span class="confidence">${formatProbability(item.calibrated_prob)}</span><span class="confidence-bar"><i style="width:${probability}%"></i></span><small class="score-caption">calibrated probability</small></td><td><span class="status status-${riskClass(item.status)}">${escapeHtml(statusLabel(item.status))}</span></td><td>${date}</td><td>${renderEvidence(item)}</td></tr>`;
+    return `<tr data-case-id="${escapeHtml(item.case_id)}"><td><b class="case-id">#${escapeHtml(item.run_number ?? item.case_id)}</b><div class="txn">${escapeHtml(item.txn_id)}</div></td><td><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))}</span></td><td><span class="confidence">${formatProbability(item.calibrated_prob)}</span><span class="confidence-bar"><i style="width:${probability}%"></i></span><small class="score-caption">calibrated probability</small></td><td><span class="status status-${riskClass(item.status)}">${escapeHtml(statusLabel(item.status))}</span></td><td>${date}</td><td>${renderEvidence(item)}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">Không có case phù hợp với bộ lọc.</td></tr>`;
   document.querySelectorAll("[data-case-id]").forEach((row) => row.addEventListener("click", () => openDetail(row.dataset.caseId)));
   const pageCount = Math.max(1, Math.ceil(state.total / state.pageSize));
@@ -119,11 +119,13 @@ async function loadCases() {
     state.total = Number(result.total || 0);
     $("#open-count").textContent = result.open_count ?? 0;
     $("#high-count").textContent = result.high_count ?? 0;
-    $("#confidence-count").textContent = formatProbability(result.average_probability);
-    const latencyMs = Number(result.scoring_latency_ms || 0);
-    $("#latency-count").innerHTML = latencyMs >= 1000
-      ? `${(latencyMs / 1000).toFixed(2)}<span class="unit">s</span>`
-      : `${Math.round(latencyMs)}<span class="unit">ms</span>`;
+    $("#medium-count").textContent = result.medium_count ?? 0;
+    const decisions = result.decision_summary || {};
+    $("#decision-confirmed-fraud").textContent = decisions.confirmed_fraud ?? 0;
+    $("#decision-dismissed").textContent = decisions.dismissed ?? 0;
+    $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
+    $("#decision-escalated").textContent = decisions.escalated ?? 0;
+    $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
     renderCases();
   } catch (error) { $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Không tải được dữ liệu: ${escapeHtml(error.message)}</td></tr>`; showToast(error.message); }
 }
@@ -139,7 +141,7 @@ function renderClassifications() {
     const location = [item.city, item.region].filter(Boolean).join(", ");
     const confidence = formatProbability(item.calibrated_prob);
     const locked = ["CLOSED", "CONFIRMED_SIMULATED"].includes(item.status);
-    return `<tr data-case-id="${escapeHtml(item.case_id)}"><td><b class="case-id">#${escapeHtml(item.case_id)}</b><div class="txn">${escapeHtml(item.txn_id)}</div></td><td>${escapeHtml(merchant)}${location ? `<div class="txn">${escapeHtml(location)}</div>` : ""}</td><td><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))} · ${confidence}</span></td><td><span class="decision-badge decision-${decisionClass(item.action)}">${escapeHtml(decisionLabel(item.action))}</span>${item.note ? `<div class="decision-note-preview">${escapeHtml(item.note)}</div>` : ""}</td><td>${escapeHtml(item.actor)}<div class="txn">${escapeHtml(titleCase(item.role))}</div></td><td>${amount}</td><td>${decisionTime}</td><td><button class="classification-edit" type="button" data-edit-case-id="${escapeHtml(item.case_id)}" ${locked ? "disabled title=\"This case is closed\"" : ""}>Edit</button></td></tr>`;
+    return `<tr data-case-id="${escapeHtml(item.case_id)}"><td><b class="case-id">#${escapeHtml(item.run_number ?? item.case_id)}</b><div class="txn">${escapeHtml(item.txn_id)}</div></td><td>${escapeHtml(merchant)}${location ? `<div class="txn">${escapeHtml(location)}</div>` : ""}</td><td><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))} · ${confidence}</span></td><td><span class="decision-badge decision-${decisionClass(item.action)}">${escapeHtml(decisionLabel(item.action))}</span>${item.note ? `<div class="decision-note-preview">${escapeHtml(item.note)}</div>` : ""}</td><td>${escapeHtml(item.actor)}<div class="txn">${escapeHtml(titleCase(item.role))}</div></td><td>${amount}</td><td>${decisionTime}</td><td><button class="classification-edit" type="button" data-edit-case-id="${escapeHtml(item.case_id)}" ${locked ? "disabled title=\"This case is closed\"" : ""}>Edit</button></td></tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">No manually classified transactions found.</td></tr>`;
   document.querySelectorAll("#classifications-body [data-case-id]").forEach((row) =>
     row.addEventListener("click", () => openDetail(row.dataset.caseId))
@@ -187,7 +189,9 @@ function setView(view) {
   $("#analytics-nav").classList.toggle("active", analytics);
   $("#classifications-nav").classList.toggle("active", classifications);
   $("#page-title").textContent = classifications ? "Manual decisions" : analytics ? "Analytics" : "Review queue";
-  $("#kpi-grid").classList.toggle("hidden", classifications);
+  $("#review-kpi-grid").classList.toggle("hidden", view !== "review");
+  $("#analytics-kpi-grid").classList.toggle("hidden", !analytics);
+  $("#analytics-decisions").classList.toggle("hidden", !analytics);
   $("#review-content").classList.toggle("hidden", classifications);
   $("#classifications-content").classList.toggle("hidden", !classifications);
   $("#queue-title").textContent = analytics ? "Medium & High transactions" : "Priority cases";
@@ -215,6 +219,26 @@ async function loadTestBatch() {
     }
   }
 }
+async function resetDemoData() {
+  const confirmed = confirm(
+    "Xóa các giao dịch và case do simulator tạo, cùng quyết định/brief liên quan? Tài khoản và audit log được giữ lại. Simulator sẽ chạy lại từ đầu."
+  );
+  if (!confirmed) return;
+
+  const button = $("#reset-demo-button");
+  button.disabled = true;
+  try {
+    const result = await api("/demo/reset", { method: "POST" });
+    state.page = 0;
+    applySimulatorState(result);
+    await loadCurrentView();
+    showToast(`Đã xóa ${result.deleted_cases} case và ${result.deleted_transactions} giao dịch demo; simulator chạy lại từ đầu`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
 async function syncSimulatorState() {
   if (!state.token || state.simulatorPolling) return;
   state.simulatorPolling = true;
@@ -236,6 +260,8 @@ function applySimulatorState(simulator, broadcast = true) {
   state.simulatorVersion = simulator.version;
   state.simulatorRunning = simulator.running;
   state.simulatorError = simulator.error;
+  $("#simulator-actual-tps").textContent =
+    `Case mở mới TB 5 giây: ${Number(simulator.open_cases_per_second || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} case/giây`;
   localStorage.setItem("fraud_test_offset", String(state.testOffset));
   localStorage.setItem("fraud_simulator_tps", String(state.simulatorTps));
   if (!state.simulatorTpsInputDirty) $("#simulator-tps").value = String(state.simulatorTps);
@@ -276,8 +302,6 @@ function readSimulatorTps() {
   if (!input.value || !Number.isInteger(tps) || tps < 1 || tps > MAX_SIMULATOR_TPS) {
     throw new Error(`Nhập số nguyên từ 1 đến ${MAX_SIMULATOR_TPS} giao dịch/giây`);
   }
-  state.simulatorTps = tps;
-  localStorage.setItem("fraud_simulator_tps", String(tps));
   return tps;
 }
 
@@ -289,7 +313,7 @@ async function openDetail(caseId, editDecision = false) {
     const signals = (item.explanations || []).map((signal) => `<li><span>${escapeHtml(titleCase(signal.feature))}</span><b class="${Number(signal.contribution) >= 0 ? "signal-up" : "signal-down"}">${Number(signal.contribution) >= 0 ? "+" : ""}${Number(signal.contribution).toFixed(2)}</b><small>${escapeHtml(signal.value)}</small></li>`).join("");
     const transaction = Object.entries(item.transaction || {}).map(([key, value]) => `<div class="data-field"><small>${escapeHtml(titleCase(key))}</small><b>${escapeHtml(value)}</b></div>`).join("");
     const trace = `<div class="trace-row"><span>Transaction ID</span><b>${escapeHtml(item.txn_id)}</b></div><div class="trace-row"><span>Model version</span><b>${escapeHtml(item.model_version || "—")}</b></div><div class="trace-row"><span>Threshold config</span><b>v${escapeHtml(item.threshold_config_version || "—")}</b></div>`;
-    $("#detail-title").textContent = `Case #${item.case_id}`;
+    $("#detail-title").textContent = `Case #${item.run_number ?? item.case_id}`;
     const terminal = ["CLOSED", "DISMISSED", "CONFIRMED_FRAUD", "CONFIRMED_SIMULATED"].includes(item.status);
     const hasPreviousOutcome = (item.actions || []).some((action) =>
       action.action.startsWith("OUTCOME_")
@@ -403,25 +427,32 @@ function updateUser() { const name = state.user?.username || "Analyst"; $("#user
 $("#simulator-tps").value = String(state.simulatorTps);
 $("#simulator-tps").addEventListener("input", () => { state.simulatorTpsInputDirty = true; });
 $("#simulator-tps").addEventListener("change", async () => {
+  const input = $("#simulator-tps");
+  const previousTps = state.simulatorTps;
   try {
-    const previousTps = state.simulatorTps;
     const tps = readSimulatorTps();
-    state.simulatorTpsInputDirty = false;
     if (tps === previousTps) {
+      state.simulatorTpsInputDirty = false;
       $("#simulator-tps").value = String(previousTps);
       return;
     }
-    const simulator = await api("/demo/simulator", {
-      method: "POST",
-      body: JSON.stringify({ action: "set_speed", tps }),
-    });
-    applySimulatorState(simulator);
+    input.disabled = true;
+    try {
+      const simulator = await api("/demo/simulator", {
+        method: "POST",
+        body: JSON.stringify({ action: "set_speed", tps }),
+      });
+      state.simulatorTpsInputDirty = false;
+      applySimulatorState(simulator);
+    } finally {
+      input.disabled = false;
+    }
     showToast(`Tốc độ simulator đổi thành ${tps} giao dịch/giây trên tất cả các trang`);
   } catch (error) {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
 $("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {

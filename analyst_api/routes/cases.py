@@ -39,6 +39,10 @@ async def _case_summary() -> dict:
                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
                        AND c.risk_level = 'HIGH'
                  ) AS high_count,
+                 count(*) FILTER (
+                     WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                       AND c.risk_level = 'MEDIUM'
+                 ) AS medium_count,
                  coalesce(avg(s.calibrated_prob) FILTER (WHERE s.status = 'SCORED'), 0) AS average_probability,
                  coalesce(avg(s.latency_ms) FILTER (WHERE s.status = 'SCORED'), 0) AS scoring_latency_ms
           FROM cases c
@@ -86,16 +90,21 @@ async def list_cases(
     user: User = Depends(any_reviewer),
     risk_level: RiskLevel | None = None,
     status: CaseStatus | None = None,
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
     """Review Queue: newest transactions first. Risk Lead defaults to ESCALATED."""
     if user.role == Role.RISK_LEAD and status is None:
         status = CaseStatus.ESCALATED
     rows = await state.db.rfetch(
-        """SELECT c.case_id, c.txn_id, c.risk_level, c.status, c.assigned_to, c.created_at,
+        """WITH numbered_cases AS (
+               SELECT c.*,
+                      row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
+               FROM cases c
+           )
+           SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status, c.assigned_to, c.created_at,
                   s.calibrated_prob, b.status AS brief_status
-           FROM cases c
+           FROM numbered_cases c
            JOIN scoring_results s ON s.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
            WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)
@@ -120,23 +129,76 @@ async def list_cases(
 @router.get("/analytics/transactions")
 async def list_analytics_transactions(
     user: User = Depends(any_reviewer),
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
     rows = await state.db.rfetch(
-        """SELECT c.case_id, c.txn_id, c.risk_level, c.status, c.created_at,
+        """WITH numbered_cases AS (
+               SELECT c.*,
+                      row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
+               FROM cases c
+           )
+           SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status, c.created_at,
                   s.calibrated_prob, s.model_version, b.status AS brief_status
-           FROM cases c
+           FROM numbered_cases c
            JOIN scoring_results s ON s.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
         WHERE c.risk_level IN ('HIGH', 'MEDIUM')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM case_actions ca
+              WHERE ca.case_id = c.case_id
+                AND ca.action IN (
+                    'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                    'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                    'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+                )
+          )
         ORDER BY s.calibrated_prob DESC, c.created_at
            LIMIT $1 OFFSET $2""",
         limit, offset)
     total = await state.db.rfetchval(
-        "SELECT count(*) FROM cases WHERE risk_level IN ('HIGH', 'MEDIUM')")
+        """SELECT count(*)
+           FROM cases c
+           WHERE c.risk_level IN ('HIGH', 'MEDIUM')
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM case_actions ca
+                 WHERE ca.case_id = c.case_id
+                   AND ca.action IN (
+                       'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                       'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                       'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+                   )
+             )""")
     summary = await _case_summary()
-    return {"items": [dict(r) for r in rows], "limit": limit, "offset": offset, "total": total, **summary}
+    decision_summary = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (WHERE latest.action = 'OUTCOME_CONFIRMED_FRAUD') AS confirmed_fraud,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_DISMISSED') AS dismissed,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_INSUFFICIENT_EVIDENCE') AS insufficient_evidence,
+                  count(*) FILTER (WHERE latest.action = 'ESCALATE') AS escalated,
+                  count(*) FILTER (WHERE latest.action = 'NEEDS_MORE_INFO') AS needs_more_info
+           FROM cases c
+           JOIN LATERAL (
+               SELECT ca.action
+               FROM case_actions ca
+               WHERE ca.case_id = c.case_id
+                 AND ca.action IN (
+                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
+                 )
+               ORDER BY ca.created_at DESC, ca.id DESC
+               LIMIT 1
+           ) latest ON true"""
+    )
+    return {
+        "items": [dict(r) for r in rows],
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "decision_summary": dict(decision_summary),
+        **summary,
+    }
 
 
 @router.get("/classifications")
@@ -147,7 +209,7 @@ async def list_classifications(
         pattern="^(CONFIRMED_FRAUD|DISMISSED|INSUFFICIENT_EVIDENCE|ESCALATE|NEEDS_MORE_INFO|CONFIRM_SIMULATED)$",
     ),
     search: str | None = Query(None, max_length=200),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
     """List the latest human classification or handoff action for each case."""
@@ -155,7 +217,12 @@ async def list_classifications(
         "CONFIRMED_FRAUD", "DISMISSED", "INSUFFICIENT_EVIDENCE"
     } else decision
     rows = await state.db.rfetch(
-        """SELECT c.case_id, c.txn_id, c.risk_level, c.status,
+        """WITH numbered_cases AS (
+               SELECT c.*,
+                      row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
+               FROM cases c
+           )
+           SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
                   s.calibrated_prob, latest.action, latest.actor, latest.role,
                   latest.note, latest.created_at AS decided_at,
                   t.payload_masked->>'merchant' AS merchant,
@@ -163,7 +230,7 @@ async def list_classifications(
                   t.payload_masked->>'amt' AS amount,
                   t.payload_masked->>'city' AS city,
                   t.payload_masked->>'state' AS region
-           FROM cases c
+           FROM numbered_cases c
            JOIN LATERAL (
                SELECT ca.action, ca.actor, ca.role, ca.note, ca.created_at
                FROM case_actions ca
@@ -214,12 +281,18 @@ async def list_classifications(
 @router.get("/{case_id}")
 async def get_case(case_id: int, user: User = Depends(any_reviewer)):
     row = await state.db.rfetchrow(
-        """SELECT c.case_id, c.txn_id, c.risk_level, c.status, c.assigned_to, c.created_at, c.updated_at,
+        """WITH numbered_cases AS (
+               SELECT c.*,
+                      row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
+               FROM cases c
+           )
+           SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
+                  c.assigned_to, c.created_at, c.updated_at,
                   t.payload_masked AS transaction,
                   s.raw_model_score, s.calibrated_prob, s.model_version, s.threshold_config_version,
                   s.features, s.explanations,
                   b.status AS brief_status, b.brief, b.citations, b.attempts AS brief_attempts, b.last_error
-           FROM cases c
+           FROM numbered_cases c
            JOIN transactions t ON t.txn_id = c.txn_id
            JOIN scoring_results s ON s.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
