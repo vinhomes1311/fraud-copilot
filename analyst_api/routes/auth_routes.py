@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
-from ..auth import User, authenticate, create_token, hash_password, verify_password
+from ..auth import User, authenticate, create_token, hash_password
 from fraud_common.schemas import Role
 from ..state import state
 
@@ -25,8 +25,7 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(LoginRequest):
-    display_name: str = Field(min_length=1, max_length=100)
-    email: str = Field(min_length=5, max_length=254)
+    pass
 
 
 class EmailRequest(BaseModel):
@@ -67,30 +66,19 @@ async def login(body: LoginRequest):
 
 @router.post("/auth/register", status_code=201)
 async def register(body: RegisterRequest):
-    username, email = body.username.strip().lower(), body.email.strip().lower()
+    username = body.username.strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,49}", username):
         raise HTTPException(422, "Tên đăng nhập chỉ gồm chữ thường, số, ., _, -")
     async with state.db.write_tx() as conn:
-        if "@" not in email:
-            raise HTTPException(422, "Email không hợp lệ")
         try:
             row = await conn.fetchrow(
-                """INSERT INTO users (username, email, display_name, password_hash, role)
-                   VALUES ($1, $2, $3, $4, 'analyst') RETURNING user_id, username, email, role""",
-                username, email, body.display_name.strip(), hash_password(body.password))
+                """INSERT INTO users (username, email, display_name, password_hash, role, email_verified)
+                   VALUES ($1, NULL, $1, $2, 'analyst', true) RETURNING username, role""",
+                username, hash_password(body.password))
         except asyncpg.UniqueViolationError as exc:
             raise HTTPException(409, "Tên đăng nhập đã tồn tại") from exc
-    raw, token_hash = _token()
-    await state.db.wexec(
-        "INSERT INTO auth_tokens (token_hash, user_id, purpose, expires_at) VALUES ($1,$2,'verify_email',now()+interval '24 hours')",
-        token_hash, row["user_id"])
-    try:
-        await _send_email(row["email"], "Verify your Fraud Copilot account",
-                          f"Open {state.settings.app_base_url}/api/v1/auth/verify?token={raw} to verify your email.")
-    except HTTPException:
-        await state.db.wexec("DELETE FROM users WHERE user_id=$1", row["user_id"])
-        raise
-    return {"message": "Kiểm tra email để xác thực tài khoản"}
+    user = User(row["username"], Role(row["role"]))
+    return {"access_token": create_token(user), "token_type": "bearer", "role": user.role}
 
 
 @router.get("/auth/verify")

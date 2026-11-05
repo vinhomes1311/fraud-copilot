@@ -38,6 +38,13 @@
       "env": {
         "SERVICE_NAME": "llm-worker",
         "METRICS_PORT": "9102",
+        "LLM_PROVIDER": "ollama",
+        "OLLAMA_MODEL": "llama3.2:3b",
+        "OLLAMA_EMBED_MODEL": "embeddinggemma:300m",
+        "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
+        "LLM_CONCURRENCY": "1",
+        "LLM_JOB_TIMEOUT_S": "30",
+        "LLM_VISIBILITY_TIMEOUT_S": "120",
         "REDIS_URL": "redis://localhost:6379/0",
         "DB_WRITE_URL": "postgresql://fraud:fraud@localhost:6432/fraud",
         "DB_READ_URL": "postgresql://fraud:fraud@localhost:6433/fraud"

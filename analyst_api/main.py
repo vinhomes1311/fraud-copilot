@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
              created_at TIMESTAMPTZ NOT NULL DEFAULT now()
            )""")
     await state.db.wexec("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+    await state.db.wexec("ALTER TABLE users ALTER COLUMN email DROP NOT NULL")
     await state.db.wexec("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false")
     await state.db.wexec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (email) WHERE email IS NOT NULL")
     await state.db.wexec(
@@ -72,6 +73,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(state.events_queue.reaper_loop(stop)),
         asyncio.create_task(state.ml_queue.gauge_loop(stop)),
         asyncio.create_task(state.llm_queue.gauge_loop(stop)),
+        asyncio.create_task(demo.run_simulator(stop)),
     ]
     try:
         yield

@@ -73,12 +73,13 @@ curl http://localhost:8080/healthz
 
 Dashboard mở tại <http://localhost:8080/>.
 
-Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test sau khi đăng nhập. Có thể chỉnh tốc độ
-từ 1 đến 1.000 giao dịch/giây ở ô bên cạnh nút chạy; lựa chọn được lưu trên trình duyệt và có hiệu lực
-ở lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
-hệ thống. Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động.
-Nút **Dừng simulator**
-dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
+Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test ở lần đăng nhập đầu tiên nếu chưa từng được
+điều khiển. Trạng thái,
+tiến độ và tốc độ được lưu dùng chung trên server nên các tab dashboard đồng bộ với nhau; dừng ở một tab
+sẽ dừng ở các tab còn lại. Có thể chỉnh tốc độ từ 1 đến 1.000 giao dịch/giây; tốc độ mới có hiệu lực từ
+lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
+hệ thống. Đóng tab không tự dừng simulator; dùng nút **Dừng simulator** để dừng hoặc chạy lại.
+Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động. Review queue hiển thị cả LOW,
 nhưng chỉ MEDIUM/HIGH được tạo brief. Mục Analytics chỉ hiển thị MEDIUM/HIGH,
 được sắp xếp theo xác suất giảm dần; chọn một dòng để xem chi tiết và brief nếu
 có.
@@ -218,12 +219,12 @@ Tài khoản demo:
 | `admin` | `admin123` | Admin |
 
 Người dùng mới có thể đăng ký trực tiếp trên màn hình đăng nhập hoặc gọi
-`POST /api/v1/auth/register` với `username`, `display_name` và `password`.
-Tài khoản đăng ký mới cần thêm email, được tạo ở vai trò Analyst; mật khẩu được
-lưu dưới dạng hash scrypt và phải xác thực email qua SMTP trước khi đăng nhập.
-Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu và nút Google OAuth. Để bật hai
-luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*` trong `.env`; secret không
-được đưa vào source code.
+`POST /api/v1/auth/register` chỉ với `username` và `password`. Tài khoản được
+lưu vào PostgreSQL ở vai trò Analyst, mật khẩu được lưu dưới dạng hash scrypt
+và đăng nhập ngay sau khi tạo; không cần email hay Gmail.
+Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu cho tài khoản có email và nút
+Google OAuth. Để bật các luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*`
+trong `.env`; secret không được đưa vào source code.
 
 Lưu `access_token` từ response rồi dùng header `Authorization: Bearer <token>`.
 Các mật khẩu trên chỉ dành cho demo; production cần thay bằng user store và
@@ -396,6 +397,30 @@ python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=funct
 giao dịch LOW/MEDIUM/HIGH, dữ liệu sai/trùng, brief, phân quyền, chuyển cấp/đóng
 case, cấu hình ngưỡng, regenerate và retry/fallback ở cả stub lẫn API giả lập.
 Các bài cần DB/Redis sẽ tự skip khi chưa cấu hình dịch vụ tương ứng.
+
+### Kiểm thử tự động trên CI/CD
+
+Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tự chạy khi có
+Pull Request, push vào `main`/`master`, hoặc được kích hoạt thủ công trong
+GitHub Actions. Workflow gồm năm job:
+
+1. **Code quality**: cài dependency và kiểm tra toàn bộ Python source compile được.
+2. **Unit and integration tests**: tạo Redis và PostgreSQL tạm thời rồi chạy
+   toàn bộ pytest, bao gồm queue và brief pipeline integration tests.
+3. **Docker build**: kiểm tra Compose và build các image chính.
+4. **ML quality gate**: kiểm tra PR-AUC/precision/recall/F1 của model baseline
+   đã commit và upload report làm artifact.
+5. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
+   endpoint không trả HTTP 2xx, workflow thất bại và in log để tìm lỗi.
+
+Đánh giá lại model đã có mà không train lại:
+
+```bash
+python -m ml_pipeline.evaluate_artifact \
+  --artifact data/models/fraud_xgboost.joblib \
+  --test-data data/fraudTest.csv \
+  --output data/models/fraud_xgboost.evaluation.json
+```
 
 ## Cơ chế xử lý lỗi
 

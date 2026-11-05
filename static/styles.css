@@ -66,7 +66,6 @@ h1, h2, h3, p { margin: 0; }
 .nav-item.active { background: #1d3150; color: #fff; box-shadow: inset 3px 0 #62c7be; }
 .nav-icon { font-size: 19px; color: #78b9f1; }
 .review-nav-logo { width: 29px; height: 29px; flex: 0 0 29px; padding: 3px; object-fit: contain; border-radius: 9px; background: #f0eaff; }
-.nav-count { margin-left: auto; background: #2b456b; color: #b5d5ff; padding: 2px 7px; border-radius: 10px; font-size: 10px; }
 .sidebar-bottom { margin-top: auto; }
 .system-status { display: flex; gap: 10px; padding: 15px 11px; border: 1px solid #2a3d59; border-radius: 9px; margin-bottom: 22px; }
 .system-status b, .system-status small { display: block; font-size: 11px; }
@@ -420,8 +419,6 @@ body::after {
 }
 .nav-icon { color: #d7193f; }
 .nav-item.active .nav-icon { color: #fff; }
-.nav-count { background: #fde2e8; color: #bd1235; }
-.nav-item.active .nav-count { background: #fff; color: #bd1235; }
 .nav-item.active .review-nav-logo { background: transparent; filter: brightness(0) invert(1); }
 .system-status {
   border-color: #e9e5ee;
@@ -750,8 +747,6 @@ body {
 }
 .nav-icon { color: #d7193f; }
 .nav-item.active .nav-icon { color: #fff; }
-.nav-count { background: #fde2e8; color: #bd1235; }
-.nav-item.active .nav-count { background: #fff; color: #bd1235; }
 .review-nav-logo { background: #f9e8ed; }
 .nav-item.active .review-nav-logo { background: transparent; filter: brightness(0) invert(1); }
 .system-status { border-color: #ece8e9; background: #fff; }

@@ -179,4 +179,3 @@ Giới hạn dữ liệu và yêu cầu bổ sung. Tín hiệu liên quan: missi
 Ghi nhận nguồn và quyết định. Tín hiệu liên quan: citation checklist analyst. Điều kiện và ý nghĩa: Checklist là đề xuất của nhóm cho dataset mô phỏng. Citation phải trỏ tới đoạn playbook được truy xuất và không phải bằng chứng khách hàng gian lận. Hướng kiểm tra: Ghi nhận evidence đã dùng, khoảng trống dữ liệu và rule tham chiếu. Quyết định cuối cùng do analyst thực hiện và lưu theo workflow, LLM không tự tạo kết quả điều tra.
 
 **Checklist:** Ghi nhận evidence đã dùng, khoảng trống dữ liệu và rule tham chiếu. Quyết định cuối cùng do analyst thực hiện và lưu theo workflow, LLM không tự tạo kết quả điều tra.
-
