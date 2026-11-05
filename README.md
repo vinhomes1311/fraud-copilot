@@ -74,7 +74,7 @@ và kiểm thử scoring thật trên CI; tránh commit đè bằng model của 
 Từ PowerShell:
 
 ```powershell
-git clone https://github.com/NTT1602/fraud-copilot.git
+git clone https://github.com/vinhomes1311/fraud-copilot.git
 Set-Location fraud-copilot
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
