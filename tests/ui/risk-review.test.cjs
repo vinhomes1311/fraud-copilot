@@ -60,7 +60,7 @@ test('positive, negative and zero effects stay separate without modifying stored
 });
 
 test('original feature values take precedence and categorical encoding is never shown as fact', () => {
-  assert.match(view.featureValue(example, { feature: 'transaction_hour', value: 1 }), /23:00/);
+  assert.equal(view.featureValue(example, { feature: 'transaction_hour', value: 1 }), '23:00');
   assert.equal(view.featureValue({ transaction: {}, features: { avg_amt_7d: null } },
     { feature: 'avg_amt_7d', value: 999 }), 'Original value unavailable');
   assert.equal(view.featureValue({ transaction: {}, features: {} },
@@ -96,7 +96,7 @@ test('impact annotations use English labels consistent with the main dashboard',
   assert.doesNotMatch(html, /Tác động lớn nhất|Tác động tiếp theo/);
 });
 
-test('checklist and citations remain while original summary and raw signals are hidden', () => {
+test('checklist retains rule codes without repeating references or the original summary', () => {
   const app = readFileSync(resolve(root, 'static/app.js'), 'utf8');
   const functionText = app.slice(app.indexOf('function renderBrief('), app.indexOf('function renderEvidence('));
   const escapeHtml = (value) => String(value ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -107,7 +107,8 @@ test('checklist and citations remain while original summary and raw signals are 
   assert.doesNotMatch(html, /Bản tóm tắt gốc|Original summary|amt đóng góp 6.31/);
   assert.doesNotMatch(render('Legacy summary', 'HIGH'), /Legacy summary/);
   assert.match(html, /Review evidence/);
-  assert.match(html, /Approved reference/);
+  assert.match(html, /PB-01/);
+  assert.doesNotMatch(html, /References|Approved reference/);
   assert.match(render(null, 'LOW'), /Low-risk cases do not generate briefs automatically/);
 });
 

@@ -43,7 +43,7 @@ window.RiskReview = (() => {
     if (numeric(raw) === null) return "Original value unavailable";
     if (["transaction_hour", "hour_of_day"].includes(signal.feature)) {
       return Number.isInteger(Number(raw)) && raw >= 0 && raw <= 23
-        ? `${String(raw).padStart(2, "0")}:00 · recorded time; timezone unspecified` : "Invalid hour";
+        ? `${String(raw).padStart(2, "0")}:00` : "Invalid hour";
     }
     if (["customer_merchant_distance_km", "dist_home_merchant_km"].includes(signal.feature)) return `${number(raw)} km`;
     if (signal.feature === "time_since_last_trans_sec") return raw < 0 ? "No previous transaction" : `${number(raw)} seconds`;

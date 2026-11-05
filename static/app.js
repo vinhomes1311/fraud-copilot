@@ -76,12 +76,8 @@ function renderBrief(brief, riskLevel) {
   const checklist = (brief.checklist || []).map((item) =>
     `<li>${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</li>`
   ).join("");
-  const citations = (brief.citations || []).map((citation) =>
-    `<li><b>${escapeHtml(citation.rule_code || "")}</b>: ${escapeHtml(citation.quote || "")}</li>`
-  ).join("");
   return (brief.source === "rule_based" ? `<p class="brief-fallback-label">Rule-based fallback</p>` : "")
-    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No investigation checklist available.</p>`)
-    + (citations ? `<details class="brief-reference"><summary>References (${brief.citations.length})</summary><ul>${citations}</ul></details>` : "");
+    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No investigation checklist available.</p>`);
 }
 function renderEvidence(item) {
   if (!item.brief_status) return `<span class="evidence muted-label">No brief</span>`;
