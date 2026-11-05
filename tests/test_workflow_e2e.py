@@ -28,6 +28,7 @@ import scoring_worker.processor as scoring_module
 from analyst_api.state import state
 from fraud_common.db import Database, _init_conn
 from fraud_common.queues import ReliableQueue
+from fraud_common.schemas import Explanation, ScoringOutput
 from fraud_common.worker import run_consumer
 
 
@@ -83,6 +84,19 @@ async def test_entire_workflow(monkeypatch, provider):
     monkeypatch.setattr(api_module, 'Database', ScopedDatabase)
     for constant in ('QUEUE_ML_JOBS', 'QUEUE_CASE_EVENTS', 'QUEUE_LLM_JOBS'):
         monkeypatch.setattr(api_module, constant, prefix + ':' + constant.lower())
+    # This workflow test covers queue/API orchestration. Model artifact quality
+    # is checked separately, so the E2E must not depend on a local joblib file.
+    def fake_predict(features):
+        amount = float(features['amt'])
+        probability = 0.1 if amount < 100 else 0.5 if amount < 1400 else 0.9
+        return ScoringOutput(
+            raw_model_score=probability,
+            calibrated_prob=probability,
+            model_version='workflow-test-model',
+            explanations=[Explanation(feature='amt', value=amount, contribution=probability)],
+        )
+
+    monkeypatch.setattr(scoring_module, 'predict', fake_predict)
     monkeypatch.setenv('LLM_RETRIEVER', 'playbook')
     monkeypatch.setenv('LLM_API_BASE_URL', 'https://offline-provider.example/v1')
     monkeypatch.setenv('LLM_API_MODEL', 'offline-workflow-model')
