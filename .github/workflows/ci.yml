@@ -76,7 +76,7 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Run automated tests
-        run: python -m pytest -q
+        run: python -m pytest -q tests/unit_integration tests/ml_evaluation tests/e2e_smoke
 
   ml-evaluation:
     name: ML quality gate
@@ -138,11 +138,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build API image
-        run: docker compose build analyst-api
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Build E2E service images
+        run: docker compose build analyst-api scoring-worker llm-worker
 
       - name: Start API stack
-        run: docker compose up -d redis postgres pgbouncer-write pgbouncer-read analyst-api nginx
+        run: docker compose up -d redis postgres pgbouncer-write pgbouncer-read analyst-api scoring-worker llm-worker nginx
 
       - name: Wait for health endpoint
         shell: bash
@@ -158,10 +166,33 @@ jobs:
           docker compose logs --tail 100 analyst-api nginx
           exit 1
 
+      - name: Verify worker containers
+        shell: bash
+        run: |
+          for service in scoring-worker llm-worker; do
+            for attempt in {1..30}; do
+              if docker compose ps --status running --services | grep -qx "$service"; then
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                docker compose ps
+                docker compose logs --tail 100 "$service"
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Run real transaction E2E test
+        env:
+          FRAUD_E2E_URL: http://localhost:8080
+          SIMULATOR_API_KEY: dev-sim-key
+        run: python -m pytest -q tests/e2e_smoke/test_transaction_e2e.py
+
       - name: Show service evidence
         run: |
           docker compose ps
-          docker compose logs --tail 40 analyst-api
+          docker compose logs --tail 40 analyst-api scoring-worker llm-worker
 
       - name: Stop stack
         if: always()
