@@ -39,10 +39,10 @@ def main():
         fmt=lambda x:f'{x:.1%}' if key=='family_match_rate' else f'{x:.2f}'
         lines.append(f'| {label} | {fmt(a)} | {fmt(z)} |')
     lines += ['', 'Nhóm hành động quy các rule chi tiết về năm nguyên tắc gốc: bất thường/đối chiếu tín hiệu, giới hạn score, lịch sử, quyết định analyst, thiếu bằng chứng. Đây là chỉ số thô để hai bộ so sánh được; không chứng minh bộ cũ đáp ứng các điều kiện chi tiết của bộ mới.',
-              'Strict success mới được báo riêng trong PLAYBOOK_V2_BENCHMARK.md, không so với reference-any của các lần đo cũ.',
+              'Strict success được tính riêng bởi playbook_eval.py; không so với reference-any của các lần đo cũ.',
               'Hai batch chạy nối tiếp, có warm-up nhưng không ép trạng thái cold-start/GPU giống hệt. Số mẫu nhỏ và prefix cache có thể ảnh hưởng latency. Không quy toàn bộ chênh lệch cho playbook hoặc coi đây là nâng cấp weights Ollama.', '',
               'Crosswalk sử dụng trước khi chấm:', '```json', json.dumps(mapping,indent=2), '```']
-    (r/'PLAYBOOK_COMPARISON_20261105.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    (b/'playbook_comparison_20261105.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
     print(json.dumps(results,indent=2))
 
 if __name__ == "__main__":

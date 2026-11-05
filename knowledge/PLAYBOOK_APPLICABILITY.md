@@ -24,4 +24,4 @@ khi lưu READY. Code không tự sửa hoặc thay output không hợp lệ bằ
 Nguồn điều kiện là ý nghĩa feature và điều kiện viết trong playbook nội bộ;
 chưa phải chính sách nghiệp vụ được chuyên gia độc lập thẩm định.
 
-Nếu explanation về maximum-ratio không có maximum baseline hợp lệ, PB-28 là mandatory_gap: phải truy xuất và phải được model chọn. Thiếu bước đó sẽ bị từ chối trước READY. Xem MAXIMUM_GAP_FIX_20261105.md để biết kết quả đo.
+Nếu explanation về maximum-ratio không có maximum baseline hợp lệ, PB-28 là mandatory_gap: phải truy xuất và phải được model chọn. Thiếu bước đó sẽ bị từ chối trước READY. Hợp đồng này có regression coverage trong [test_required_gap.py](../tests/test_required_gap.py) và case tham chiếu trong [playbook_v2_boundary_cases.json](../benchmarks/playbook_v2_boundary_cases.json).

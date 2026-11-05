@@ -127,17 +127,25 @@ Cả hai lệnh phải trả về `True`.
 Mặc định hiện tại trong `ml_pipeline/config.json` là:
 
 ```json
-"device": "cuda"
+"device": "cpu"
 ```
 
-Nếu máy có NVIDIA GPU, driver hoạt động và XGBoost bản cài hỗ trợ CUDA, giữ
-`cuda` để phần train XGBoost chạy nhanh hơn. Kiểm tra GPU:
+Mặc định CPU để cấu hình dùng chung chạy được trên máy không có CUDA. Nếu máy
+có NVIDIA GPU, driver hoạt động và XGBoost hỗ trợ CUDA, tạo cấu hình riêng:
+
+```powershell
+Copy-Item ml_pipeline\config.json ml_pipeline\config.local.json
+# Đổi model.device thành "cuda" trong config.local.json, rồi chạy:
+$env:ML_CONFIG_PATH = 'ml_pipeline/config.local.json'
+```
+
+`config.local.json` được Git bỏ qua để mỗi thành viên tự chọn phần cứng. Kiểm tra GPU:
 
 ```powershell
 nvidia-smi
 ```
 
-Nếu không có NVIDIA GPU hoặc gặp lỗi CUDA, đổi thành:
+Nếu CUDA lỗi, dùng config CPU mặc định hoặc đặt `model.device` thành `cpu` trong override:
 
 ```json
 "device": "cpu"
@@ -152,6 +160,12 @@ Chạy tại thư mục gốc repository:
 
 ```powershell
 python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Nếu đang dùng GPU override, truyền đường dẫn cấu hình local thay vào lệnh trên:
+
+```powershell
+python -m ml_pipeline --config $env:ML_CONFIG_PATH
 ```
 
 Lệnh này chạy toàn bộ workflow:

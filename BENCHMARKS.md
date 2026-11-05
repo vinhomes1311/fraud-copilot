@@ -141,6 +141,25 @@ Các bài này chỉ dùng mock: kiểm tra kế hoạch không gọi mạng, c�
 hai adapter, percentile/throughput/usage, bounded concurrency, quota fail-fast,
 timeout, output chưa tồn tại và việc không ghi credentials vào report.
 
+## Đánh giá lựa chọn playbook
+
+Các case tham chiếu và rationale được giữ trong
+[`benchmarks/playbook_v2_cases.json`](benchmarks/playbook_v2_cases.json),
+[`benchmarks/playbook_v2_boundary_cases.json`](benchmarks/playbook_v2_boundary_cases.json)
+và [`benchmarks/PLAYBOOK_V2_REFERENCES.md`](benchmarks/PLAYBOOK_V2_REFERENCES.md).
+Đây là fixture phát triển tổng hợp, không phải bộ kiểm định độc lập.
+
+Sau khi có `results.json` từ benchmark, chấm độ phủ nhóm rule, forbidden rules
+và brief hợp lệ bằng:
+
+```powershell
+python -m benchmarks.playbook_eval benchmark_results\ten-lan-do\results.json
+```
+
+Evaluator ghi `quality.json` và `quality.md` cạnh report đầu vào. Toàn bộ output
+benchmark nằm trong `benchmark_results/` và được Git ignore; giữ lại script,
+fixtures và rationale để có thể tái chạy mà không commit report theo từng máy.
+
 Tài liệu giao thức: [Ollama usage](https://docs.ollama.com/api/usage),
 [Ollama chat](https://docs.ollama.com/api/chat),
 [OpenAI token counting](https://developers.openai.com/api/docs/guides/token-counting).

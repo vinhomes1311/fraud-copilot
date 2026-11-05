@@ -111,4 +111,4 @@ This live integration test has not been run here.
 
 ## Context-aware applicability update
 
-The worker and benchmark now share context-aware retrieval. Semantic ranking is combined with rule applicability and explicit selection roles. See [conditions](knowledge/PLAYBOOK_APPLICABILITY.md) and [latest validation](PLAYBOOK_OPTIMIZATION_20261105.md). Restart the worker after updating code/playbook.
+The worker and benchmark now share context-aware retrieval. Semantic ranking is combined with rule applicability and explicit selection roles. See [conditions](../knowledge/PLAYBOOK_APPLICABILITY.md) and the [benchmark procedure](../BENCHMARKS.md). Restart the worker after updating code/playbook.

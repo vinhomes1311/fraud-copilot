@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 data/*.csv
 WORKFLOW_TEST_REPORT.md
 benchmark_results/
@@ -9,3 +11,10 @@ benchmark_results/
 data/processed/
 data/models/
 *.joblib
+ml_pipeline/config.local.json
+reports/ml-model-evaluation.json
+LLM_VALIDATION_20261105.md
+MAXIMUM_GAP_FIX_20261105.md
+PLAYBOOK_COMPARISON_20261105.md
+PLAYBOOK_OPTIMIZATION_20261105.md
+PLAYBOOK_V2_BENCHMARK.md

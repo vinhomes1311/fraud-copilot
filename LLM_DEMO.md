@@ -101,4 +101,4 @@ https://docs.ollama.com/api/embed và https://docs.ollama.com/faq.
 
 ## Cập nhật retrieval
 
-Xem [kết quả tối ưu mới nhất](PLAYBOOK_OPTIMIZATION_20261105.md) và [điều kiện áp dụng rule](knowledge/PLAYBOOK_APPLICABILITY.md). Query dùng context đã projection; các rule không đủ baseline được loại trước top 5. Model vẫn chọn 1–3 checklist, guard từ chối rule trái điều kiện.
+Xem [hướng dẫn benchmark](BENCHMARKS.md) và [điều kiện áp dụng rule](knowledge/PLAYBOOK_APPLICABILITY.md). Query dùng context đã projection; các rule không đủ baseline được loại trước top 5. Model vẫn chọn 1–3 checklist, guard từ chối rule trái điều kiện.
