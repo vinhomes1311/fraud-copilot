@@ -1,9 +1,48 @@
+# Python environments and caches
 .venv/
+venv/
 __pycache__/
-*.pyc
-.env
-data/*.csv
+*.py[cod]
 .pytest_cache/
-data/processed/
-data/models/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+junit*.xml
+/build/
+/dist/
+*.egg-info/
+
+# Secrets and per-machine configuration
+.env
+.env.*
+!.env.example
+/.vscode/settings.json
+/.vscode/*.local.json
+/ml_pipeline/config.local.json
+/ml_pipeline/config.*.local.json
+
+# Local datasets, processed data and newly trained models
+/data/**/*.csv
+/data/processed/
+/data/models/
 *.joblib
+
+# Generated reports; CI's committed reference remains versioned
+/benchmark_results/
+/reports/*
+!/reports/ml-model-baseline.json
+!/reports/README.md
+/WORKFLOW_TEST_REPORT.md
+/LLM_VALIDATION_*.md
+/MAXIMUM_GAP_FIX_*.md
+/PLAYBOOK_COMPARISON_*.md
+/PLAYBOOK_OPTIMIZATION_*.md
+/PLAYBOOK_V2_BENCHMARK.md
+
+# Runtime and operating system artifacts
+*.log
+.DS_Store
+Thumbs.db

@@ -5,8 +5,9 @@ Scoring Worker, LLM Worker, Redis, PostgreSQL, PgBouncer và dashboard web cho a
 Toàn bộ stack có thể chạy bằng Docker Compose.
 
 > **Trạng thái hiện tại:** hạ tầng giao tiếp, hợp đồng dữ liệu, retry/timeout,
-> circuit breaker, RBAC, audit log, metrics và dashboard đã chạy được. Phần ML/RAG/LLM
-> hiện là implementation mẫu (stub), được đánh dấu trong source bằng `>>> HÀM GIẢ <<<`.
+> circuit breaker, RBAC, audit log, metrics và dashboard đã có implementation. LLM hỗ trợ
+> API online, Ollama và stub; phần chấm điểm ML vẫn là implementation demo.
+> Xem [hướng dẫn API online](docs/llm/api-adapter.md) để chọn model mà không cần train lại LLM.
 
 ## Mục lục
 
@@ -14,6 +15,7 @@ Toàn bộ stack có thể chạy bằng Docker Compose.
 - [Yêu cầu](#yêu-cầu)
 - [Thiết lập cho thành viên mới và train lại model](#thiết-lập-cho-thành-viên-mới-và-train-lại-model)
 - [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
+- [Dùng LLM online qua API](#dùng-llm-online-qua-api)
 - [Chạy và debug trong VS Code](#chạy-và-debug-trong-vs-code)
 - [Dashboard](#dashboard)
 - [API](#api)
@@ -35,7 +37,7 @@ flowchart LR
   API -->|ml_jobs| SW[Scoring Worker]
   SW -->|case_events| API
   API -->|llm_jobs| LW[LLM Worker]
-  LW --> RAG[RAG + LLM stub]
+  LW --> RAG[Playbook + LLM: API / Ollama / stub]
   API & SW & LW --> PGW[PgBouncer write] --> PG[(PostgreSQL)]
   API & SW & LW --> PGR[PgBouncer read] --> PG
   API & SW & LW -. /metrics .-> PROM[Prometheus]
@@ -63,8 +65,9 @@ Các queue dùng at-least-once delivery. Mỗi queue có vùng `ready`, `process
 ## Thiết lập cho thành viên mới và train lại model
 
 Mỗi thành viên clone repository cần tự tải dataset từ Kaggle về máy và train
-model local. Các file dataset, processed data và model binary không được commit
-vào Git vì chúng có kích thước lớn và đang nằm trong `.gitignore`.
+model local. Dataset, processed data và artifact mới sinh ra được bỏ qua bởi
+`.gitignore`. Model baseline đã được theo dõi trong Git vẫn được giữ để serving
+và kiểm thử scoring thật trên CI; tránh commit đè bằng model của từng máy.
 
 ### 1. Clone repository và cài dependency
 
@@ -125,17 +128,25 @@ Cả hai lệnh phải trả về `True`.
 Mặc định hiện tại trong `ml_pipeline/config.json` là:
 
 ```json
-"device": "cuda"
+"device": "cpu"
 ```
 
-Nếu máy có NVIDIA GPU, driver hoạt động và XGBoost bản cài hỗ trợ CUDA, giữ
-`cuda` để phần train XGBoost chạy nhanh hơn. Kiểm tra GPU:
+Mặc định CPU để cấu hình dùng chung chạy được trên máy không có CUDA. Nếu máy
+có NVIDIA GPU, driver hoạt động và XGBoost hỗ trợ CUDA, tạo cấu hình riêng:
+
+```powershell
+Copy-Item ml_pipeline\config.json ml_pipeline\config.local.json
+# Đổi model.device thành "cuda" trong config.local.json, rồi chạy:
+$env:ML_CONFIG_PATH = 'ml_pipeline/config.local.json'
+```
+
+`config.local.json` được Git bỏ qua để mỗi thành viên tự chọn phần cứng. Kiểm tra GPU:
 
 ```powershell
 nvidia-smi
 ```
 
-Nếu không có NVIDIA GPU hoặc gặp lỗi CUDA, đổi thành:
+Nếu CUDA lỗi, dùng config CPU mặc định hoặc đặt `model.device` thành `cpu` trong override:
 
 ```json
 "device": "cpu"
@@ -150,6 +161,12 @@ Chạy tại thư mục gốc repository:
 
 ```powershell
 python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Nếu đang dùng GPU override, truyền đường dẫn cấu hình local thay vào lệnh trên:
+
+```powershell
+python -m ml_pipeline --config $env:ML_CONFIG_PATH
 ```
 
 Lệnh này chạy toàn bộ workflow:
@@ -269,6 +286,39 @@ docker compose down -v
 | PgBouncer write/read | `6432` / `6433` | Chỉ mở trong compose dev |
 | Prometheus | `9090` | Chỉ mở trong compose dev |
 
+## Dùng LLM online qua API
+
+Copy `.env.example` thành `.env` nếu chưa có, điền `LLM_API_KEY` trong editor trên
+máy của bạn và giữ `LLM_PROVIDER=api`. Cấu hình mẫu dùng `gpt-5.4-mini`; có thể đổi
+model hoặc endpoint mà không train lại LLM. `.env` không được commit vào Git.
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Điền API key vào .env trước khi chạy lệnh dưới.
+docker compose -f docker-compose.yml -f docker-compose.api.yml up --build -d
+```
+
+Dashboard tiếp tục dùng tại <http://localhost:8080/>. Với `.env` đã điền đầy đủ,
+`docker compose up --build -d` cũng chuyển LLM worker sang API. Không cấu hình
+`LLM_PROVIDER` thì demo dùng stub. `LLM_RETRIEVER=playbook` dùng toàn bộ playbook
+nhỏ hiện có, không cần Ollama/GPU hay embedding model.
+
+Khi chạy Python/VS Code, cài requirements rồi kiểm tra:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test
+# Một request dữ liệu giả đến API thật, có thể phát sinh phí:
+.\.venv\Scripts\python.exe -m llm_worker.smoke_test --live
+```
+
+Python tự nạp `.env` ở thư mục dự án; biến môi trường trong shell được ưu tiên.
+Smoke mặc định chỉ kiểm tra cấu hình; `--live` mới gọi API. LLM chọn evidence và
+checklist ID; ứng dụng kiểm tra nguồn và dựng brief có citation trước khi lưu DB.
+Chi tiết model, reasoning effort, token budget và lỗi quota/credit xem
+[docs/llm/api-adapter.md](docs/llm/api-adapter.md). Local Ollama được mô tả ở
+[hướng dẫn Ollama local](docs/llm/local-integration.md).
+
 ## Chạy và debug trong VS Code
 
 Compose dev chỉ chạy hạ tầng và mở các cổng nội bộ ra máy host:
@@ -288,7 +338,7 @@ python -m llm_worker.main
 
 Nếu chạy ngoài Docker, các giá trị mặc định trong `fraud_common/config.py` sẽ
 trỏ tới Redis `localhost:6379` và PgBouncer `localhost:6432/6433`. Có thể đặt
-biến môi trường trước khi khởi động process nếu dùng endpoint khác.
+biến môi trường hoặc `.env` trước khi khởi động process nếu dùng endpoint khác.
 
 ## Dashboard
 
@@ -432,12 +482,18 @@ PostgreSQL bằng secret manager hoặc environment injection.
 | `ML_CONCURRENCY` | `8` | Worker ML đồng thời |
 | `ML_JOB_TIMEOUT_S` | `2` | Timeout job ML |
 | `ML_MAX_ATTEMPTS` | `3` | Số lần thử job ML |
-| `LLM_CONCURRENCY` | `2` | Worker LLM đồng thời |
-| `LLM_JOB_TIMEOUT_S` | `30` | Timeout job LLM |
+| `LLM_CONCURRENCY` | `2` Python / `1` Compose | Worker LLM đồng thời |
+| `LLM_JOB_TIMEOUT_S` | `30` Python / `120` Compose | Timeout mỗi stage LLM (giây) |
 | `LLM_MAX_ATTEMPTS` | `3` | Số lần thử job LLM |
-| `BRIEF_TOKEN_BUDGET` | `5000` | Ngân sách brief |
+| `BRIEF_TOKEN_BUDGET` | `5000` | Kiểm tra tổng token sau inference; chưa phải trần chi phí |
 | `REGEN_LIMIT_PER_HOUR` | `3` | Số lần regenerate/case/giờ |
-| `LLM_PROVIDER` | `stub` | Provider LLM hiện tại |
+| `LLM_PROVIDER` | `stub`; `.env.example` bật `api` | `api`, `ollama` hoặc `stub` |
+| `LLM_API_BASE_URL` | `https://api.openai.com/v1` | HTTPS endpoint tương thích Chat Completions |
+| `LLM_API_MODEL` | `gpt-5.4-mini` | Model online được cấp quyền trong tài khoản API |
+| `LLM_API_KEY` | trống | API key; chỉ cấu hình cục bộ |
+| `LLM_API_MAX_COMPLETION_TOKENS` | `1024` | Trần output gồm cả reasoning token |
+| `LLM_API_REASONING_EFFORT` | trống | Tùy chọn theo khả năng của model |
+| `LLM_RETRIEVER` | `playbook` cho API / `ollama` cho Ollama | Nguồn context |
 | `LLM_STUB_LATENCY_S` | `1.0` | Độ trễ giả lập |
 | `LLM_STUB_FAIL_RATE` | `0.0` | Tỉ lệ lỗi giả lập |
 
@@ -459,6 +515,12 @@ Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
 
 ## Test
 
+So sánh hiệu năng Ollama local và API online bằng bộ case chung:
+xem [docs/benchmarks/README.md](docs/benchmarks/README.md). Lệnh mặc định chỉ in kế hoạch;
+`--mock` chạy offline, `--live` mới gọi model thật.
+Phạm vi LLM/RAG theo tài liệu kiến trúc và cách đo retrieval + generation được
+đối chiếu tại [docs/benchmarks/architecture.md](docs/benchmarks/architecture.md).
+
 Test logic không cần hạ tầng:
 
 ```bash
@@ -479,11 +541,28 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis
 python -m pytest tests/unit_integration/test_queue_integration.py -q
 ```
 
+Các bài API dùng MockTransport, không dùng key thật và không tính phí LLM.
+Để chạy đầy đủ workflow qua SQL/Redis thật, đặt URL của dịch vụ kiểm thử riêng:
+
+```powershell
+$env:LLM_PROVIDER = 'stub'
+$env:LLM_STUB_LATENCY_S = '0'
+$env:LLM_STUB_FAIL_RATE = '0'
+$env:FRAUD_TEST_DB_URL = 'postgresql://fraud:fraud@127.0.0.1:5432/fraud'
+$env:FRAUD_TEST_REDIS_URL = 'redis://127.0.0.1:6379/15'
+python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -q
+```
+
+Điều chỉnh URL theo dịch vụ dành riêng cho kiểm thử. `test_workflow_e2e.py` kiểm tra
+giao dịch LOW/MEDIUM/HIGH, dữ liệu sai/trùng, brief, phân quyền, chuyển cấp/đóng
+case, cấu hình ngưỡng, regenerate và retry/fallback ở cả stub lẫn API giả lập.
+Các bài cần DB/Redis sẽ tự skip khi chưa cấu hình dịch vụ tương ứng.
+
 ### Kiểm thử tự động trên CI/CD
 
 Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tự chạy khi có
 Pull Request, push vào `main`/`master`, hoặc được kích hoạt thủ công trong
-GitHub Actions. Workflow gồm bốn job:
+GitHub Actions. Workflow gồm năm job:
 
 1. **Code quality**: cài dependency và kiểm tra toàn bộ Python source compile được.
 2. **Unit and integration tests**: tạo Redis và PostgreSQL tạm thời rồi chạy
@@ -530,12 +609,15 @@ python -m ml_pipeline.evaluate_artifact \
 
 ## Các phần cần thay thế
 
+Playbook LLM/RAG đã được điều chỉnh cho dataset `kartik2112/fraud-detection`.
+Xem [ánh xạ cột, nguồn và giới hạn suy luận](docs/playbooks/kaggle-dataset.md).
+
 | File | Hiện tại | Cần thay bằng |
 |---|---|---|
 | `scoring_worker/pipeline/inference.py` | Điểm giả theo công thức | Model và calibrator từ Model Store |
 | `scoring_worker/pipeline/features.py` | Một số feature đơn giản | Feature engineering production |
-| `llm_worker/llm_client.py` | `StubLLMClient` | Client LLM thật/local |
-| `llm_worker/rag.py` | Bốn đoạn playbook mẫu | Vector index/RAG thật |
+| `llm_worker/llm_client.py`, `api_client.py` | API online, Ollama hoặc stub | Đánh giá model trên case đại diện |
+| `llm_worker/rag.py` | Playbook được phê duyệt; semantic retrieval cho Ollama | Mở rộng retrieval khi KB lớn hơn |
 | `llm_worker/grounding.py` | Kiểm tra citation cơ bản | Kiểm chứng số liệu và grounding sâu hơn |
 | `analyst_api/auth.py` | User table | Password hash scrypt và JWT |
 
@@ -555,7 +637,12 @@ nginx/             gateway và routing
 prometheus/        Prometheus scrape config
 static/            dashboard frontend
 static/media/      media assets served by the dashboard
-docs/              integration guides, including [LLM integration](docs/LLM_INTEGRATION.md)
+docs/llm/          hướng dẫn LLM local, demo và API tùy chọn
+docs/benchmarks/   quy trình benchmark, kiến trúc và reference
+docs/playbooks/    giải thích playbook, dataset và điều kiện áp dụng
+benchmarks/        script benchmark; fixtures/ và config/ được version
+knowledge/         playbook đang dùng khi chạy worker
+reports/           baseline CI và report local được Git ignore
 notebooks/         exploratory data preprocessing and ML notebooks
 tests/             test được chia theo các job CI: unit_integration, ml_evaluation, e2e_smoke
 ```
@@ -610,3 +697,10 @@ curl -X POST http://localhost:8010/v1/predict \
 ```
 
 `model-service:8010/metrics` và các metric `fraud_inference_*`, `fraud_stage_seconds` được Prometheus scrape. Có thể kích hoạt workflow theo cron/Task Scheduler bằng lệnh `python -m ml_pipeline`; trigger sự kiện có dữ liệu mới chỉ cần gọi cùng lệnh sau khi file input được cập nhật. Nên lưu `data/models/*.joblib` và file metadata trong DVC/object storage ở môi trường production thay vì commit binary vào Git.
+
+## Tổ chức tài liệu và dữ liệu local
+
+Xem [mục lục tài liệu](docs/README.md) và [cấu trúc benchmark](benchmarks/README.md).
+Fixture/config benchmark được version để tái lập kiểm thử. Dataset, model mới,
+kết quả benchmark, report sinh ra, cache và cấu hình VS Code cá nhân được bỏ qua
+bởi `.gitignore`. File baseline đang được CI sử dụng vẫn được giữ trong Git.

@@ -1,6 +1,7 @@
 """Cần Redis đang chạy ở localhost:6379 (docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d redis).
 Tự bỏ qua nếu không kết nối được."""
 import asyncio
+import os
 import uuid
 
 import pytest
@@ -11,10 +12,12 @@ from fraud_common.schemas import JobEnvelope
 
 
 async def _redis_or_skip():
-    r = Redis.from_url("redis://localhost:6379/0", decode_responses=True)
+    r = Redis.from_url(os.getenv("FRAUD_TEST_REDIS_URL", "redis://localhost:6379/0"),
+                       decode_responses=True, socket_connect_timeout=3)
     try:
         await r.ping()
     except Exception:
+        await r.aclose()
         pytest.skip("Redis không chạy")
     return r
 

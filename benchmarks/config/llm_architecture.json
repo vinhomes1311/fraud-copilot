@@ -1,0 +1,25 @@
+{
+  "source_url": "https://docs.google.com/document/d/1-2mwhZHakWOM58tmmEZ3Djpv_ZTLCV_F8KpChOtvgYg/edit",
+  "captured_date": "2026-11-04",
+  "export_sha256": "0902eeda3e4f619f618679e6b9aa6e5a38d897c937cd06f6b4499056f0c94cbe",
+  "scope": "LLM and RAG in Cold Path only",
+  "requirements": {
+    "brief_token_limit": 5000,
+    "brief_token_basis_in_project": "prompt_tokens + completion_tokens; excludes embedding usage",
+    "llm_latency_sla_s": null,
+    "semantic_retrieval_required": true,
+    "citations_required": true,
+    "grounding_required": true,
+    "minimize_identifiers_before_generation": true,
+    "preserve_ml_results_on_failure": true,
+    "timeout_status": "FAILED_TIMEOUT",
+    "human_decision_required": true
+  },
+  "exclusions": ["Hot Path p95 <= 500 ms", "transaction TPS", "analyst concurrency", "UI and ML model accuracy"],
+  "known_limits": [
+    "The document does not define a numeric LLM latency SLA. Do not apply Hot Path's 500 ms target to this benchmark.",
+    "Semantic retrieval caches public playbook vectors in worker memory with a bounded TTL; query embeddings still run per case. No persistent vector index is verified by this benchmark.",
+    "Worker currently uses FAILED for non-timeout failures; the document says FAILED_TIMEOUT for LLM errors/timeouts. This remains a contract clarification, not a benchmark pass.",
+    "Worker persistence, retries, priority and fallback are covered by integration tests separately, not by the adapter timing benchmark."
+  ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ml-current-history", "reference_any_rules": ["PB-01", "PB-03"],
+    "context": {
+      "case_id": 201, "txn_id": "synthetic-ml-history", "risk_level": "HIGH",
+      "raw_model_score": 0.9, "calibrated_prob": 0.85,
+      "transaction": {"amt": 500, "category": "shopping_net"},
+      "features": {"amt": 500, "trans_count_24h": 3, "sum_amt_24h": 150,
+        "trans_count_7d": 9, "avg_amt_7d": 50, "max_amt_7d": 200,
+        "std_amt_7d": 10, "amt_to_avg_7d_ratio": 9.8039215686,
+        "amt_to_max_7d_ratio": 2.4875621891, "transaction_hour": 2,
+        "customer_merchant_distance_km": 40},
+      "explanations": [{"feature": "amt_to_avg_7d_ratio", "value": 9.8039215686, "contribution": 0.3}]
+    }
+  },
+  {
+    "id": "ml-current-no-history", "reference_any_rules": ["PB-03", "PB-05"],
+    "context": {
+      "case_id": 202, "txn_id": "synthetic-ml-no-history", "risk_level": "MEDIUM",
+      "raw_model_score": 0.6, "calibrated_prob": 0.5,
+      "transaction": {"amt": 100, "category": "grocery_pos"},
+      "features": {"amt": 100, "trans_count_24h": 0, "trans_count_7d": 0,
+        "avg_amt_7d": 0, "max_amt_7d": 0, "std_amt_7d": 0,
+        "amt_to_avg_7d_ratio": 100, "amt_to_max_7d_ratio": 100,
+        "transaction_hour": 12, "customer_merchant_distance_km": 2},
+      "explanations": [{"feature": "amt_to_avg_7d_ratio", "value": 100, "contribution": 0.3}]
+    }
+  },
+  {
+    "id": "ml-current-7d-only", "reference_any_rules": ["PB-01", "PB-03"],
+    "context": {
+      "case_id": 203, "txn_id": "synthetic-ml-7d-only", "risk_level": "MEDIUM",
+      "raw_model_score": 0.6, "calibrated_prob": 0.5,
+      "transaction": {"amt": 150, "category": "travel"},
+      "features": {"amt": 150, "trans_count_24h": 0, "trans_count_7d": 5,
+        "avg_amt_7d": 100, "max_amt_7d": 200, "std_amt_7d": 20,
+        "amt_to_avg_7d_ratio": 1.4851485149, "amt_to_max_7d_ratio": 0.7462686567,
+        "transaction_hour": 18, "customer_merchant_distance_km": 900},
+      "explanations": [{"feature": "customer_merchant_distance_km", "value": 900, "contribution": 0.2}]
+    }
+  }
+]
