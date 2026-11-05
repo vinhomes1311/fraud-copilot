@@ -131,7 +131,7 @@ async def test_entire_workflow(monkeypatch, provider):
                     assert (await http.get('/api/v1/cases')).status_code == 401
                     assert (await http.post('/api/v1/transactions', json={})).status_code == 401
                     assert (await http.post('/api/v1/auth/login', json={
-                        'username': 'analyst1', 'password': 'wrong'})).status_code == 401
+                        'username': 'analyst1', 'password': 'wrongpass'})).status_code == 401
                     headers = {}
                     for role, user, password in (('analyst', 'analyst1', 'analyst123'),
                                                  ('lead', 'lead1', 'lead123'),
