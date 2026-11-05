@@ -8,7 +8,7 @@ không phải là test passed.
 
 ## Tổng quan
 
-- **25 file test**, được chia theo 5 job CI.
+- **25 file test pytest** và **1 file test JavaScript**, được chia theo các job CI.
 - **127 hàm test**.
 - Có kiểm thử unit, integration, SQL lifecycle, queue, ML và E2E.
 - Kết quả ghi nhận trước khi bổ sung test PR #5: `54 passed, 2 skipped, 1 warning`.
@@ -220,3 +220,10 @@ API/Ollama dùng transport mock; workflow cần DB/Redis kiểm thử riêng.
 `unit_integration/test_scoring_review.py` kiểm tra LOW/MEDIUM/HIGH đều tạo case,
 nhưng chỉ MEDIUM/HIGH phát sự kiện tạo brief. Workflow integration kiểm tra LOW
 xuất hiện trong review queue và không có bản ghi brief.
+
+## Dashboard risk presentation
+
+`ui/risk-review.test.cjs` chạy bằng Node test runner trong job `quality`.
+Kiểm tra xác suất bị thiếu/làm tròn, chiều đóng góp tăng/giảm, giá trị đặc trưng
+gốc, escape HTML, truy cập brief gốc và tích hợp drawer/sao chép mã giao dịch.
+Không cần npm dependency, API key, PostgreSQL hoặc Redis.

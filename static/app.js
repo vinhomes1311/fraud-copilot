@@ -68,8 +68,10 @@ function showLogin() {
   if (state.simulatorPollTimer !== null) clearInterval(state.simulatorPollTimer);
   state.simulatorPollTimer = null;
 }
-function renderBrief(brief) {
-  if (!brief) return "Brief đang được tạo hoặc chưa có dữ liệu.";
+function renderBrief(brief, riskLevel) {
+  if (!brief) return riskLevel === "LOW"
+    ? "Giao dịch LOW không tự tạo brief. Bạn vẫn có thể xem xét và ghi chú."
+    : "Brief đang được tạo hoặc chưa có dữ liệu.";
   if (typeof brief === "string") return escapeHtml(brief);
   const checklist = (brief.checklist || []).map((item) =>
     `<li>${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</li>`
@@ -78,10 +80,10 @@ function renderBrief(brief) {
   const citations = (brief.citations || []).map((citation) =>
     `<li><b>${escapeHtml(citation.rule_code || "")}</b>: ${escapeHtml(citation.quote || "")}</li>`
   ).join("");
-  return `<p>${escapeHtml(brief.summary || "")}</p>`
-    + (signals ? `<h5>Tín hiệu chính</h5><ul>${signals}</ul>` : "")
-    + (checklist ? `<h5>Checklist điều tra</h5><ol>${checklist}</ol>` : "")
-    + (citations ? `<h5>Nguồn tham chiếu</h5><ul>${citations}</ul>` : "");
+  return (brief.source === "rule_based" ? `<p class="brief-fallback-label">Tóm tắt dự phòng theo luật</p>` : "")
+    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>Chưa có checklist điều tra.</p>`)
+    + (citations ? `<details class="brief-reference"><summary>Nguồn tham chiếu (${brief.citations.length})</summary><ul>${citations}</ul></details>` : "")
+    + ((brief.summary || signals) ? `<details class="brief-reference"><summary>Bản tóm tắt gốc</summary><p>${escapeHtml(brief.summary || "")}</p>${signals ? `<h5>Tín hiệu trong brief gốc</h5><ul>${signals}</ul>` : ""}</details>` : "");
 }
 function renderEvidence(item) {
   if (!item.brief_status) return `<span class="evidence muted-label">No brief</span>`;
@@ -308,11 +310,7 @@ function readSimulatorTps() {
 async function openDetail(caseId, editDecision = false) {
   try {
     const item = await api(`/cases/${caseId}`); state.selected = item;
-    const confidence = formatProbability(item.calibrated_prob);
-    const rawScore = Number(item.raw_model_score || 0);
-    const signals = (item.explanations || []).map((signal) => `<li><span>${escapeHtml(titleCase(signal.feature))}</span><b class="${Number(signal.contribution) >= 0 ? "signal-up" : "signal-down"}">${Number(signal.contribution) >= 0 ? "+" : ""}${Number(signal.contribution).toFixed(2)}</b><small>${escapeHtml(signal.value)}</small></li>`).join("");
     const transaction = Object.entries(item.transaction || {}).map(([key, value]) => `<div class="data-field"><small>${escapeHtml(titleCase(key))}</small><b>${escapeHtml(value)}</b></div>`).join("");
-    const trace = `<div class="trace-row"><span>Transaction ID</span><b>${escapeHtml(item.txn_id)}</b></div><div class="trace-row"><span>Model version</span><b>${escapeHtml(item.model_version || "—")}</b></div><div class="trace-row"><span>Threshold config</span><b>v${escapeHtml(item.threshold_config_version || "—")}</b></div>`;
     $("#detail-title").textContent = `Case #${item.run_number ?? item.case_id}`;
     const terminal = ["CLOSED", "DISMISSED", "CONFIRMED_FRAUD", "CONFIRMED_SIMULATED"].includes(item.status);
     const hasPreviousOutcome = (item.actions || []).some((action) =>
@@ -328,7 +326,20 @@ async function openDetail(caseId, editDecision = false) {
     const decisionSection = decisionLocked
       ? `<p class="decision-locked">This case already has a final outcome.</p>`
       : `${reclassifying ? `<p class="section-note reclassification-note">Revising this decision appends a new entry to the audit history.</p>` : ""}<label class="decision-note-label" for="decision-note">Review note <span>(optional)</span></label><textarea id="decision-note" maxlength="2000" placeholder="Add investigation notes or handoff context..."></textarea><div class="decision-actions">${actionButtons}</div>`;
-    $("#detail-content").innerHTML = `<section class="detail-hero"><div><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))} priority</span><p class="detail-subtitle">${escapeHtml(item.txn_id)}</p></div><div class="hero-score"><strong>${confidence}</strong><small>fraud probability</small></div></section><div class="detail-section"><div class="detail-grid"><div><small>Routing decision</small><b>${escapeHtml(titleCase(item.risk_level))} risk</b></div><div><small>Workflow status</small><b>${escapeHtml(statusLabel(item.status))}</b></div><div><small>Raw model score</small><b>${rawScore.toFixed(5)}</b></div><div><small>Brief status</small><b>${escapeHtml(item.brief_status ? titleCase(item.brief_status) : "Not generated")}</b></div></div></div><div class="detail-section"><h4>Model explanation</h4><p class="section-note">Top contributing signals used for triage. This is decision support, not a final fraud determination.</p><ul class="signal-list">${signals || `<li class="muted-label">No explanation signals available.</li>`}</ul></div><div class="detail-section"><h4>Case brief & investigation checklist</h4><div class="brief">${renderBrief(item.brief)}</div></div><div class="detail-section"><h4>Original transaction</h4><div class="data-grid">${transaction}</div></div><div class="detail-section"><h4>Traceability</h4><div class="trace-list">${trace}</div></div><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
+    $("#detail-content").innerHTML = window.RiskReview.renderOverview(item)
+      + window.RiskReview.renderSignals(item)
+      + window.RiskReview.renderReviewContext(item)
+      + `<section class="detail-section"><h4>Checklist điều tra</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>`
+      + window.RiskReview.renderTechnicalDetails(item)
+      + `<details class="transaction-details"><summary>Dữ liệu giao dịch đã che thông tin cá nhân</summary><div class="data-grid">${transaction}</div></details><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
+    $("#detail-content .copy-transaction-id")?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(String(item.txn_id || ""));
+        showToast("Đã sao chép mã giao dịch");
+      } catch {
+        showToast("Không thể sao chép. Mã đầy đủ nằm trong Chi tiết mô hình.");
+      }
+    });
     $("#detail-panel").classList.add("open"); $("#panel-backdrop").classList.add("open");
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => actOnCase(button.dataset.action)));
   } catch (error) { showToast(error.message); }
