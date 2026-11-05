@@ -5,6 +5,11 @@ Máy host ứng dụng vẫn chịu trách nhiệm Redis/PostgreSQL, artifact ML
 
 ## Cấu hình bàn giao
 
+`docker-compose.ollama.yml` mặc định chọn `qwen2.5:3b` và semantic retrieval.
+`OLLAMA_MODEL` có giá trị trong shell hoặc `.env` sẽ ghi đè model mặc định.
+Đây là default cấu hình, không phải cơ chế chuyển model khi inference lỗi;
+khi hết lượt retry, worker tạo brief rule-based trong Python.
+
 Máy host cần Ollama và hai model đã tải trước:
 
 ```powershell
