@@ -24,6 +24,12 @@ def _env(priority: int, n: int = 0) -> JobEnvelope:
 
 
 def test_priority_order_ack_and_dead_letter():
+    """#sym:test_priority_order_ack_and_dead_letter
+    Kiem tra: queue priority, ack, retry, dead-letter.
+    @param Khong co tham so.
+    Dung khi: priority cao ra truoc, ack xoa job, retry roi dead-letter.
+    Sai khi: queue sai thu tu hoac retry/dead sai.
+    """
     async def run():
         r = await _redis_or_skip()
         q = ReliableQueue(r, f"test_{uuid.uuid4().hex}", visibility_timeout_s=0.2, max_attempts=2)

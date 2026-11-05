@@ -29,6 +29,12 @@ class FakeDatabase:
 
 @pytest.mark.asyncio
 async def test_register_creates_email_optional_user_and_returns_login_token():
+    """#sym:test_register_creates_email_optional_user_and_returns_login_token
+    Kiem tra: dang ky user va tao login token.
+    @param Khong co tham so.
+    Dung khi: user duoc insert, password hash dung va token co role bearer.
+    Sai khi: SQL, hash, token hoac role sai.
+    """
     database = FakeDatabase()
     previous_db = state.db
     state.db = database

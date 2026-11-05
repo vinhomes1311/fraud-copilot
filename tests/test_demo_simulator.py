@@ -46,6 +46,12 @@ class FakeRedis:
 
 @pytest.mark.asyncio
 async def test_simulator_controls_share_state_and_preserve_progress():
+    """#sym:test_simulator_controls_share_state_and_preserve_progress
+    Kiem tra: start/set_speed/stop dung chung state.
+    @param Khong co tham so.
+    Dung khi: offset duoc giu, running va version chuyen dung.
+    Sai khi: state bi reset, offset doi hoac version sai.
+    """
     fake_redis = FakeRedis()
     previous_redis = state.redis
     state.redis = fake_redis
@@ -87,6 +93,12 @@ async def test_simulator_controls_share_state_and_preserve_progress():
 
 @pytest.mark.asyncio
 async def test_simulator_runner_publishes_one_shared_batch(monkeypatch):
+    """#sym:test_simulator_runner_publishes_one_shared_batch
+    Kiem tra: runner publish batch theo Redis state.
+    @param monkeypatch: fixture thay ham enqueue.
+    Dung khi: batch size/offset dung, offset moi dung va lock duoc tha.
+    Sai khi: publish sai batch/offset hoac lock con sot.
+    """
     fake_redis = FakeRedis()
     fake_redis.hashes[demo.SIMULATOR_STATE_KEY] = {
         "running": "1",

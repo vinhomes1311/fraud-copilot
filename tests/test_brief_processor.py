@@ -28,30 +28,60 @@ class ProcessorTests(unittest.IsolatedAsyncioTestCase):
                                payload={"case_id": 1, "txn_id": "txn", "risk_level": "HIGH"})
 
     async def test_stale_job_does_not_call_model(self):
+        """#sym:test_stale_job_does_not_call_model
+        Kiem tra: stale job khong goi model.
+        @param Khong co tham so.
+        Dung khi: job stale bi bo qua va model khong bi goi.
+        Sai khi: model bi goi du job stale.
+        """
         self.db.wexec.return_value = "UPDATE 0"
         await self.processor.handle(self.env)
         self.db.rfetchrow.assert_not_awaited()
         self.processor.llm.generate.assert_not_awaited()
 
     async def test_replica_lag_propagates_for_retry(self):
+        """#sym:test_replica_lag_propagates_for_retry
+        Kiem tra: replica lag duoc retry.
+        @param Khong co tham so.
+        Dung khi: loi replica lag duoc danh dau retryable.
+        Sai khi: loi bi nuot hoac danh dau terminal.
+        """
         self.db.rfetchrow.return_value = None
         with self.assertRaises(CaseNotReady):
             await self.processor.handle(self.env)
         self.processor.llm.generate.assert_not_awaited()
 
     async def test_retrieval_timeout_propagates_for_retry(self):
+        """#sym:test_retrieval_timeout_propagates_for_retry
+        Kiem tra: retrieval timeout duoc retry.
+        @param Khong co tham so.
+        Dung khi: timeout retrieval la retryable.
+        Sai khi: timeout bi coi la success hoac dead ngay.
+        """
         self.processor.retriever.retrieve.side_effect = TimeoutError()
         with self.assertRaises(TimeoutError):
             await self.processor.handle(self.env)
         self.processor.llm.generate.assert_not_awaited()
 
     async def test_generation_timeout_propagates_for_retry(self):
+        """#sym:test_generation_timeout_propagates_for_retry
+        Kiem tra: generation timeout duoc retry.
+        @param Khong co tham so.
+        Dung khi: timeout generation la retryable.
+        Sai khi: timeout bi nuot hoac hoan tat sai.
+        """
         self.processor.llm.generate.side_effect = TimeoutError()
         with self.assertRaises(TimeoutError):
             await self.processor.handle(self.env)
         self.assertEqual(self.db.wexec.await_count, 1)
 
     async def test_token_budget_records_terminal_fallback(self):
+        """#sym:test_token_budget_records_terminal_fallback
+        Kiem tra: vuot token budget tao fallback terminal.
+        @param Khong co tham so.
+        Dung khi: fallback va token usage duoc ghi.
+        Sai khi: job retry vo han hoac khong ghi fallback.
+        """
         self.processor.s = replace(self.processor.s, brief_token_budget=1)
         with self.assertRaises(NonRetryableError):
             await self.processor.handle(self.env)
@@ -61,6 +91,12 @@ class ProcessorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[-1], "generation")
 
     async def test_visibility_timeout_is_classified_and_null_signals_supported(self):
+        """#sym:test_visibility_timeout_is_classified_and_null_signals_supported
+        Kiem tra: visibility timeout va null signals.
+        @param Khong co tham so.
+        Dung khi: timeout phan loai dung va null khong gay crash.
+        Sai khi: timeout bi coi la success hoac null gay loi.
+        """
         self.db.rfetchrow.return_value["explanations"] = None
         await self.processor.handle_dead(self.env, "visibility timeout expired")
         args = self.db.wexec.await_args.args

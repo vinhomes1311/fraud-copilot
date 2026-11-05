@@ -494,6 +494,20 @@ GitHub Actions. Workflow gồm bốn job:
 5. **End-to-end smoke test**: khởi động API stack và gọi `GET /healthz`; nếu
    endpoint không trả HTTP 2xx, workflow thất bại và in log để tìm lỗi.
 
+Test transaction thật qua simulator cần một stack đang chạy và được bật riêng
+để tránh làm bộ test mặc định phụ thuộc Docker:
+
+```powershell
+$env:FRAUD_E2E_URL = "http://localhost:8080"
+$env:SIMULATOR_API_KEY = "dev-sim-key"
+python -m pytest tests/test_transaction_e2e.py -q
+```
+
+Test này dùng chính `simulator.replay`, gửi transaction qua Nginx/Analyst API,
+đợi Redis/Scoring Worker xử lý và xác nhận kết quả đã được ghi vào PostgreSQL.
+Nếu không đặt `FRAUD_E2E_URL`, test sẽ được skip; đây là chủ ý để CI unit test
+không cần chạy toàn bộ service worker.
+
 Đánh giá lại model đã có mà không train lại:
 
 ```bash
