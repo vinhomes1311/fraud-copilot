@@ -34,9 +34,17 @@ class CaseStatus(StrEnum):
     IN_REVIEW = "IN_REVIEW"
     NEEDS_MORE_INFO = "NEEDS_MORE_INFO"
     CONFIRMED_SIMULATED = "CONFIRMED_SIMULATED"
+    CONFIRMED_FRAUD = "CONFIRMED_FRAUD"
+    DISMISSED = "DISMISSED"
     ESCALATED = "ESCALATED"
     RETURNED = "RETURNED"
     CLOSED = "CLOSED"
+
+
+class CaseOutcome(StrEnum):
+    CONFIRMED_FRAUD = "CONFIRMED_FRAUD"
+    DISMISSED = "DISMISSED"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
 
 class AnalystAction(StrEnum):
@@ -117,6 +125,7 @@ class TransactionValidated(BaseModel):
     city: str | None = None
     state: str | None = None
     city_pop: int | None = None
+    dob: datetime | None = None
     unix_time: int | None = None
 
     @field_validator("cc_num", "trans_num", mode="before")

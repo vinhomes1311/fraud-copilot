@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101b2d" />
+    <meta name="description" content="Fraud Copilot - interactive fraud triage demo." />
+    <title>Fraud Copilot | Risk operations</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#" aria-label="Fraud Copilot home">
+          <span class="brand-mark">✦</span><span>Fraud <b>Copilot</b></span>
+        </a>
+        <p class="workspace-label">WORKSPACE</p>
+        <nav aria-label="Main navigation">
+          <button class="nav-item active" data-view="review"><span>⌁</span> Review queue <b id="nav-count">0</b></button>
+          <button class="nav-item" data-view="analytics"><span>◈</span> Analytics</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="system-status"><i></i><div><b>Interactive demo</b><small>Browser-only sample</small></div></div>
+          <a class="source-link" href="https://github.com/vinhomes1311/fraud-copilot" target="_blank" rel="noreferrer">View project source ↗</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div><p class="eyebrow">FRAUD TRIAGE CONTROL CENTER</p><h1 id="page-title">Review queue</h1></div>
+          <div class="topbar-actions"><span class="demo-pill"><i></i> Static demo</span><span class="avatar">A</span><div class="user-meta"><b>Demo Analyst</b><small>Risk analyst</small></div></div>
+        </header>
+
+        <div class="demo-notice"><b>Presentation mode</b><span>Sample transactions and risk scores are illustrative. This page is not connected to the scoring model or backend services.</span></div>
+
+        <section class="page-body">
+          <div class="kpi-grid">
+            <article class="kpi-card accent"><span class="kpi-icon">⚡</span><div><small>Open review cases</small><strong id="open-count">—</strong><span>Human review workload</span></div></article>
+            <article class="kpi-card"><span class="kpi-icon orange">!</span><div><small>High priority</small><strong id="high-count">—</strong><span class="orange-text">Needs attention</span></div></article>
+            <article class="kpi-card"><span class="kpi-icon green">✓</span><div><small>Average risk score</small><strong id="average-score">—</strong><span class="green-text">Illustrative score</span></div></article>
+            <article class="kpi-card"><span class="kpi-icon purple">◴</span><div><small>Sample transactions</small><strong id="total-count">—</strong><span>Loaded in this browser</span></div></article>
+          </div>
+
+          <section id="review-view">
+            <div class="section-heading">
+              <div><h2>Priority cases</h2><p>Review transaction signals and record a demo decision.</p></div>
+              <div class="section-actions"><button id="simulate-button" class="primary-button">▶ Add demo transactions</button><button id="reset-button" class="secondary-button">Reset demo</button><button id="export-button" class="secondary-button">⇩ Export CSV</button></div>
+            </div>
+            <div class="queue-card">
+              <div class="toolbar">
+                <label class="search-wrap"><span>⌕</span><input id="search-input" type="search" placeholder="Search case or merchant..." /></label>
+                <select id="risk-filter" aria-label="Filter by risk"><option value="">All risk levels</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select>
+                <select id="status-filter" aria-label="Filter by status"><option value="">All statuses</option><option>OPEN</option><option>IN_REVIEW</option><option>ESCALATED</option><option>CLOSED</option></select>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Case / merchant</th><th>Priority</th><th>Illustrative score</th><th>Status</th><th>Amount</th><th>Location</th></tr></thead>
+                  <tbody id="cases-body"></tbody>
+                </table>
+              </div>
+              <footer class="table-footer"><span id="result-count"></span><span>Click a row to inspect the case</span></footer>
+            </div>
+          </section>
+
+          <section id="analytics-view" class="analytics-view hidden">
+            <div class="section-heading"><div><h2>Analytics overview</h2><p>Summary of the illustrative sample currently loaded in this browser.</p></div></div>
+            <div class="analytics-grid">
+              <article class="panel"><h3>Cases by risk</h3><div id="risk-chart" class="bar-list"></div></article>
+              <article class="panel"><h3>Review status</h3><div id="status-chart" class="bar-list"></div></article>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div id="backdrop" class="backdrop"></div>
+    <aside id="detail-panel" class="detail-panel" aria-label="Case details" aria-hidden="true">
+      <div class="detail-header"><div><p class="eyebrow">CASE DETAIL</p><h2 id="detail-title">Case details</h2></div><button id="close-detail" class="close-button" aria-label="Close">×</button></div>
+      <div id="detail-content"></div>
+    </aside>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>

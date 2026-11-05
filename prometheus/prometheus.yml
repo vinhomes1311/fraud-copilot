@@ -8,3 +8,6 @@ scrape_configs:
     static_configs: [{targets: ["scoring-worker:9101"]}]
   - job_name: llm-worker
     static_configs: [{targets: ["llm-worker:9102"]}]
+  - job_name: model-service
+    metrics_path: /metrics
+    static_configs: [{targets: ["model-service:8010"]}]

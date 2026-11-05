@@ -73,6 +73,16 @@ curl http://localhost:8080/healthz
 
 Dashboard mở tại <http://localhost:8080/>.
 
+Trong dashboard, simulator tự bắt đầu phát lại dữ liệu test sau khi đăng nhập. Có thể chỉnh tốc độ
+từ 1 đến 1.000 giao dịch/giây ở ô bên cạnh nút chạy; lựa chọn được lưu trên trình duyệt và có hiệu lực
+ở lượt gửi tiếp theo. Đây là tốc độ phát yêu cầu mục tiêu, tốc độ xử lý thực tế còn phụ thuộc tài nguyên
+hệ thống. Video chó truy vết nằm cạnh nút simulator và chỉ phát khi simulator hoạt động.
+Nút **Dừng simulator**
+dùng để dừng hoặc chạy lại. Review queue hiển thị cả LOW,
+nhưng chỉ MEDIUM/HIGH được tạo brief. Mục Analytics chỉ hiển thị MEDIUM/HIGH,
+được sắp xếp theo xác suất giảm dần; chọn một dòng để xem chi tiết và brief nếu
+có.
+
 Chạy simulator với dữ liệu tổng hợp:
 
 ```bash
@@ -177,11 +187,12 @@ queue hỗ trợ:
 - lọc theo risk level và trạng thái;
 - xem confidence, trạng thái brief và chi tiết transaction đã che PII;
 - thêm note, yêu cầu thêm thông tin, xác nhận simulated hoặc escalate;
+- phân loại fraud/an toàn/chưa đủ bằng chứng và chỉnh sửa quyết định đã lưu; mỗi lần chỉnh sửa được thêm vào lịch sử/audit;
 - risk lead xử lý case escalated;
 - analyst/risk lead yêu cầu tạo lại brief trong giới hạn cấu hình.
 
-Một số ô giao diện hiện là thông tin mẫu hoặc chưa nối backend (ví dụ analytics,
-audit trail và queue latency).
+Một số ô giao diện hiện là thông tin mẫu hoặc chưa nối backend (ví dụ analytics
+và queue latency).
 
 ## API
 
@@ -206,6 +217,14 @@ Tài khoản demo:
 | `lead1` | `lead123` | Risk Lead |
 | `admin` | `admin123` | Admin |
 
+Người dùng mới có thể đăng ký trực tiếp trên màn hình đăng nhập hoặc gọi
+`POST /api/v1/auth/register` với `username`, `display_name` và `password`.
+Tài khoản đăng ký mới cần thêm email, được tạo ở vai trò Analyst; mật khẩu được
+lưu dưới dạng hash scrypt và phải xác thực email qua SMTP trước khi đăng nhập.
+Màn hình cũng hỗ trợ gửi email đặt lại mật khẩu và nút Google OAuth. Để bật hai
+luồng email/Google, cấu hình `SMTP_*` và `GOOGLE_*` trong `.env`; secret không
+được đưa vào source code.
+
 Lưu `access_token` từ response rồi dùng header `Authorization: Bearer <token>`.
 Các mật khẩu trên chỉ dành cho demo; production cần thay bằng user store và
 mật khẩu đã hash.
@@ -215,17 +234,36 @@ mật khẩu đã hash.
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/api/v1/auth/login` | Public | Đăng nhập, nhận JWT |
+| `POST` | `/api/v1/auth/register` | Public | Tạo tài khoản Analyst và nhận JWT |
+| `GET` | `/api/v1/auth/verify` | Public | Xác thực email |
+| `POST` | `/api/v1/auth/forgot-password` | Public | Gửi email đặt lại mật khẩu |
+| `POST` | `/api/v1/auth/reset-password` | Public | Đặt mật khẩu mới bằng token |
+| `GET` | `/api/v1/auth/google` | Public | Bắt đầu Google OAuth |
 | `POST` | `/api/v1/transactions` | `X-API-Key` | Queue giao dịch để chấm điểm |
 | `GET` | `/api/v1/transactions/{txn_id}/result` | API key hoặc JWT | Lấy kết quả bất đồng bộ |
 | `GET` | `/api/v1/cases` | Analyst, Risk Lead | Review queue, High trước |
+| `GET` | `/api/v1/cases/classifications` | Analyst, Risk Lead | Giao dịch đã được analyst phân loại/chuyển tiếp; hỗ trợ `decision`, `search`, `limit`, `offset` |
+| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Cập nhật hoặc phân loại lại kết quả; mọi lần chỉnh sửa được lưu trong lịch sử và audit log |
 | `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
+| `POST` | `/api/v1/cases/manual` | Analyst, Risk Lead | Tạo case thủ công cho giao dịch LOW/unscored |
 | `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
+| `POST` | `/api/v1/cases/{case_id}/notes` | Analyst, Risk Lead | Thêm note append-only |
+| `PUT` | `/api/v1/cases/{case_id}/assign` | Analyst, Risk Lead | Gán hoặc bỏ gán case |
+| `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | `CONFIRMED_FRAUD`, `DISMISSED`, `INSUFFICIENT_EVIDENCE`; ghi lịch sử và audit |
 | `POST` | `/api/v1/cases/{case_id}/resolve` | Risk Lead | `CLOSE` hoặc `RETURN` case escalated |
 | `POST` | `/api/v1/cases/{case_id}/brief:regenerate` | Analyst, Risk Lead | Queue tạo lại brief |
 | `GET` / `PUT` | `/api/v1/admin/threshold-config` | Admin | Đọc/cập nhật ngưỡng risk có version |
 | `GET` | `/api/v1/admin/queues` | Admin | Độ sâu các queue |
 | `GET` | `/healthz` | Public | Health check |
 | `GET` | `/metrics` | Internal | Prometheus metrics |
+
+Analyst decisions are stored in the case status, action history, and audit log.
+The dashboard's **Manual decisions** section reads those persisted action records,
+showing the latest classification or handoff per case with reviewer, timestamp,
+and masked transaction details.
+Confirming fraud or dismissing a case does not itself block a payment, blacklist
+a card, or suspend an account; those effects require integration with the
+payment/account systems.
 
 Ví dụ lấy queue:
 
@@ -250,7 +288,7 @@ Simulator không gửi nhãn `is_fraud` vào API; nhãn được ghi riêng vào
 
 ```bash
 python -m simulator.replay --url http://localhost:8080 --tps 10 --limit 500
-python -m simulator.replay --csv data/fraudTrain.csv --tps 50 \
+python -m simulator.replay --csv data/fraudTrain.csv --tps 10 \
   --limit 1000 --fault-rate 0.02 --concurrency 100
 ```
 
@@ -382,7 +420,7 @@ Xem [ánh xạ cột, nguồn và giới hạn suy luận](knowledge/KAGGLE_DATA
 | `llm_worker/llm_client.py`, `api_client.py` | API online, Ollama hoặc stub | Đánh giá model trên case đại diện |
 | `llm_worker/rag.py` | Playbook được phê duyệt; semantic retrieval cho Ollama | Mở rộng retrieval khi KB lớn hơn |
 | `llm_worker/grounding.py` | Kiểm tra citation cơ bản | Kiểm chứng số liệu và grounding sâu hơn |
-| `analyst_api/auth.py` | User hard-code | User table và password hash |
+| `analyst_api/auth.py` | User table | Password hash scrypt và JWT |
 
 Khi thay implementation, giữ nguyên interface và schema trong
 `fraud_common/schemas.py` để không phá vỡ contract giữa các service.
@@ -401,3 +439,54 @@ prometheus/        Prometheus scrape config
 static/            dashboard frontend
 tests/             unit test, API mock và PostgreSQL/Redis workflow integration test
 ```
+## 6. ML pipeline thật: preprocessing, training và serving
+
+Notebook đã được chuyển thành package `ml_pipeline` với các hàm độc lập:
+
+- `read_csv_safely` và `validate_schema`: kiểm tra file, cột bắt buộc và timestamp.
+- `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
+- `chronological_split`: chia train/validation/test không làm rò rỉ tương lai.
+- `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
+
+Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.
+
+Chạy toàn bộ DAG preprocessing -> training -> evaluation -> artifact:
+
+```bash
+python -m ml_pipeline --config ml_pipeline/config.json
+```
+
+Hoặc chạy profile Docker:
+
+```bash
+docker compose --profile training run --rm ml-pipeline
+```
+
+Để demo toàn bộ luồng bằng dữ liệu Kaggle, phát lại test set (nhãn chỉ được
+ghi vào `data/labels.csv`, không gửi vào hệ thống):
+
+```bash
+python -m simulator.replay --csv data/fraudTest.csv --tps 10 --limit 500
+```
+
+Các giao dịch đi qua scoring worker bằng artifact đã train; case Medium/High
+sẽ tiếp tục được đưa sang LLM worker để tạo brief.
+
+Artifact được ghi vào `data/models/fraud_xgboost.joblib`, metadata lineage vào file `.json` cạnh artifact. Scoring worker và `model-service` đều nạp cùng artifact qua `MODEL_ARTIFACT_PATH`; nếu artifact thiếu hoặc hỏng, request sẽ lỗi rõ ràng và worker chuyển sang retry/manual fallback, không âm thầm dùng heuristic.
+
+File [dvc.yaml](dvc.yaml) cung cấp stage `train` để version hóa đồng bộ input data, config, processed splits và model outputs khi team dùng DVC remote:
+
+```bash
+dvc repro
+dvc push
+```
+
+Inference service nội bộ:
+
+```bash
+curl -X POST http://localhost:8010/v1/predict \
+  -H "content-type: application/json" \
+  -d '{"features":{"amt":120.5,"transaction_hour":23,"trans_count_24h":2}}'
+```
+
+`model-service:8010/metrics` và các metric `fraud_inference_*`, `fraud_stage_seconds` được Prometheus scrape. Có thể kích hoạt workflow theo cron/Task Scheduler bằng lệnh `python -m ml_pipeline`; trigger sự kiện có dữ liệu mới chỉ cần gọi cùng lệnh sau khi file input được cập nhật. Nên lưu `data/models/*.joblib` và file metadata trong DVC/object storage ở môi trường production thay vì commit binary vào Git.

@@ -1,6 +1,7 @@
 """Xác thực + RBAC. Simulator dùng X-API-Key; UI dùng JWT (Bearer)."""
 from __future__ import annotations
 
+import hashlib
 import secrets
 import time
 from dataclasses import dataclass
@@ -12,13 +13,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fraud_common.config import get_settings
 from fraud_common.schemas import Role
 
-# TODO: thay bằng bảng users trong PostgreSQL (mật khẩu băm bằng argon2/bcrypt).
-DEMO_USERS: dict[str, tuple[str, Role]] = {
-    "analyst1": ("analyst123", Role.ANALYST),
-    "analyst2": ("analyst123", Role.ANALYST),
-    "lead1": ("lead123", Role.RISK_LEAD),
-    "admin": ("admin123", Role.ADMIN),
-}
+from .state import state
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -29,10 +24,30 @@ class User:
     role: Role
 
 
-def authenticate(username: str, password: str) -> User | None:
-    rec = DEMO_USERS.get(username)
-    if rec and secrets.compare_digest(rec[0].encode(), password.encode()):
-        return User(username, rec[1])
+def hash_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, salt_hex, digest_hex = encoded.split("$")
+        if algorithm != "scrypt":
+            return False
+        expected = bytes.fromhex(digest_hex)
+        actual = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1)
+        return secrets.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+async def authenticate(username: str, password: str) -> User | None:
+    row = await state.db.rfetchrow(
+        "SELECT username, role, password_hash, email_verified FROM users WHERE username=$1 AND active=true",
+        username)
+    if row and row["email_verified"] and verify_password(password, row["password_hash"]):
+        return User(row["username"], Role(row["role"]))
     return None
 
 

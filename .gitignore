@@ -5,3 +5,7 @@ __pycache__/
 data/*.csv
 WORKFLOW_TEST_REPORT.md
 benchmark_results/
+.pytest_cache/
+data/processed/
+data/models/
+*.joblib

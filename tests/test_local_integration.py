@@ -28,6 +28,22 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('avg_amt_24h',evidence['EV-FEATURE-avg_amt_24h']['text'])
         self.assertIn('mean amount', evidence['EV-FEATURE-avg_amt_24h']['text'])
         self.assertIn('not a median', evidence['EV-FEATURE-avg_amt_24h']['text'])
+    def test_merged_history_summary_preserves_baseline_validation(self):
+        for average in (0, 12):
+            with self.subTest(average=average):
+                self.ctx['features'].update(txn_count_24h=3, avg_amt_24h=average)
+                evidence = project_evidence(self.ctx)
+                self.assertEqual(evidence['EV-HISTORY']['value'], 3)
+                self.assertIn('3 transactions', evidence['EV-HISTORY']['text'])
+                self.assertNotIn('EV-HISTORY-GAP', evidence)
+                if average:
+                    self.assertIn('12.00', evidence['EV-HISTORY']['text'])
+                    self.assertNotIn('EV-BASELINE-GAP', evidence)
+                else:
+                    self.assertNotIn('historical average', evidence['EV-HISTORY']['text'])
+                    self.assertIn('EV-BASELINE-GAP', evidence)
+                    self.assertNotIn('EV-FEATURE-avg_amt_24h', evidence)
+
     async def test_generated_contract_and_unchanged_scores(self):
         before=copy.deepcopy(self.ctx)
         async def fake(path,payload):

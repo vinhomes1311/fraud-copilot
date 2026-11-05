@@ -109,6 +109,11 @@ def project_evidence(ctx):
         raise ValueError('Invalid risk level')
     evidence['EV-ROUTE'] = {'value': ctx['risk_level'], 'text': 'Routing: ' + ctx['risk_level']}
     allowed = set(FEATURE_DESCRIPTIONS)
+    if has_history:
+        comparison = f"History comparison: {count} transactions in the last 24 hours"
+        if has_baseline:
+            comparison += f"; historical average amount {average:.2f}"
+        add('EV-HISTORY', count, comparison)
     for key in sorted(allowed & features.keys()):
         if key in {'avg_amt_24h', 'amt_vs_avg_ratio'} and not has_baseline:
             continue  # SQL COALESCE 0 and fallback ratio 1 are not a baseline.
