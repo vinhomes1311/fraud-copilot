@@ -94,6 +94,18 @@ services:
       <<: *app-env
       SERVICE_NAME: llm-worker
       METRICS_PORT: "9102"
+      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_MODEL: ${LLM_API_MODEL:-gpt-5.4-mini}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_RESPONSE_FORMAT: ${LLM_API_RESPONSE_FORMAT:-json_schema}
+      LLM_API_TOKEN_PARAMETER: ${LLM_API_TOKEN_PARAMETER:-max_completion_tokens}
+      LLM_API_MAX_COMPLETION_TOKENS: ${LLM_API_MAX_COMPLETION_TOKENS:-1024}
+      LLM_API_REASONING_EFFORT: ${LLM_API_REASONING_EFFORT:-}
+      LLM_RETRIEVER: ${LLM_RETRIEVER:-}
+      LLM_CONCURRENCY: ${LLM_CONCURRENCY:-1}
+      LLM_JOB_TIMEOUT_S: ${LLM_JOB_TIMEOUT_S:-120}
+      LLM_VISIBILITY_TIMEOUT_S: ${LLM_VISIBILITY_TIMEOUT_S:-300}
 
   # ---- Simulator: chỉ chạy khi gọi rõ ràng (--profile sim) ----
   simulator:

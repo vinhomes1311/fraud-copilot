@@ -22,6 +22,12 @@ from llm_worker.rag import StubRetriever
 @pytest.mark.skipif(not os.getenv("FRAUD_TEST_DB_URL") or not os.getenv("FRAUD_TEST_REDIS_URL"),
                     reason="Set explicit disposable PostgreSQL and Redis test URLs")
 def test_brief_pipeline():
+    """#sym:test_brief_pipeline
+    Kiem tra: pipeline brief end-to-end.
+    @param Khong co tham so.
+    Dung khi: job duoc xu ly va brief/status ghi dung.
+    Sai khi: mat job, ghi sai state hoac thieu fallback.
+    """
     async def run():
         schema = "brief_test_" + uuid4().hex
         admin = await asyncpg.connect(os.environ["FRAUD_TEST_DB_URL"])
@@ -31,7 +37,7 @@ def test_brief_pipeline():
         try:
             await admin.execute(f'CREATE SCHEMA "{schema}"')
             await admin.execute(f'SET search_path TO "{schema}"')
-            await admin.execute((Path(__file__).resolve().parents[1] / "db/init.sql").read_text(encoding="utf-8"))
+            await admin.execute((Path(__file__).resolve().parents[2] / "db/init.sql").read_text(encoding="utf-8"))
             db.write = await asyncpg.create_pool(os.environ["FRAUD_TEST_DB_URL"], min_size=1, max_size=2,
                                                 init=_init_conn, server_settings={"search_path": schema})
             db.read = db.write

@@ -51,6 +51,12 @@ class FakeDatabase:
 
 @pytest.mark.asyncio
 async def test_review_and_analytics_return_consistent_dashboard_metrics():
+    """#sym:test_review_and_analytics_return_consistent_dashboard_metrics
+    Kiem tra: metrics dashboard giua review va analytics.
+    @param Khong co tham so.
+    Dung khi: open/high/average/latency giong nhau va open_count khong loc risk_level.
+    Sai khi: metrics lech hoac query loc sai.
+    """
     database = FakeDatabase()
     previous_db = state.db
     state.db = database

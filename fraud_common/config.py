@@ -4,6 +4,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Resolve from the project, independent of the current working directory.
+# Environment variables supplied by the deployment always take precedence.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 
 
 def _s(name: str, default: str) -> str:

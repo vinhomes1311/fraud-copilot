@@ -24,7 +24,9 @@ class JsonFormatter(logging.Formatter):
             data.update(ctx)
         if record.exc_info:
             data["exc"] = self.formatException(record.exc_info)
-        return json.dumps(data, ensure_ascii=False, default=str)
+        # JSON escapes preserve text while supporting Windows consoles/pipes whose
+        # encoding cannot represent Vietnamese. Consumers decode the original text.
+        return json.dumps(data, ensure_ascii=True, default=str)
 
 
 def setup_logging(service: str, level: int = logging.INFO) -> None:

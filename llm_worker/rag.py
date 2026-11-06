@@ -38,9 +38,40 @@ class StubRetriever:
         return (found or _FAKE_PLAYBOOK[:1])[:top_k]
 
 
+class ApprovedPlaybookRetriever:
+    """Rank the full approved playbook by known feature terms; no embeddings."""
+    async def retrieve_context(self, ctx, top_k=5):
+        from .local_integration import KB_PATH
+        from .retrieval_policy import rank_applicable
+        from copilot.v2.knowledge import load
+        chunks = rank_applicable(load(KB_PATH)['chunks'], ctx)
+        return [Chunk(section_id=c['section_id'], rule_code=c['rule_code'], text=c['text'])
+                for c in chunks[:top_k]]
+
+    async def retrieve(self, signals, risk_level, top_k=5):
+        from .local_integration import KB_PATH
+        from copilot.v2.knowledge import load
+        from .local_integration import FEATURE_ALIASES, FEATURE_DESCRIPTIONS
+        names = {FEATURE_ALIASES.get(s, s) for s in signals}
+        names &= set(FEATURE_DESCRIPTIONS)
+        chunks = load(KB_PATH)['chunks']
+        ranked = sorted(chunks, key=lambda c: (-sum(name in c['text'] for name in names), c['id']))
+        return [Chunk(section_id=c['section_id'], rule_code=c['rule_code'], text=c['text'])
+                for c in ranked[:top_k]]
+
+
 def get_retriever() -> Retriever:
+    import os
     from fraud_common.config import get_settings
-    if get_settings().llm_provider == "ollama":
+    provider = get_settings().llm_provider
+    if provider == 'stub':
+        return StubRetriever()
+    if provider not in ('api', 'ollama'):
+        raise ValueError('Unknown LLM_PROVIDER')
+    mode = os.getenv('LLM_RETRIEVER') or ('playbook' if provider == 'api' else 'ollama')
+    if mode == 'ollama':
         from .local_integration import SemanticRetriever
         return SemanticRetriever()
-    return StubRetriever()
+    if mode == 'playbook':
+        return ApprovedPlaybookRetriever()
+    raise ValueError('LLM_RETRIEVER must be ollama or playbook')
