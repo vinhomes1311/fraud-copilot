@@ -1,11 +1,17 @@
 """Luồng 3: Analyst / Risk Lead đọc hàng đợi, xem hồ sơ, ra quyết định."""
 from __future__ import annotations
 
+import asyncio
+import logging
+import math
+import time
 from uuid import uuid4
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from fraud_common.config import get_settings
 from fraud_common.schemas import AnalystAction, CaseOutcome, CaseStatus, RiskLeadDecision, RiskLevel, Role
 
 from ..audit import write_audit
@@ -15,6 +21,7 @@ from ..state import state
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 any_reviewer = require_roles(Role.ANALYST, Role.RISK_LEAD)
+log = logging.getLogger(__name__)
 
 ACTION_TO_STATUS = {
     AnalystAction.NOTE: CaseStatus.IN_REVIEW,
@@ -191,13 +198,113 @@ async def list_analytics_transactions(
                LIMIT 1
            ) latest ON true"""
     )
+    decision_breakdown = await state.db.rfetch(
+        """SELECT c.risk_level, latest.action, count(*) AS decision_count
+           FROM cases c
+           JOIN LATERAL (
+               SELECT ca.action
+               FROM case_actions ca
+               WHERE ca.case_id = c.case_id
+                 AND ca.action IN (
+                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
+                 )
+               ORDER BY ca.created_at DESC, ca.id DESC
+               LIMIT 1
+           ) latest ON true
+           WHERE c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')
+           GROUP BY c.risk_level, latest.action"""
+    )
     return {
         "items": [dict(r) for r in rows],
         "limit": limit,
         "offset": offset,
         "total": total,
         "decision_summary": dict(decision_summary),
+        "decision_breakdown": [dict(r) for r in decision_breakdown],
         **summary,
+    }
+
+
+async def _query_prometheus_range(
+    client: httpx.AsyncClient,
+    query: str,
+    start: float,
+    end: float,
+    step: int,
+) -> list[dict[str, float]]:
+    try:
+        response = await client.get(
+            "/api/v1/query_range",
+            params={"query": query, "start": start, "end": end, "step": step},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        log.exception("prometheus_range_query_failed")
+        raise HTTPException(status_code=503, detail="ML metrics are unavailable") from exc
+
+    if not isinstance(payload, dict) or payload.get("status") != "success":
+        error = payload.get("error", "unknown error") if isinstance(payload, dict) else "invalid response"
+        log.error("prometheus_range_query_rejected: %s", error)
+        raise HTTPException(status_code=503, detail="ML metrics are unavailable")
+
+    data = payload.get("data")
+    result = data.get("result") if isinstance(data, dict) else None
+    if not isinstance(result, list):
+        log.error("prometheus_range_query_invalid_response")
+        raise HTTPException(status_code=503, detail="ML metrics are unavailable")
+
+    points = []
+    try:
+        for series in result:
+            for timestamp, value in series["values"]:
+                point = {"timestamp": float(timestamp), "value": float(value)}
+                if math.isfinite(point["timestamp"]) and math.isfinite(point["value"]):
+                    points.append(point)
+    except (IndexError, KeyError, TypeError, ValueError) as exc:
+        log.exception("prometheus_range_query_invalid_samples")
+        raise HTTPException(status_code=503, detail="ML metrics are unavailable") from exc
+    return sorted(points, key=lambda point: point["timestamp"])
+
+
+@router.get("/analytics/ml-operations")
+async def get_ml_operations(
+    user: User = Depends(any_reviewer),
+    window_minutes: int = Query(60, ge=15, le=1440),
+):
+    end = time.time()
+    start = end - window_minutes * 60
+    step = max(15, window_minutes * 60 // 60)
+    settings = get_settings()
+
+    try:
+        async with httpx.AsyncClient(base_url=settings.prometheus_url, timeout=5) as client:
+            latency, throughput = await asyncio.gather(
+                _query_prometheus_range(
+                    client,
+                    "histogram_quantile(0.95, sum by (le) "
+                    "(rate(fraud_inference_seconds_bucket[5m]))) * 1000",
+                    start,
+                    end,
+                    step,
+                ),
+                _query_prometheus_range(
+                    client,
+                    "sum(rate(fraud_inference_requests_total[5m]))",
+                    start,
+                    end,
+                    step,
+                ),
+            )
+    except httpx.HTTPError as exc:
+        log.exception("prometheus_unavailable")
+        raise HTTPException(status_code=503, detail="ML metrics are unavailable") from exc
+
+    return {
+        "window_minutes": window_minutes,
+        "latency_p95_ms": latency,
+        "throughput_rps": throughput,
     }
 
 

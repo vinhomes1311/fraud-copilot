@@ -35,6 +35,18 @@ const decisionClass = (action) => ({
   NEEDS_MORE_INFO: "pending",
   CONFIRM_SIMULATED: "fraud",
 })[action] || "pending";
+const decisionSlices = [
+  { action: "OUTCOME_CONFIRMED_FRAUD", label: "Confirm fraud", color: "#d84c67" },
+  { action: "OUTCOME_DISMISSED", label: "Dismiss / safe", color: "#15936b" },
+  { action: "ESCALATE", label: "Escalate", color: "#d97706" },
+  { action: "NEEDS_MORE_INFO", label: "Need more info", color: "#356ae6" },
+  { action: "OUTCOME_INSUFFICIENT_EVIDENCE", label: "Insufficient evidence", color: "#7658d9" },
+];
+const riskGroups = [
+  { risk: "HIGH", label: "High risk" },
+  { risk: "MEDIUM", label: "Medium risk" },
+  { risk: "LOW", label: "Low risk" },
+];
 const showToast = (message) => { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2800); };
 
 async function api(path, options = {}) {
@@ -88,6 +100,76 @@ function renderEvidence(item) {
   const label = item.brief_status === "READY" ? "Brief ready" : titleCase(item.brief_status);
   return `<span class="evidence evidence-${riskClass(item.brief_status)}">${escapeHtml(label)}</span>`;
 }
+function renderDecisionBreakdown(rows) {
+  const counts = new Map((rows || []).map((row) => [`${row.risk_level}:${row.action}`, Number(row.decision_count) || 0]));
+  $("#decision-breakdown").innerHTML = riskGroups.map(({ risk, label }) => {
+    const values = decisionSlices.map((slice) => counts.get(`${risk}:${slice.action}`) || 0);
+    const total = values.reduce((sum, value) => sum + value, 0);
+    let accumulated = 0;
+    const segments = values.map((value, index) => {
+      const start = accumulated;
+      accumulated += total ? value / total * 100 : 0;
+      return `${decisionSlices[index].color} ${start}% ${accumulated}%`;
+    });
+    const gradient = total ? `conic-gradient(${segments.join(", ")})` : "#edf1f6";
+    const legend = decisionSlices.map((slice, index) => {
+      const percentage = total ? values[index] / total * 100 : 0;
+      return `<li><i class="legend-swatch" style="background:${slice.color}"></i><span>${slice.label}</span><b>${percentage.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</b></li>`;
+    }).join("");
+    return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Analyst decision by predicted risk</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} analyst decisions"><span class="decision-donut-center">${total.toLocaleString("vi-VN")}<small>decisions</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
+  }).join("");
+}
+function renderMlOperationsChart(metrics) {
+  const host = $("#ml-operations-chart");
+  const latency = (metrics.latency_p95_ms || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
+  const throughput = (metrics.throughput_rps || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
+  if (!latency.length && !throughput.length) {
+    host.innerHTML = `<p class="chart-empty">No inference samples are available for the last ${Number(metrics.window_minutes) || 60} minutes.</p>`;
+    return;
+  }
+
+  const width = 760;
+  const height = 270;
+  const left = 58;
+  const right = 702;
+  const top = 24;
+  const bottom = 212;
+  const plotWidth = right - left;
+  const plotHeight = bottom - top;
+  const end = Date.now() / 1000;
+  const start = end - (Number(metrics.window_minutes) || 60) * 60;
+  const maxLatency = Math.max(1, ...latency.map((point) => Number(point.value)));
+  const maxThroughput = Math.max(1, ...throughput.map((point) => Number(point.value)));
+  const makePath = (points, maxValue) => points.map((point, index) => {
+    const x = left + Math.max(0, Math.min(1, (Number(point.timestamp) - start) / (end - start))) * plotWidth;
+    const y = bottom - Math.max(0, Math.min(1, Number(point.value) / maxValue)) * plotHeight;
+    return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const grid = Array.from({ length: 5 }, (_, index) => {
+    const y = top + plotHeight * index / 4;
+    const latencyTick = (maxLatency * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+    const throughputTick = (maxThroughput * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+    return `<line class="chart-gridline" x1="${left}" y1="${y}" x2="${right}" y2="${y}"></line><text class="chart-axis-label" x="${left - 8}" y="${y + 3}" text-anchor="end">${latencyTick}</text><text class="chart-axis-label" x="${right + 8}" y="${y + 3}">${throughputTick}</text>`;
+  }).join("");
+  const timeLabels = Array.from({ length: 5 }, (_, index) => {
+    const x = left + plotWidth * index / 4;
+    const timestamp = new Date((start + (end - start) * index / 4) * 1000);
+    const label = index === 4 ? "Now" : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    return `<text class="chart-axis-label" x="${x}" y="${bottom + 22}" text-anchor="middle">${label}</text>`;
+  }).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="ML inference p95 latency in milliseconds and throughput in requests per second over the last ${Number(metrics.window_minutes) || 60} minutes"><text class="chart-axis-title chart-latency" x="${left}" y="12">Latency (ms)</text><text class="chart-axis-title chart-throughput" x="${right}" y="12" text-anchor="end">Throughput (RPS)</text>${grid}<path class="chart-line chart-latency" d="${latency.length ? makePath(latency, maxLatency) : ""}"></path><path class="chart-line chart-throughput" d="${throughput.length ? makePath(throughput, maxThroughput) : ""}"></path>${timeLabels}<g transform="translate(255 ${height - 8})"><circle class="chart-latency" r="4"></circle><text class="chart-legend" x="9" y="4">p95 inference latency</text><circle class="chart-throughput" cx="178" r="4"></circle><text class="chart-legend" x="187" y="4">Throughput</text></g></svg>`;
+}
+async function loadMlOperations() {
+  try {
+    const metrics = await api("/cases/analytics/ml-operations?window_minutes=60");
+    if (state.view === "ml-insights") renderMlOperationsChart(metrics);
+  } catch (error) {
+    if (state.view === "ml-insights") {
+      $("#ml-operations-chart").innerHTML = `<p class="chart-empty">Could not load ML metrics: ${escapeHtml(error.message)}</p>`;
+      showToast(error.message);
+    }
+  }
+}
 function renderCases() {
   const query = $("#search-input").value.toLowerCase();
   const risk = $("#risk-filter").value;
@@ -111,7 +193,7 @@ function renderCases() {
 async function loadCases() {
   try {
     const offset = state.page * state.pageSize;
-    const path = state.view === "analytics"
+    const path = ["analytics", "ml-insights"].includes(state.view)
       ? `/cases/analytics/transactions?limit=${state.pageSize}&offset=${offset}`
       : `/cases?limit=${state.pageSize}&offset=${offset}`;
     const result = await api(path);
@@ -126,6 +208,10 @@ async function loadCases() {
     $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
     $("#decision-escalated").textContent = decisions.escalated ?? 0;
     $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
+    if (state.view === "ml-insights") {
+      renderDecisionBreakdown(result.decision_breakdown || []);
+      void loadMlOperations();
+    }
     renderCases();
   } catch (error) { $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Không tải được dữ liệu: ${escapeHtml(error.message)}</td></tr>`; showToast(error.message); }
 }
@@ -183,16 +269,19 @@ function loadCurrentView() {
 function setView(view) {
   state.view = view;
   const analytics = view === "analytics";
+  const mlInsights = view === "ml-insights";
   const classifications = view === "classifications";
   state.page = 0;
   $("#review-nav").classList.toggle("active", view === "review");
   $("#analytics-nav").classList.toggle("active", analytics);
+  $("#ml-insights-nav").classList.toggle("active", mlInsights);
   $("#classifications-nav").classList.toggle("active", classifications);
-  $("#page-title").textContent = classifications ? "Manual decisions" : analytics ? "Analytics" : "Review queue";
+  $("#page-title").textContent = classifications ? "Manual decisions" : mlInsights ? "ML Insights" : analytics ? "Analytics" : "Review queue";
   $("#review-kpi-grid").classList.toggle("hidden", view !== "review");
   $("#analytics-kpi-grid").classList.toggle("hidden", !analytics);
   $("#analytics-decisions").classList.toggle("hidden", !analytics);
-  $("#review-content").classList.toggle("hidden", classifications);
+  $("#review-content").classList.toggle("hidden", classifications || mlInsights);
+  $("#ml-insights-content").classList.toggle("hidden", !mlInsights);
   $("#classifications-content").classList.toggle("hidden", !classifications);
   $("#queue-title").textContent = analytics ? "Medium & High transactions" : "Priority cases";
   $("#queue-description").textContent = analytics
@@ -452,7 +541,7 @@ $("#simulator-tps").addEventListener("change", async () => {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#ml-insights-nav").addEventListener("click", () => setView("ml-insights")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
 $("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {

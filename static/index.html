@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#08111f" />
     <title>Fraud Copilot | Risk operations</title>
-    <link rel="stylesheet" href="/static/styles.css?v=reset-demo-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=ml-insights-nav-2" />
   </head>
   <body>
     <div id="toast" class="toast" role="status"></div>
@@ -33,9 +33,10 @@
         <div class="brand"><img class="brand-mark small" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" /><span>Fraud <b>Copilot</b></span></div>
         <div class="workspace-label">WORKSPACE</div>
         <nav>
-          <button id="review-nav" class="nav-item active"><img class="nav-icon review-nav-logo" src="/static/review-queue-logo.png?v=2" alt="" /> Review queue</button>
-          <button id="analytics-nav" class="nav-item"><span class="nav-icon">◈</span> Analytics</button>
-          <button id="classifications-nav" class="nav-item"><span class="nav-icon">◌</span> Manual decisions</button>
+          <button id="review-nav" class="nav-item active" title="Review queue"><img class="nav-icon review-nav-logo" src="/static/review-queue-logo.png?v=2" alt="" /> Review queue</button>
+          <button id="analytics-nav" class="nav-item" title="Analytics"><span class="nav-icon">◈</span> Analytics</button>
+          <button id="ml-insights-nav" class="nav-item" title="ML Insights"><svg class="nav-icon ml-insights-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16.5h14M4.5 14V9.5M9 14V5.5M13.5 14V8M18 14V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> ML Insights</button>
+          <button id="classifications-nav" class="nav-item" title="Manual decisions"><span class="nav-icon">◌</span> Manual decisions</button>
         </nav>
         <div class="sidebar-bottom">
           <div class="system-status"><span class="status-dot"></span><div><b>All systems normal</b><small>Updated just now</small></div></div>
@@ -73,6 +74,16 @@
               </div>
             </section>
           </section>
+          <section id="ml-insights-content" class="hidden">
+            <section class="analytics-charts">
+              <div class="section-heading"><div><h3>Decision breakdown by ML risk</h3><p>Analyst outcomes within each predicted risk group.</p></div></div>
+              <div id="decision-breakdown" class="decision-breakdown-grid" aria-live="polite"></div>
+              <article class="operations-chart-card">
+                <div class="chart-heading"><div><h4>Inference latency &amp; throughput</h4><p>Model-service p95 latency and processed requests per second · last 60 minutes</p></div><span class="chart-live-indicator">Prometheus</span></div>
+                <div id="ml-operations-chart" class="ml-operations-chart" aria-live="polite"><p class="chart-empty">Loading ML metrics…</p></div>
+              </article>
+            </section>
+          </section>
           <section id="classifications-content" class="hidden">
             <div class="section-heading classification-heading">
               <div><h3>Manually classified transactions</h3><p>Saved analyst decisions and escalations, including reviewer and decision time.</p></div>
@@ -104,6 +115,6 @@
       <div id="detail-content"></div>
     </aside>
     <div id="panel-backdrop" class="panel-backdrop"></div>
-    <script src="/static/app.js?v=case-rate-1"></script>
+    <script src="/static/app.js?v=ml-insights-1"></script>
   </body>
 </html>

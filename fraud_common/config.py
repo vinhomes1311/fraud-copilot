@@ -22,6 +22,7 @@ def _i(name: str, default: int) -> int:
 class Settings:
     service_name: str = _s("SERVICE_NAME", "service")
     metrics_port: int = _i("METRICS_PORT", 9100)
+    prometheus_url: str = _s("PROMETHEUS_URL", "http://localhost:9090")
 
     # Hạ tầng
     redis_url: str = _s("REDIS_URL", "redis://localhost:6379/0")

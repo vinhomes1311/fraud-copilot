@@ -356,6 +356,7 @@ mật khẩu đã hash.
 | `GET` | `/api/v1/cases/classifications` | Analyst, Risk Lead | Giao dịch đã được analyst phân loại/chuyển tiếp; hỗ trợ `decision`, `search`, `limit`, `offset` |
 | `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Cập nhật hoặc phân loại lại kết quả; mọi lần chỉnh sửa được lưu trong lịch sử và audit log |
 | `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
+| `GET` | `/api/v1/cases/analytics/ml-operations` | Analyst, Risk Lead | p95 inference latency và throughput từ Prometheus |
 | `POST` | `/api/v1/cases/manual` | Analyst, Risk Lead | Tạo case thủ công cho giao dịch LOW/unscored |
 | `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
 | `POST` | `/api/v1/cases/{case_id}/notes` | Analyst, Risk Lead | Thêm note append-only |
@@ -452,6 +453,7 @@ LLM_STUB_FAIL_RATE=0.5 docker compose up -d --build
 - `GET /healthz`: kiểm tra API còn kết nối Redis.
 - Prometheus scrape Analyst API tại `/metrics/`.
 - Worker expose metrics ở `METRICS_PORT` (`9101` cho scoring, `9102` cho LLM).
+- Analytics hiển thị phân bổ quyết định theo risk level và xu hướng inference p95/RPS trong 60 phút; API truy vấn Prometheus qua `PROMETHEUS_URL`.
 - `X-Request-Id` được truyền thành `trace_id` qua queue, log và audit record.
 - Redis queue có thống kê `ready`, `processing`, `dead` qua endpoint admin.
 

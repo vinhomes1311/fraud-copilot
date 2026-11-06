@@ -1,9 +1,16 @@
 import inspect
+from types import SimpleNamespace
 
 import pytest
 
+import analyst_api.routes.cases as case_routes
 from analyst_api.auth import User
-from analyst_api.routes.cases import list_analytics_transactions, list_cases, list_classifications
+from analyst_api.routes.cases import (
+    get_ml_operations,
+    list_analytics_transactions,
+    list_cases,
+    list_classifications,
+)
 from analyst_api.state import state
 from fraud_common.schemas import Role
 
@@ -105,6 +112,81 @@ async def test_analytics_excludes_cases_with_manual_decisions():
             assert f"'{action}'" in query
     assert result["total"] == 0
     assert result["decision_summary"]["confirmed_fraud"] == 4
+
+
+@pytest.mark.asyncio
+async def test_analytics_returns_latest_decisions_grouped_by_model_risk():
+    database = FakeDatabase()
+    expected = [
+        {"risk_level": "HIGH", "action": "OUTCOME_CONFIRMED_FRAUD", "decision_count": 8},
+        {"risk_level": "LOW", "action": "OUTCOME_DISMISSED", "decision_count": 2},
+    ]
+
+    async def grouped_fetch(sql, *args):
+        database.queries.append(("fetch", sql, args))
+        return expected if "decision_count" in sql else []
+
+    database.rfetch = grouped_fetch
+    previous_db = state.db
+    state.db = database
+    try:
+        result = await list_analytics_transactions(
+            user=User("analyst1", Role.ANALYST), limit=10, offset=0
+        )
+    finally:
+        state.db = previous_db
+
+    assert result["decision_breakdown"] == expected
+    query = next(sql for kind, sql, _ in database.queries if kind == "fetch" and "decision_count" in sql)
+    assert "latest.action" in query
+    assert "ORDER BY ca.created_at DESC, ca.id DESC" in query
+    assert "GROUP BY c.risk_level, latest.action" in query
+    assert "c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')" in query
+
+
+@pytest.mark.asyncio
+async def test_ml_operations_queries_prometheus_latency_and_throughput(monkeypatch):
+    observed_queries = []
+
+    class FakeResponse:
+        def __init__(self, timestamp):
+            self.timestamp = timestamp
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "status": "success",
+                "data": {"result": [{"values": [[self.timestamp, "12.5"]]}]},
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, base_url, timeout):
+            assert base_url == "http://prometheus.test"
+            assert timeout == 5
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            pass
+
+        async def get(self, path, params):
+            assert path == "/api/v1/query_range"
+            observed_queries.append(params["query"])
+            return FakeResponse(params["start"])
+
+    monkeypatch.setattr(case_routes, "get_settings", lambda: SimpleNamespace(prometheus_url="http://prometheus.test"))
+    monkeypatch.setattr(case_routes.httpx, "AsyncClient", FakeAsyncClient)
+
+    result = await get_ml_operations(user=User("analyst1", Role.ANALYST), window_minutes=60)
+
+    assert result["window_minutes"] == 60
+    assert result["latency_p95_ms"][0]["value"] == 12.5
+    assert result["throughput_rps"][0]["value"] == 12.5
+    assert any("fraud_inference_seconds_bucket" in query for query in observed_queries)
+    assert any("fraud_inference_requests_total" in query for query in observed_queries)
 
 
 @pytest.mark.parametrize(
