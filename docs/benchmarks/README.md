@@ -89,14 +89,13 @@ ghi vào report. Không tự retry để tránh trộn chi phí/độ trễ retr
 
 ## So sánh công bằng và giới hạn
 
-- Ollama dùng hợp đồng `checklist-only-v1`: model chỉ chọn 1–3 checklist ID;
+- API và Ollama dùng chung prompt và hợp đồng `checklist-only-v1`: model chỉ chọn 1–3 checklist ID;
   backend đưa toàn bộ evidence đã kiểm duyệt vào brief theo thứ tự cố định.
   Checklist lạ, trùng, rỗng, quá 3 mục hoặc field ngoài hợp đồng vẫn bị từ chối.
-  Đây là cải thiện prompt/adapter cho `qwen2.5:3b`, không phải train lại hoặc đổi
-  trọng số model. API giữ hợp đồng `evidence-and-checklist-v1` hiện có.
+  Đây là cải thiện prompt/adapter, không phải train lại hoặc đổi trọng số model.
   `provider_options` ghi rõ hợp đồng và nguồn evidence; report cũng lưu hash prompt
-  Ollama. Vì nhiệm vụ đầu ra khác nhau, không dùng kết quả để khẳng định model
-  nào có năng lực tốt hơn chỉ từ latency hoặc số output token.
+  chung. Không dùng latency hoặc số output token để kết luận về chất lượng lựa chọn;
+  cần kiểm tra rule tham chiếu trên bộ case đại diện.
 - `--completion-cap` mặc định 1024 được áp dụng cho cả hai provider. Ollama worker
   thường mặc định 128, cấu hình bằng `OLLAMA_MAX_COMPLETION_TOKENS`;
   benchmark truyền cap riêng qua constructor. Để đo đúng cấu hình demo, thêm
@@ -107,7 +106,7 @@ ghi vào report. Không tự retry để tránh trộn chi phí/độ trễ retr
 - Warm-up không tính vào độ trễ/thông lượng chính, nhưng có trong usage/ước tính
   phí. Warm-up không đảm bảo model local đã được unload trước đó; benchmark không
   ép cold start hoặc tắt cache của nhà cung cấp.
-- Đây là phép đo adapter đang dùng trong dự án: prompt có reminder riêng của API,
+- Đây là phép đo adapter đang dùng trong dự án: prompt chung nhưng
   cơ chế constrained JSON và tùy chọn temperature/reasoning khác nhau. Effective
   options được lưu trong `provider_options`; không coi đây là so sánh hai engine
   với mọi tham số nội bộ giống hệt nhau.

@@ -57,6 +57,7 @@ async def test_generation_rejects_known_but_inapplicable_rule():
     chunk=Chunk(section_id=rule['section_id'],rule_code=rule['rule_code'],text=rule['text'])
     reply={'done':True,'prompt_eval_count':100,'eval_count':10,
            'message':{'content':'{"checklist_ids":["PB-06"]}'}}
-    with patch.dict(os.environ,{'OLLAMA_MODEL':'test'}), patch('llm_worker.local_integration.request',return_value=reply):
-        with pytest.raises(ValueError,match='not applicable'):
+    with patch.dict(os.environ,{'OLLAMA_MODEL':'test'}), patch('llm_worker.local_integration.request',return_value=reply) as transport:
+        with pytest.raises(ValueError,match='No applicable playbook context'):
             await OllamaClient().generate(ctx,[chunk])
+        transport.assert_not_called()

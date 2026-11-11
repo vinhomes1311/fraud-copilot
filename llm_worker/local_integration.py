@@ -275,6 +275,11 @@ class OllamaClient:
         required = required_review_rules(ctx)
         if not required <= {c['id'] for c in selected_chunks}:
             raise ValueError('Required data-gap review missing from retrieved playbook')
+        # Retrieval may be context-free or supplied by another retriever. Keep
+        # inapplicable actions out of both the prompt and the constrained schema.
+        selected_chunks = [c for c in selected_chunks if c['rule_code'] in priorities]
+        if not selected_chunks:
+            raise ValueError('No applicable playbook context')
         selected_chunks = [dict(c, selection_role=(
             'mandatory_gap' if c['id'] in required else
             'main_explanation' if priorities.get(c['id']) == 4 else
@@ -291,8 +296,7 @@ class OllamaClient:
             raise ValueError('Missing/invalid token usage')
         selection = self.parse_selection(result['message']['content'], evidence)
         validate_selection(selection, evidence, selected_chunks)
-        from .retrieval_policy import applicability
-        if not set(selection['checklist_ids']) <= applicability(ctx).keys():
+        if not set(selection['checklist_ids']) <= priorities.keys():
             raise ValueError('Selected rule is not applicable to supplied evidence')
         if required and set(selection['checklist_ids']) != required:
             raise ValueError('Missing required exclusive data-gap review')

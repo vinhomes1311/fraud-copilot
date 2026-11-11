@@ -111,13 +111,11 @@ async def test_entire_workflow(monkeypatch, provider):
         if fail_llm:
             raise httpx.ReadTimeout('synthetic timeout')
         payload = json.loads(request.content)
-        request_data = json.loads(payload['messages'][1]['content'])
-        evidence = request_data['evidence']
         allowed_rules = payload['response_format']['json_schema']['schema']['properties'][
             'checklist_ids']['items']['enum']
         # Mirror a compliant model: choose an ID allowed by this request's actual
         # retrieved playbook and any mandatory-gap schema constraint.
-        selection = {'evidence_ids': list(evidence), 'checklist_ids': [allowed_rules[0]]}
+        selection = {'checklist_ids': [allowed_rules[0]]}
         return httpx.Response(200, json={
             'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(selection)}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})

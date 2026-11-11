@@ -33,7 +33,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             'features': {'txn_count_24h': 0, 'avg_amt_24h': 0},
             'explanations': [{'feature': 'amt', 'value': 100, 'contribution': 0.2}]}
         self.chunks = await ApprovedPlaybookRetriever().retrieve(['amt'], 'HIGH')
-        self.selection = {'evidence_ids': list(project_evidence(self.ctx)), 'checklist_ids': ['PB-03']}
+        self.selection = {'checklist_ids': ['PB-03']}
 
     def reply(self):
         return {'choices': [{'finish_reason': 'stop', 'message': {
@@ -70,13 +70,17 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body['response_format']['type'], 'json_schema')
         self.assertTrue(body['response_format']['json_schema']['strict'])
         self.assertEqual(set(body['response_format']['json_schema']['schema']['required']),
-                         {'evidence_ids', 'checklist_ids'})
+                         {'checklist_ids'})
+        self.assertEqual(set(body['response_format']['json_schema']['schema']['properties']),
+                         {'checklist_ids'})
         self.assertEqual(body['max_completion_tokens'], 1024)
         self.assertFalse(body['store'])
         self.assertNotIn('reasoning_effort', body)
         self.assertEqual(result.tokens_used, 120)
         self.assertEqual(result.model_name, 'test-model')
         self.assertEqual(result.brief.citations[0].rule_code, 'PB-03')
+        self.assertEqual(result.brief.summary, ' '.join(
+            item['text'] for item in project_evidence(self.ctx).values()))
         check_grounding(result.brief, self.chunks)
 
     def test_online_defaults_require_only_key(self):
@@ -137,7 +141,8 @@ class APITests(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_duplicate_unknown_and_extra_selection_rejected(self):
         bad = [dict(self.selection, checklist_ids=['FAKE']),
-               dict(self.selection, evidence_ids=self.selection['evidence_ids'][:-1]),
+               dict(self.selection, evidence_ids=['EV-AMOUNT']),
+               {'checklist_ids': []}, {},
                dict(self.selection, checklist_ids=['PB-03', 'PB-03']),
                dict(self.selection, summary='invented')]
         for selection in bad:
@@ -146,6 +151,27 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                 reply['choices'][0]['message']['content'] = json.dumps(selection)
                 with self.assertRaises(ValueError):
                     await self.run_api(reply)
+
+    async def test_shared_prompt_and_schema_respect_exclusive_data_gap(self):
+        from llm_worker.local_integration import KB_PATH, OLLAMA_SELECTION_PROMPT
+        from llm_worker.rag import Chunk
+        from benchmarks.compare_llm import ROOT, load_cases
+        cases = load_cases(ROOT / 'benchmarks/fixtures/playbook_v2_boundary_cases.json')
+        self.ctx = next(c['context'] for c in cases if c['id'] == 'boundary-4')
+        kb = json.loads(KB_PATH.read_text(encoding='utf-8'))
+        self.chunks = [Chunk(section_id=c['section_id'], rule_code=c['rule_code'], text=c['text'])
+                       for c in kb['chunks']]
+        self.selection = {'checklist_ids': ['PB-28']}
+        result, requests = await self.run_api()
+        body = json.loads(requests[0].content)
+        self.assertEqual(body['messages'][0]['content'], OLLAMA_SELECTION_PROMPT)
+        allowed = body['response_format']['json_schema']['schema']['properties'][
+            'checklist_ids']['items']['enum']
+        self.assertEqual(allowed, ['PB-28'])
+        self.assertEqual([c.rule_code for c in result.brief.checklist], ['PB-28'])
+        self.selection = {'checklist_ids': ['PB-11', 'PB-13']}
+        with self.assertRaisesRegex(ValueError, 'Missing required'):
+            await self.run_api()
 
     async def test_invalid_envelope_refusal_truncation_and_usage(self):
         variants = []

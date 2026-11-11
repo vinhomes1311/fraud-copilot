@@ -15,6 +15,10 @@ No synthetic UUID, explanation method, contribution scale or historical median i
 Only allowlisted numeric features enter the model; arbitrary masked payload fields
 and identifiers are excluded. Unknown explanation features are omitted until reviewed.
 The summary is extractive; checklist actions are identified as team proposals.
+API and Ollama now share the checklist-only prompt and selection contract.
+Inapplicable playbook entries are removed before inference, including when a
+retriever returns context-free results. Citation quotes must match retrieved
+source text, and each checklist rule must have a corresponding citation.
 
 ## Run
 

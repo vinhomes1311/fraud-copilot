@@ -77,8 +77,15 @@ embedding/Ollama. Đây chưa phải semantic retrieval cho KB lớn. Có thể 
 ## Hợp đồng dữ liệu và xử lý lỗi
 
 Client gửi evidence đã lọc theo allowlist và các đoạn playbook được phê duyệt.
-LLM chọn ID; ứng dụng xác minh ID, evidence đầy đủ, checklist không trùng và render
-brief từ nguồn đã kiểm tra. Model không tự thay đổi điểm rủi ro hay routing.
+API và Ollama dùng chung prompt và hợp đồng `checklist-only-v1`: LLM chỉ trả
+`{"checklist_ids":["PB-03"]}` (1–3 ID duy nhất). Ứng dụng tự đưa toàn bộ evidence
+đã lọc vào brief theo thứ tự cố định; model không cần chép lại `evidence_ids`.
+Quy tắc không áp dụng được loại khỏi prompt và schema trước inference. Trường hợp
+bắt buộc kiểm tra thiếu baseline maximum chỉ cho phép chọn quy tắc data-gap tương ứng.
+Ứng dụng xác minh ID, checklist không trùng và render brief từ nguồn đã kiểm tra.
+Citation phải có quote không rỗng khớp nguyên văn nguồn được truy xuất; mỗi rule
+trong checklist cần citation riêng. Model không tự thay đổi điểm rủi ro hay routing.
+Sau khi cập nhật, khởi động lại worker; output còn chứa `evidence_ids` bị từ chối.
 Request đặt `store=false`, không theo redirect và không đưa key vào prompt.
 Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
 

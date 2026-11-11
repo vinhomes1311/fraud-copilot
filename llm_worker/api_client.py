@@ -6,9 +6,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from copilot.providers import SYSTEM_PROMPT
 from fraud_common.config import get_settings
-from .local_integration import OllamaClient
+from .local_integration import OllamaClient, OLLAMA_SELECTION_PROMPT
 
 
 _429_HINTS = {
@@ -71,18 +70,6 @@ class APIClient(OllamaClient):
     def model_name(self):
         return self.model
 
-    def selection_schema(self, evidence, selected_chunks):
-        # Preserve the hosted provider's existing evidence-selection contract.
-        schema = super().selection_schema(evidence, selected_chunks)
-        schema['required'] = ['evidence_ids', 'checklist_ids']
-        schema['properties']['evidence_ids'] = {
-            'type': 'array', 'minItems': len(evidence), 'maxItems': len(evidence),
-            'uniqueItems': True, 'items': {'type': 'string', 'enum': list(evidence)}}
-        return schema
-
-    def parse_selection(self, content, evidence):
-        return json.loads(content)
-
     async def chat(self, model, schema, evidence, selected_chunks):
         # Some strict schema implementations do not support uniqueItems or array
         # length constraints. Local validation still enforces all these rules.
@@ -97,9 +84,7 @@ class APIClient(OllamaClient):
             'model': model, 'stream': False, 'store': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
-                {'role': 'system', 'content': SYSTEM_PROMPT +
-                 '\nReturn a JSON object containing only evidence_ids and checklist_ids. '
-                 'Include every evidence ID exactly once and choose 1 to 3 unique checklist IDs from the playbook.'},
+                {'role': 'system', 'content': OLLAMA_SELECTION_PROMPT},
                 {'role': 'user', 'content': json.dumps(
                     {'evidence': evidence, 'playbook': selected_chunks}, ensure_ascii=False)},
             ],

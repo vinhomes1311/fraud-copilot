@@ -27,7 +27,6 @@ import httpx
 
 import llm_worker.api_client as api_module
 import llm_worker.local_integration as local_module
-from copilot.providers import SYSTEM_PROMPT
 from fraud_common.config import get_settings
 from llm_worker.grounding import check_grounding
 from llm_worker.rag import ApprovedPlaybookRetriever
@@ -297,7 +296,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
               'config': asdict(config), 'case_ids': [case['id'] for case in cases],
               'cases_sha256': hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
               'playbook_sha256': hashlib.sha256(local_module.KB_PATH.read_bytes()).hexdigest(),
-              'base_system_prompt_sha256': hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
+              'base_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'ollama_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'adapter_source_sha256': {
                   'api': hashlib.sha256(Path(api_module.__file__).read_bytes()).hexdigest(),
@@ -310,8 +309,8 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
         prototype = factories[provider]()
         options = {'model': prototype.model_name(), 'completion_cap': config.completion_cap}
         if provider == 'api':
-            options.update(selection_contract='evidence-and-checklist-v1',
-                           evidence_source='validated-model-selection',
+            options.update(selection_contract='checklist-only-v1',
+                           evidence_source='backend-all-evidence',
                            response_format=prototype.response_format,
                            token_parameter=prototype.token_parameter,
                            reasoning_effort=prototype.reasoning_effort or 'provider_default',
@@ -363,11 +362,10 @@ def mock_response(request):
     ids = ['PB-03', 'PB-05'] if 'EV-HISTORY-GAP' in evidence else ['PB-01', 'PB-03']
     available = [c['id'] for c in json.loads(payload['messages'][1]['content'])['playbook']]
     ids = [i for i in ids if i in available] or available[:1]
-    content = json.dumps({'evidence_ids': list(evidence), 'checklist_ids': ids})
+    content = json.dumps({'checklist_ids': ids})
     if request.url.path.endswith('/chat/completions'):
         return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': content}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
-    content = json.dumps({'checklist_ids': ids})
     return httpx.Response(200, json={'done': True, 'message': {'content': content},
         'prompt_eval_count': 100, 'eval_count': 20, 'load_duration': 1000000,
         'eval_duration': 2000000, 'prompt_eval_duration': 1000000, 'total_duration': 4000000})

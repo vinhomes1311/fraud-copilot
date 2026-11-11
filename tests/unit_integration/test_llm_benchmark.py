@@ -126,7 +126,7 @@ def test_quota_stops_api_without_stopping_ollama_or_leaking_errors(tmp_path, mon
 def test_invalid_selection_accounts_for_usage_even_when_brief_fails(tmp_path, monkeypatch):
     def handler(request):
         return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {
-            'content': '{"evidence_ids":[],"checklist_ids":["FAKE"]}'}}],
+            'content': '{"checklist_ids":["FAKE"]}'}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
     monkeypatch.setattr(bench, 'mock_response', handler)
     output = tmp_path / 'invalid'
@@ -238,7 +238,9 @@ def test_rag_llm_times_semantic_retrieval_for_both_providers(tmp_path, monkeypat
     assert report['retrieval_options']['embedding_model']
     assert report['provider_options']['ollama']['selection_contract'] == 'checklist-only-v1'
     assert report['provider_options']['ollama']['evidence_source'] == 'backend-all-evidence'
-    assert report['provider_options']['api']['selection_contract'] == 'evidence-and-checklist-v1'
+    assert report['provider_options']['api']['selection_contract'] == 'checklist-only-v1'
+    assert report['provider_options']['api']['evidence_source'] == 'backend-all-evidence'
+    assert report['base_system_prompt_sha256'] == report['ollama_system_prompt_sha256']
     assert report['ollama_system_prompt_sha256']
     assert report['architecture_coverage']['hot_path_500ms_sla_applied'] is False
     assert report['architecture_coverage']['llm_latency_sla_s'] is None

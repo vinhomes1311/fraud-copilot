@@ -11,7 +11,7 @@ from fraud_common.schemas import BriefContent, ChecklistItem, Citation
 
 from .rag import Chunk
 
-PROMPT_VERSION = "extractive-kaggle-sparkov-v7-gap-schema"
+PROMPT_VERSION = "extractive-kaggle-sparkov-v8-shared-checklist"
 
 
 @dataclass

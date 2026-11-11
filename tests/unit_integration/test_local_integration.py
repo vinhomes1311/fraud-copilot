@@ -149,4 +149,20 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
                  patch('llm_worker.local_integration.request', return_value=reply), self.assertRaises(ValueError):
                 await OllamaClient().generate(self.ctx, self.chunks)
 
+    async def test_inapplicable_rules_excluded_from_prompt_and_schema(self):
+        async def fake(path, payload):
+            playbook = json.loads(payload['messages'][1]['content'])['playbook']
+            allowed = payload['format']['properties']['checklist_ids']['items']['enum']
+            self.assertEqual(allowed, [c['id'] for c in playbook])
+            self.assertIn('PB-06', allowed)  # Missing 24-hour history.
+            self.assertNotIn('PB-08', allowed)  # No valid mean ratio.
+            self.assertNotIn('PB-15', allowed)  # No maximum ratio.
+            self.assertNotIn('PB-26', allowed)  # Low-risk rule for a HIGH case.
+            return {'done': True, 'prompt_eval_count': 100, 'eval_count': 10,
+                    'message': {'content': '{"checklist_ids":["PB-06"]}'}}
+        with patch.dict(os.environ, {'OLLAMA_MODEL': 'test'}), \
+             patch('llm_worker.local_integration.request', side_effect=fake):
+            await OllamaClient().generate(self.ctx, self.chunks)
+
+
 if __name__=='__main__': unittest.main()
