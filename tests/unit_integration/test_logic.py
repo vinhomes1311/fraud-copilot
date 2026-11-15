@@ -1,12 +1,15 @@
 """Test các hàm thuần (không cần Redis/Postgres): pytest tests -q"""
 import asyncio
+import json
+import re
+from pathlib import Path
 
 import pytest
 
 from fraud_common.resilience import CircuitBreaker, CircuitOpenError
 from fraud_common.schemas import RiskLevel, ThresholdConfig
 from scoring_worker.pipeline.pii import mask_pii
-from scoring_worker.pipeline.routing import route
+from scoring_worker.pipeline.routing import DEFAULT_THRESHOLDS, route
 from scoring_worker.pipeline.validation import validate
 
 GOOD = {
@@ -14,22 +17,47 @@ GOOD = {
     "first": "A", "last": "B", "street": "x", "merchant": "m", "category": "c", "amt": 12.5,
     "lat": 10.0, "long": 20.0, "merch_lat": 10.1, "merch_long": 20.1, "is_fraud": 1,
 }
-CFG = ThresholdConfig(version=1, low_max=0.3, high_min=0.7)
+CFG = ThresholdConfig(version=1, low_max=0.006, high_min=0.25)
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_routing_thresholds():
     """#sym:test_routing_thresholds
-    Kiem tra: route theo nguong LOW/MEDIUM/HIGH.
+    Kiem tra: route theo nguong LOW/MEDIUM/HIGH cua model hien tai.
     @param Khong co tham so.
-    Dung khi: 0.30 la MEDIUM, 0.70 la HIGH va cac moc bien dung.
+    Dung khi: 0.006 la MEDIUM, 0.25 la HIGH va cac moc bien dung.
     Sai khi: risk level sai tai moc bien.
     """
-    assert route(0.10, CFG) == RiskLevel.LOW
-    assert route(0.30, CFG) == RiskLevel.MEDIUM
-    assert route(0.69, CFG) == RiskLevel.MEDIUM
+    assert route(0.0, CFG) == RiskLevel.LOW
+    assert route(0.001, CFG) == RiskLevel.LOW
+    assert route(0.0059, CFG) == RiskLevel.LOW
+    assert route(0.006, CFG) == RiskLevel.MEDIUM
+    assert route(0.10, CFG) == RiskLevel.MEDIUM
+    assert route(0.2499, CFG) == RiskLevel.MEDIUM
+    assert route(0.25, CFG) == RiskLevel.HIGH
     assert route(0.70, CFG) == RiskLevel.HIGH
-    assert route(0.50, CFG) == RiskLevel.MEDIUM
     assert route(1.00, CFG) == RiskLevel.HIGH
+
+
+def test_default_thresholds_match_db_seed_and_model_recommendation():
+    """#sym:test_default_thresholds_match_db_seed_and_model_recommendation
+    Kiem tra: nguong fallback, seed DB, migration va recommended_triage cua model khop nhau.
+    @param Khong co tham so.
+    Dung khi: ca bon nguon cung low_max/high_min.
+    Sai khi: train lai model hoac doi nguong ma quen cap nhat mot noi.
+    """
+    expected = (DEFAULT_THRESHOLDS.low_max, DEFAULT_THRESHOLDS.high_min)
+    assert (CFG.low_max, CFG.high_min) == expected
+    insert = re.compile(
+        r"INSERT INTO threshold_configs \(low_max, high_min, active, created_by\)\s*"
+        r"VALUES \(([\d.]+),\s*([\d.]+),\s*true")
+    for sql_file in ("db/init.sql", "db/migrations/002_model_triage_thresholds.sql"):
+        match = insert.search((ROOT / sql_file).read_text(encoding="utf-8"))
+        assert match, sql_file
+        assert tuple(float(value) for value in match.groups()) == pytest.approx(expected), sql_file
+    lineage = json.loads((ROOT / "data/models/fraud_xgboost.json").read_text(encoding="utf-8"))
+    triage = lineage["recommended_triage"]
+    assert (triage["low_max"], triage["high_min"]) == pytest.approx(expected)
 
 
 def test_validation_ok():

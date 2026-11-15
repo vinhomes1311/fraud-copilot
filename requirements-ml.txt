@@ -1,0 +1,3 @@
+-r requirements.txt
+# Optional models used only by `python -m ml_pipeline.compare_models`.
+lightgbm>=4.0
