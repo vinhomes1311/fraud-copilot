@@ -342,8 +342,16 @@ biến môi trường hoặc `.env` trước khi khởi động process nếu d�
 
 ## Dashboard
 
-Dashboard được serve bởi Analyst API tại `/`. Sau khi đăng nhập, màn hình review
-queue hỗ trợ:
+Dashboard được serve bởi Analyst API tại `/`. Sau khi đăng nhập, trang Dashboard
+giám sát hiển thị tổng giao dịch đã chấm điểm, case High/Medium đang mở, tỉ lệ
+cần review, p95 latency, biểu đồ quyết định theo nhóm rủi ro ML và biểu đồ
+latency/throughput inference 60 phút lấy từ Prometheus, tốc độ mục tiêu và số
+case mới thực tế mỗi giây của simulator (lịch sử tối đa 5 phút), cùng các case ưu tiên.
+Các chỉ số giao dịch lấy từ PostgreSQL; Recall hiển thị chưa có nhãn ground
+truth. Thanh tìm kiếm chuyển tới hàng đợi để tìm case/giao dịch; mục Simulator
+mở điều khiển simulator trong hàng đợi xét duyệt.
+
+Trang Review queue hỗ trợ:
 
 - lọc theo risk level và trạng thái;
 - xem confidence, trạng thái brief và chi tiết transaction đã che PII;

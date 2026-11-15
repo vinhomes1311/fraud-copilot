@@ -6,6 +6,7 @@ import pytest
 import analyst_api.routes.cases as case_routes
 from analyst_api.auth import User
 from analyst_api.routes.cases import (
+    get_dashboard_analytics,
     get_ml_operations,
     list_analytics_transactions,
     list_cases,
@@ -148,6 +149,49 @@ async def test_analytics_returns_latest_decisions_grouped_by_model_risk():
     assert "ORDER BY ca.created_at DESC, ca.id DESC" in query
     assert "GROUP BY c.risk_level, latest.action" in query
     assert "c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')" in query
+
+
+@pytest.mark.asyncio
+async def test_dashboard_returns_scored_metrics_and_ml_decision_breakdown():
+    class DashboardDatabase(FakeDatabase):
+        async def rfetchrow(self, sql, *args):
+            self.queries.append(("fetchrow", sql, args))
+            self.summary_query = sql
+            return {
+                "total_scored": 100,
+                "scored_last_hour": 5,
+                "open_count": 10,
+                "high_open": 3,
+                "high_open_last_hour": 1,
+                "medium_open": 7,
+                "medium_open_last_hour": 2,
+                "unscored_total": 4,
+                "latency_p95_ms": 120.5,
+                "average_probability": 0.12,
+            }
+
+        async def rfetch(self, sql, *args):
+            self.queries.append(("fetch", sql, args))
+            if "GROUP BY c.risk_level, latest.action" in sql:
+                return [{"risk_level": "HIGH", "action": "OUTCOME_CONFIRMED_FRAUD", "decision_count": 3}]
+            return [{"case_id": 1, "risk_level": "HIGH", "calibrated_prob": 0.9}]
+
+    database = DashboardDatabase()
+    previous_db = state.db
+    state.db = database
+    try:
+        result = await get_dashboard_analytics(user=User("analyst1", Role.ANALYST))
+    finally:
+        state.db = previous_db
+
+    assert result["summary"]["total_scored"] == 100
+    assert result["summary"]["latency_p95_ms"] == 120.5
+    assert result["decision_breakdown"][0]["decision_count"] == 3
+    assert result["recent_cases"][0]["case_id"] == 1
+    assert len(database.queries) == 3
+    decision_query = next(sql for kind, sql, _ in database.queries if kind == "fetch" and "decision_count" in sql)
+    assert "ORDER BY ca.created_at DESC, ca.id DESC" in decision_query
+    assert "s.scored_at >= now() - interval '60 minutes'" in database.summary_query
 
 
 @pytest.mark.asyncio
