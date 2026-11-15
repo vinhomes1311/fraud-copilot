@@ -27,6 +27,8 @@ SIMULATOR_LOCK_KEY = "demo:simulator:producer-lock"
 SIMULATOR_MAX_TPS = 1000
 OPEN_CASE_RATE_WINDOW_SECONDS = 5
 OPEN_CASE_RATE_CACHE_SECONDS = 1
+OPEN_CASE_RATE_HISTORY_CACHE_SECONDS = 5
+SIMULATOR_CHART_WINDOW_SECONDS = 300
 NUMERIC_FIELDS = {
     "amt": float,
     "lat": float,
@@ -131,7 +133,7 @@ async def get_simulator_state(
     initial_offset: int = Query(0, ge=0),
     initial_tps: int = Query(10, ge=1, le=SIMULATOR_MAX_TPS),
     _: User = Depends(demo_user),
-) -> dict[str, int | float | bool | str]:
+) -> dict[str, int | float | bool | str | list[dict[str, float]]]:
     if state.redis is None:
         raise HTTPException(503, "Hệ thống chưa sẵn sàng")
 
@@ -140,7 +142,9 @@ async def get_simulator_state(
 
 
 @router.post("/reset")
-async def reset_demo_data(_: User = Depends(demo_user)) -> dict[str, int | float | bool | str]:
+async def reset_demo_data(
+    _: User = Depends(demo_user),
+) -> dict[str, int | float | bool | str | list[dict[str, float]]]:
     if state.redis is None or state.db is None:
         raise HTTPException(503, "Hệ thống chưa sẵn sàng")
     queues = (state.ml_queue, state.events_queue, state.llm_queue)
@@ -246,6 +250,8 @@ async def reset_demo_data(_: User = Depends(demo_user)) -> dict[str, int | float
                 "offset": "0",
                 "open_cases_per_second": "0",
                 "open_case_rate_sampled_at": "0",
+                "open_case_rate_history": "[]",
+                "open_case_rate_history_sampled_at": "0",
                 "error": "",
             },
         )
@@ -281,7 +287,7 @@ async def _acquire_simulator_lock(lock_token: str, timeout_s: float = 35) -> Non
 async def control_simulator(
     command: SimulatorControl,
     _: User = Depends(demo_user),
-) -> dict[str, int | float | bool | str]:
+) -> dict[str, int | float | bool | str | list[dict[str, float]]]:
     if state.redis is None:
         raise HTTPException(503, "Hệ thống chưa sẵn sàng")
     if command.action == "set_speed" and command.tps is None:
@@ -309,15 +315,19 @@ async def _initialize_simulator_state(initial_offset: int, initial_tps: int) -> 
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "tps", str(initial_tps))
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "open_cases_per_second", "0")
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "open_case_rate_sampled_at", "0")
+    await state.redis.hsetnx(SIMULATOR_STATE_KEY, "open_case_rate_history", "[]")
+    await state.redis.hsetnx(SIMULATOR_STATE_KEY, "open_case_rate_history_sampled_at", "0")
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "ever_started", "0" if is_new_state else "1")
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "error", "")
     await state.redis.hsetnx(SIMULATOR_STATE_KEY, "version", "0")
 
 
-async def _read_simulator_state() -> dict[str, int | float | bool | str]:
+async def _read_simulator_state() -> dict[str, int | float | bool | str | list[dict[str, float]]]:
     stored = await state.redis.hgetall(SIMULATOR_STATE_KEY)
     open_cases_per_second = float(stored.get("open_cases_per_second", "0"))
     sampled_at = float(stored.get("open_case_rate_sampled_at", "0"))
+    open_case_rate_history = json.loads(stored.get("open_case_rate_history", "[]"))
+    history_sampled_at = float(stored.get("open_case_rate_history_sampled_at", "0"))
     now = time.time()
     if state.db is not None and now - sampled_at >= OPEN_CASE_RATE_CACHE_SECONDS:
         recent_open_cases = await state.db.rfetchval(
@@ -338,12 +348,49 @@ async def _read_simulator_state() -> dict[str, int | float | bool | str]:
                 "open_case_rate_sampled_at": str(now),
             },
         )
+    if state.db is not None and now - history_sampled_at >= OPEN_CASE_RATE_HISTORY_CACHE_SECONDS:
+        history_rows = await state.db.rfetch(
+            """WITH buckets AS (
+                   SELECT generate_series(
+                       date_bin('5 seconds', now() - ($1 * interval '1 second'), 'epoch'::timestamptz),
+                       date_bin('5 seconds', now(), 'epoch'::timestamptz),
+                       interval '5 seconds'
+                   ) AS bucket_start
+               ), recent_cases AS (
+                   SELECT date_bin('5 seconds', created_at, 'epoch'::timestamptz) AS bucket_start,
+                          count(*) AS case_count
+                   FROM cases
+                   WHERE created_at >= now() - (($1 + 5) * interval '1 second')
+                     AND created_at <= now()
+                     AND status IN ('OPEN', 'IN_REVIEW', 'NEEDS_MORE_INFO', 'ESCALATED', 'RETURNED')
+                     AND risk_level IN ('LOW', 'MEDIUM', 'HIGH')
+                   GROUP BY bucket_start
+               )
+               SELECT extract(epoch FROM buckets.bucket_start) AS timestamp,
+                      coalesce(recent_cases.case_count, 0)::double precision / 5 AS value
+               FROM buckets
+               LEFT JOIN recent_cases USING (bucket_start)
+               ORDER BY buckets.bucket_start""",
+            SIMULATOR_CHART_WINDOW_SECONDS,
+        )
+        open_case_rate_history = [
+            {"timestamp": float(row["timestamp"]), "value": float(row["value"])}
+            for row in history_rows
+        ]
+        await state.redis.hset(
+            SIMULATOR_STATE_KEY,
+            mapping={
+                "open_case_rate_history": json.dumps(open_case_rate_history),
+                "open_case_rate_history_sampled_at": str(now),
+            },
+        )
     return {
         "running": stored.get("running") == "1",
         "ever_started": stored.get("ever_started") == "1",
         "offset": int(stored.get("offset", "0")),
         "tps": int(stored.get("tps", "10")),
         "open_cases_per_second": open_cases_per_second,
+        "open_case_rate_history": open_case_rate_history,
         "error": stored.get("error", ""),
         "version": int(stored.get("version", "0")),
     }

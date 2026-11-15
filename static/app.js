@@ -7,7 +7,7 @@ const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulato
   : DEFAULT_SIMULATOR_TPS;
 const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
-const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "review", page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, lastSimulatorViewRefresh: 0, authMode: "login" };
+const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
@@ -36,17 +36,18 @@ const decisionClass = (action) => ({
   CONFIRM_SIMULATED: "fraud",
 })[action] || "pending";
 const decisionSlices = [
-  { action: "OUTCOME_CONFIRMED_FRAUD", label: "Confirm fraud", color: "#d84c67" },
-  { action: "OUTCOME_DISMISSED", label: "Dismiss / safe", color: "#15936b" },
-  { action: "ESCALATE", label: "Escalate", color: "#d97706" },
-  { action: "NEEDS_MORE_INFO", label: "Need more info", color: "#356ae6" },
-  { action: "OUTCOME_INSUFFICIENT_EVIDENCE", label: "Insufficient evidence", color: "#7658d9" },
+  { action: "OUTCOME_CONFIRMED_FRAUD", label: "Xác nhận gian lận", color: "#d84c67" },
+  { action: "OUTCOME_DISMISSED", label: "Không gian lận", color: "#15936b" },
+  { action: "ESCALATE", label: "Chuyển cấp xử lý", color: "#d97706" },
+  { action: "NEEDS_MORE_INFO", label: "Cần thêm thông tin", color: "#356ae6" },
+  { action: "OUTCOME_INSUFFICIENT_EVIDENCE", label: "Chưa đủ bằng chứng", color: "#7658d9" },
 ];
 const riskGroups = [
-  { risk: "HIGH", label: "High risk" },
-  { risk: "MEDIUM", label: "Medium risk" },
-  { risk: "LOW", label: "Low risk" },
+  { risk: "HIGH", label: "Rủi ro cao" },
+  { risk: "MEDIUM", label: "Rủi ro trung bình" },
+  { risk: "LOW", label: "Rủi ro thấp" },
 ];
+const SIMULATOR_CHART_WINDOW_SECONDS = 300;
 const showToast = (message) => { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2800); };
 
 async function api(path, options = {}) {
@@ -74,11 +75,19 @@ function startSimulatorPolling() {
     });
   }, 1000);
 }
+function startDashboardPolling() {
+  if (state.dashboardPollTimer !== null) return;
+  state.dashboardPollTimer = setInterval(() => {
+    if (state.token && state.view === "dashboard") void loadDashboard();
+  }, 10000);
+}
 function showLogin() {
   $("#login-view").classList.remove("hidden");
   $("#app-view").classList.add("hidden");
   if (state.simulatorPollTimer !== null) clearInterval(state.simulatorPollTimer);
   state.simulatorPollTimer = null;
+  if (state.dashboardPollTimer !== null) clearInterval(state.dashboardPollTimer);
+  state.dashboardPollTimer = null;
 }
 function renderBrief(brief, riskLevel) {
   if (!brief) return riskLevel === "LOW"
@@ -98,7 +107,7 @@ function renderEvidence(item) {
 }
 function renderDecisionBreakdown(rows) {
   const counts = new Map((rows || []).map((row) => [`${row.risk_level}:${row.action}`, Number(row.decision_count) || 0]));
-  $("#decision-breakdown").innerHTML = riskGroups.map(({ risk, label }) => {
+  $("#dashboard-decision-breakdown").innerHTML = riskGroups.map(({ risk, label }) => {
     const values = decisionSlices.map((slice) => counts.get(`${risk}:${slice.action}`) || 0);
     const total = values.reduce((sum, value) => sum + value, 0);
     let accumulated = 0;
@@ -112,15 +121,15 @@ function renderDecisionBreakdown(rows) {
       const percentage = total ? values[index] / total * 100 : 0;
       return `<li><i class="legend-swatch" style="background:${slice.color}"></i><span>${slice.label}</span><b>${percentage.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</b></li>`;
     }).join("");
-    return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Analyst decision by predicted risk</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} analyst decisions"><span class="decision-donut-center">${total.toLocaleString("vi-VN")}<small>decisions</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
+    return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Quyết định theo mức rủi ro dự đoán</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} quyết định"><span class="decision-donut-center">${total.toLocaleString("vi-VN")}<small>quyết định</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
   }).join("");
 }
 function renderMlOperationsChart(metrics) {
-  const host = $("#ml-operations-chart");
+  const host = $("#dashboard-ml-operations-chart");
   const latency = (metrics.latency_p95_ms || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
   const throughput = (metrics.throughput_rps || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
   if (!latency.length && !throughput.length) {
-    host.innerHTML = `<p class="chart-empty">No inference samples are available for the last ${Number(metrics.window_minutes) || 60} minutes.</p>`;
+    host.innerHTML = `<p class="chart-empty">Chưa có dữ liệu suy luận trong ${Number(metrics.window_minutes) || 60} phút qua.</p>`;
     return;
   }
 
@@ -150,20 +159,134 @@ function renderMlOperationsChart(metrics) {
   const timeLabels = Array.from({ length: 5 }, (_, index) => {
     const x = left + plotWidth * index / 4;
     const timestamp = new Date((start + (end - start) * index / 4) * 1000);
-    const label = index === 4 ? "Now" : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const label = index === 4 ? "Hiện tại" : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
     return `<text class="chart-axis-label" x="${x}" y="${bottom + 22}" text-anchor="middle">${label}</text>`;
   }).join("");
-  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="ML inference p95 latency in milliseconds and throughput in requests per second over the last ${Number(metrics.window_minutes) || 60} minutes"><text class="chart-axis-title chart-latency" x="${left}" y="12">Latency (ms)</text><text class="chart-axis-title chart-throughput" x="${right}" y="12" text-anchor="end">Throughput (RPS)</text>${grid}<path class="chart-line chart-latency" d="${latency.length ? makePath(latency, maxLatency) : ""}"></path><path class="chart-line chart-throughput" d="${throughput.length ? makePath(throughput, maxThroughput) : ""}"></path>${timeLabels}<g transform="translate(255 ${height - 8})"><circle class="chart-latency" r="4"></circle><text class="chart-legend" x="9" y="4">p95 inference latency</text><circle class="chart-throughput" cx="178" r="4"></circle><text class="chart-legend" x="187" y="4">Throughput</text></g></svg>`;
+  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Độ trễ p95 và thông lượng suy luận trong ${Number(metrics.window_minutes) || 60} phút qua"><text class="chart-axis-title chart-latency" x="${left}" y="12">Độ trễ (ms)</text><text class="chart-axis-title chart-throughput" x="${right}" y="12" text-anchor="end">Yêu cầu/giây</text>${grid}<path class="chart-line chart-latency" d="${latency.length ? makePath(latency, maxLatency) : ""}"></path><path class="chart-line chart-throughput" d="${throughput.length ? makePath(throughput, maxThroughput) : ""}"></path>${timeLabels}<g transform="translate(255 ${height - 8})"><circle class="chart-latency" r="4"></circle><text class="chart-legend" x="9" y="4">Độ trễ suy luận p95</text><circle class="chart-throughput" cx="178" r="4"></circle><text class="chart-legend" x="187" y="4">Thông lượng</text></g></svg>`;
 }
 async function loadMlOperations() {
   try {
     const metrics = await api("/cases/analytics/ml-operations?window_minutes=60");
-    if (state.view === "ml-insights") renderMlOperationsChart(metrics);
+    if (state.view === "dashboard") renderMlOperationsChart(metrics);
   } catch (error) {
-    if (state.view === "ml-insights") {
-      $("#ml-operations-chart").innerHTML = `<p class="chart-empty">Could not load ML metrics: ${escapeHtml(error.message)}</p>`;
+    if (state.view === "dashboard") {
+      $("#dashboard-ml-operations-chart").innerHTML = `<p class="chart-empty">Không tải được chỉ số mô hình: ${escapeHtml(error.message)}</p>`;
       showToast(error.message);
     }
+  }
+}
+function renderDashboard(data) {
+  const summary = data.summary || {};
+  const total = Number(summary.total_scored) || 0;
+  const high = Number(summary.high_open) || 0;
+  const medium = Number(summary.medium_open) || 0;
+  const formatter = new Intl.NumberFormat("en-US");
+  $("#dashboard-total").textContent = formatter.format(total);
+  $("#dashboard-total-subtitle").textContent = `${formatter.format(Number(summary.scored_last_hour) || 0)} giao dịch trong 60 phút qua`;
+  $("#dashboard-high").textContent = formatter.format(high);
+  $("#dashboard-high-subtitle").textContent = `${formatter.format(Number(summary.high_open_last_hour) || 0)} case mới trong 60 phút`;
+  $("#dashboard-medium").textContent = formatter.format(medium);
+  $("#dashboard-medium-subtitle").textContent = `${formatter.format(Number(summary.unscored_total) || 0)} giao dịch chưa chấm điểm`;
+  $("#dashboard-review-rate").textContent = total
+    ? `${((high + medium) / total * 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`
+    : "—";
+  const latency = Number(summary.latency_p95_ms);
+  $("#dashboard-latency").textContent = total && Number.isFinite(latency)
+    ? `${latency.toLocaleString("en-US", { maximumFractionDigits: 0 })} ms`
+    : "—";
+  const reviewCount = Number(summary.open_count ?? high + medium) || 0;
+  const navCount = $("#review-nav-count");
+  navCount.textContent = formatter.format(reviewCount);
+  navCount.classList.toggle("hidden", reviewCount === 0);
+  renderSimulatorChart();
+  renderDecisionBreakdown(data.decision_breakdown || []);
+  void loadMlOperations();
+
+  const cases = data.recent_cases || [];
+  $("#dashboard-recent-cases").innerHTML = cases.length
+    ? cases.map((item) => {
+      const probability = Number(item.calibrated_prob);
+      const amount = item.amount !== null && item.amount !== undefined && item.amount !== ""
+        ? Number(item.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })
+        : "Không rõ số tiền";
+      const confidence = Number.isFinite(probability) ? Math.min(100, Math.max(0, probability * 100)) : 0;
+      const riskLabel = item.risk_level === "HIGH" ? "Rủi ro cao" : item.risk_level === "MEDIUM" ? "Rủi ro trung bình" : "Rủi ro thấp";
+      return `<button class="dashboard-case-row" type="button" data-dashboard-case-id="${escapeHtml(item.case_id)}"><span class="dashboard-case-risk risk-${riskClass(item.risk_level)}">${riskLabel}</span><span class="dashboard-case-main"><b>${escapeHtml(item.merchant || "Merchant chưa rõ")}</b><small>${escapeHtml(amount)} · ${escapeHtml(String(item.txn_id || "").slice(0, 12))}…</small><span class="dashboard-case-progress"><i style="width:${confidence}%"></i></span></span><span class="dashboard-case-probability">${formatProbability(probability)}</span><span class="dashboard-case-arrow">⌄</span></button>`;
+    }).join("")
+    : `<p class="dashboard-empty">Hiện không có hồ sơ nào cần rà soát.</p>`;
+  document.querySelectorAll("[data-dashboard-case-id]").forEach((row) =>
+    row.addEventListener("click", () => openDetail(row.dataset.dashboardCaseId))
+  );
+  $("#dashboard-updated").textContent = `Cập nhật lúc ${new Date().toLocaleTimeString("vi-VN")} · Làm mới mỗi 10 giây`;
+}
+function renderSimulatorChart() {
+  const host = $("#dashboard-simulator-chart");
+  if (!state.simulatorHistory.length) {
+    host.innerHTML = `<p class="chart-empty">Chưa có dữ liệu simulator để hiển thị.</p>`;
+    return;
+  }
+  const width = 760;
+  const height = 230;
+  const left = 54;
+  const right = 720;
+  const top = 18;
+  const bottom = 178;
+  const plotWidth = right - left;
+  const plotHeight = bottom - top;
+  const now = Date.now();
+  const windowStart = now - SIMULATOR_CHART_WINDOW_SECONDS * 1000;
+  const rows = state.simulatorHistory.filter((sample) => sample.timestamp >= windowStart);
+  if (!rows.length) {
+    host.innerHTML = `<p class="chart-empty">Đang chờ dữ liệu simulator…</p>`;
+    return;
+  }
+  const start = Math.max(windowStart, rows[0].timestamp);
+  const duration = Math.max(1000, now - start);
+  const maxTarget = Math.max(1, ...rows.map((sample) => sample.target));
+  const maxActual = Math.max(0.2, ...rows.map((sample) => sample.actual));
+  const getX = (sample) => left + Math.max(0, Math.min(1, (sample.timestamp - start) / duration)) * plotWidth;
+  const getY = (value, maxValue) => bottom - Math.max(0, Math.min(1, value / maxValue)) * plotHeight;
+  const grid = Array.from({ length: 5 }, (_, index) => {
+    const y = top + plotHeight * index / 4;
+    const targetValue = (maxTarget * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+    const actualValue = (maxActual * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+    return `<line class="simulator-chart-gridline" x1="${left}" y1="${y}" x2="${right}" y2="${y}"></line><text class="simulator-chart-axis" x="${left - 8}" y="${y + 3}" text-anchor="end">${targetValue}</text><text class="simulator-chart-axis" x="${right + 8}" y="${y + 3}">${actualValue}</text>`;
+  }).join("");
+  const makePath = (key, maxValue) => rows.map((sample, index) =>
+    `${index ? "L" : "M"}${getX(sample).toFixed(1)},${getY(sample[key], maxValue).toFixed(1)}`
+  ).join(" ");
+  const timeLabels = Array.from({ length: 5 }, (_, index) => {
+    const timestamp = new Date(start + duration * index / 4);
+    const secondsAgo = duration * (4 - index) / 4000;
+    const label = index === 4
+      ? "Hiện tại"
+      : duration < 60_000
+        ? `${secondsAgo.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}s trước`
+        : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const x = left + plotWidth * index / 4;
+    return `<text class="simulator-chart-axis" x="${x}" y="${bottom + 20}" text-anchor="${index === 0 ? "start" : index === 4 ? "end" : "middle"}">${label}</text>`;
+  }).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Tốc độ mục tiêu và số case mới thực tế trong 5 phút gần nhất"><text class="simulator-chart-axis-title" x="${left}" y="11">Giao dịch/giây</text><text class="simulator-chart-axis-title" x="${right}" y="11" text-anchor="end">Case mới/giây</text>${grid}<path class="simulator-chart-line simulator-chart-target" d="${makePath("target", maxTarget)}"></path><path class="simulator-chart-line simulator-chart-actual" d="${makePath("actual", maxActual)}"></path>${timeLabels}</svg><div class="simulator-chart-legend"><span><i class="target"></i>Tốc độ mục tiêu</span><span><i class="actual"></i>Case mới thực tế/giây</span></div>`;
+}
+async function loadDashboard() {
+  if (state.dashboardLoading) {
+    state.dashboardRefreshPending = true;
+    return;
+  }
+  state.dashboardLoading = true;
+  try {
+    const data = await api("/cases/analytics/dashboard");
+    if (state.view === "dashboard") renderDashboard(data);
+  } catch (error) {
+    if (state.view === "dashboard") {
+      $("#dashboard-decision-breakdown").innerHTML = `<p class="dashboard-empty">Không tải được dữ liệu dashboard: ${escapeHtml(error.message)}</p>`;
+      showToast(error.message);
+    }
+  } finally {
+    state.dashboardLoading = false;
+    const refreshPending = state.dashboardRefreshPending;
+    state.dashboardRefreshPending = false;
+    if (refreshPending && state.token && state.view === "dashboard") void loadDashboard();
   }
 }
 function renderCases() {
@@ -189,12 +312,15 @@ function renderCases() {
 async function loadCases() {
   try {
     const offset = state.page * state.pageSize;
-    const path = ["analytics", "ml-insights"].includes(state.view)
+    const path = state.view === "analytics"
       ? `/cases/analytics/transactions?limit=${state.pageSize}&offset=${offset}`
       : `/cases?limit=${state.pageSize}&offset=${offset}`;
     const result = await api(path);
     state.cases = result.items || [];
     state.total = Number(result.total || 0);
+    const navCount = $("#review-nav-count");
+    navCount.textContent = new Intl.NumberFormat("en-US").format(Number(result.open_count) || 0);
+    navCount.classList.toggle("hidden", !Number(result.open_count));
     $("#open-count").textContent = result.open_count ?? 0;
     $("#high-count").textContent = result.high_count ?? 0;
     $("#medium-count").textContent = result.medium_count ?? 0;
@@ -204,10 +330,6 @@ async function loadCases() {
     $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
     $("#decision-escalated").textContent = decisions.escalated ?? 0;
     $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
-    if (state.view === "ml-insights") {
-      renderDecisionBreakdown(result.decision_breakdown || []);
-      void loadMlOperations();
-    }
     renderCases();
   } catch (error) { $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Không tải được dữ liệu: ${escapeHtml(error.message)}</td></tr>`; showToast(error.message); }
 }
@@ -259,25 +381,26 @@ async function loadClassifications() {
   }
 }
 function loadCurrentView() {
+  if (state.view === "dashboard") return loadDashboard();
   if (state.view === "classifications") return loadClassifications();
   return loadCases();
 }
 function setView(view) {
   state.view = view;
+  const dashboard = view === "dashboard";
   const analytics = view === "analytics";
-  const mlInsights = view === "ml-insights";
   const classifications = view === "classifications";
   state.page = 0;
+  $("#dashboard-nav").classList.toggle("active", dashboard);
   $("#review-nav").classList.toggle("active", view === "review");
   $("#analytics-nav").classList.toggle("active", analytics);
-  $("#ml-insights-nav").classList.toggle("active", mlInsights);
   $("#classifications-nav").classList.toggle("active", classifications);
-  $("#page-title").textContent = classifications ? "Manual decisions" : mlInsights ? "ML Insights" : analytics ? "Analytics" : "Review queue";
+  $("#page-title").textContent = dashboard ? "Dashboard" : classifications ? "Manual Review" : analytics ? "Analytics" : "Review Queue";
   $("#review-kpi-grid").classList.toggle("hidden", view !== "review");
   $("#analytics-kpi-grid").classList.toggle("hidden", !analytics);
   $("#analytics-decisions").classList.toggle("hidden", !analytics);
-  $("#review-content").classList.toggle("hidden", classifications || mlInsights);
-  $("#ml-insights-content").classList.toggle("hidden", !mlInsights);
+  $("#dashboard-content").classList.toggle("hidden", !dashboard);
+  $("#review-content").classList.toggle("hidden", dashboard || classifications);
   $("#classifications-content").classList.toggle("hidden", !classifications);
   $("#queue-title").textContent = analytics ? "Medium & High transactions" : "Priority cases";
   $("#queue-description").textContent = analytics
@@ -345,6 +468,25 @@ function applySimulatorState(simulator, broadcast = true) {
   state.simulatorVersion = simulator.version;
   state.simulatorRunning = simulator.running;
   state.simulatorError = simulator.error;
+  const sampledAt = Date.now();
+  const history = Array.isArray(simulator.open_case_rate_history)
+    ? simulator.open_case_rate_history
+    : [];
+  state.simulatorHistory = history.map((point) => ({
+    timestamp: Number(point.timestamp) * 1000,
+    target: Number(simulator.tps) || 0,
+    actual: Number(point.value) || 0,
+  }));
+  if (!state.simulatorHistory.length) {
+    state.simulatorHistory.push({
+      timestamp: sampledAt,
+      target: Number(simulator.tps) || 0,
+      actual: Number(simulator.open_cases_per_second) || 0,
+    });
+  }
+  const cutoff = sampledAt - SIMULATOR_CHART_WINDOW_SECONDS * 1000;
+  state.simulatorHistory = state.simulatorHistory.filter((point) => point.timestamp >= cutoff);
+  if (state.view === "dashboard") renderSimulatorChart();
   $("#simulator-actual-tps").textContent =
     `Case mở mới TB 5 giây: ${Number(simulator.open_cases_per_second || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} case/giây`;
   localStorage.setItem("fraud_test_offset", String(state.testOffset));
@@ -505,7 +647,8 @@ $("#login-form").addEventListener("submit", async (event) => {
     }
     showApp();
     updateUser();
-    await loadCases();
+    await loadCurrentView();
+    startDashboardPolling();
     try {
       await syncSimulatorState();
       if (!state.simulatorRunning && !state.simulatorEverStarted) await loadTestBatch();
@@ -516,7 +659,7 @@ $("#login-form").addEventListener("submit", async (event) => {
     showToast(error.message);
   }
 });
-function updateUser() { const name = state.user?.username || "Analyst"; $("#user-name").textContent = name; $("#user-avatar").textContent = name[0].toUpperCase(); $("#user-role").textContent = titleCase(state.user?.role || "analyst"); }
+function updateUser() { const name = state.user?.username || "Chuyên viên"; const role = state.user?.role === "risk_lead" ? "Trưởng nhóm rủi ro" : "Chuyên viên phân tích rủi ro"; $("#user-name").textContent = name; $("#user-avatar").textContent = name[0].toUpperCase(); $("#user-role").textContent = role; }
 $("#simulator-tps").value = String(state.simulatorTps);
 $("#simulator-tps").addEventListener("input", () => { state.simulatorTpsInputDirty = true; });
 $("#simulator-tps").addEventListener("change", async () => {
@@ -545,7 +688,7 @@ $("#simulator-tps").addEventListener("change", async () => {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#ml-insights-nav").addEventListener("click", () => setView("ml-insights")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#simulator-nav").addEventListener("click", () => { setView("review"); setTimeout(() => $("#load-test-batch").scrollIntoView({ behavior: "smooth", block: "center" }), 0); }); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
 $("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {

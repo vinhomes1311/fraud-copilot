@@ -226,6 +226,78 @@ async def list_analytics_transactions(
     }
 
 
+@router.get("/analytics/dashboard")
+async def get_dashboard_analytics(
+    user: User = Depends(any_reviewer),
+):
+    summary = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (WHERE s.status = 'SCORED') AS total_scored,
+                  count(*) FILTER (
+                      WHERE s.status = 'SCORED' AND s.scored_at >= now() - interval '60 minutes'
+                  ) AS scored_last_hour,
+                  count(*) FILTER (
+                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                  ) AS open_count,
+                  count(*) FILTER (
+                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                        AND c.risk_level = 'HIGH'
+                  ) AS high_open,
+                  count(*) FILTER (
+                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                        AND c.risk_level = 'HIGH' AND c.created_at >= now() - interval '60 minutes'
+                  ) AS high_open_last_hour,
+                  count(*) FILTER (
+                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                        AND c.risk_level = 'MEDIUM'
+                  ) AS medium_open,
+                  count(*) FILTER (
+                      WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+                        AND c.risk_level = 'MEDIUM' AND c.created_at >= now() - interval '60 minutes'
+                  ) AS medium_open_last_hour,
+                  count(*) FILTER (WHERE s.status <> 'SCORED') AS unscored_total,
+                  coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.latency_ms)
+                      FILTER (WHERE s.status = 'SCORED' AND s.latency_ms IS NOT NULL
+                                AND s.scored_at >= now() - interval '60 minutes'), 0) AS latency_p95_ms,
+                  coalesce(avg(s.calibrated_prob) FILTER (WHERE s.status = 'SCORED'), 0) AS average_probability
+           FROM scoring_results s
+           LEFT JOIN cases c ON c.txn_id = s.txn_id"""
+    )
+    decision_breakdown = await state.db.rfetch(
+        """SELECT c.risk_level, latest.action, count(*) AS decision_count
+           FROM cases c
+           JOIN LATERAL (
+               SELECT ca.action
+               FROM case_actions ca
+               WHERE ca.case_id = c.case_id
+                 AND ca.action IN (
+                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
+                 )
+               ORDER BY ca.created_at DESC, ca.id DESC
+               LIMIT 1
+           ) latest ON true
+           WHERE c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')
+           GROUP BY c.risk_level, latest.action"""
+    )
+    recent_cases = await state.db.rfetch(
+        """SELECT c.case_id, c.txn_id, c.risk_level, c.status, c.created_at,
+                  s.calibrated_prob,
+                  t.payload_masked->>'merchant' AS merchant,
+                  t.payload_masked->>'amt' AS amount
+           FROM cases c
+           JOIN scoring_results s ON s.txn_id = c.txn_id
+           JOIN transactions t ON t.txn_id = c.txn_id
+           WHERE c.status NOT IN ('CLOSED', 'DISMISSED', 'CONFIRMED_FRAUD', 'CONFIRMED_SIMULATED')
+           ORDER BY s.calibrated_prob DESC NULLS LAST, c.created_at DESC
+           LIMIT 6"""
+    )
+    return {
+        "summary": dict(summary),
+        "decision_breakdown": [dict(row) for row in decision_breakdown],
+        "recent_cases": [dict(row) for row in recent_cases],
+    }
+
+
 async def _query_prometheus_range(
     client: httpx.AsyncClient,
     query: str,
