@@ -65,6 +65,9 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
     try:
         review = await list_cases(user=user, limit=1, offset=0)
         analytics = await list_analytics_transactions(user=user, limit=1, offset=0)
+        classifications = await list_classifications(
+            user=user, decision=None, search=None, limit=1, offset=0
+        )
     finally:
         state.db = previous_db
 
@@ -74,6 +77,7 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
     }
     assert review["open_count"] == 35356
     assert review["medium_count"] == 287
+    assert review["decision_summary"] == analytics["decision_summary"] == classifications["decision_summary"]
     review_query = database.queries[0][1]
     assert "ORDER BY c.created_at DESC, c.case_id DESC" in review_query
     assert "row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number" in review_query
@@ -84,7 +88,7 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
         "escalated": 1,
         "needs_more_info": 5,
     }
-    assert "ORDER BY ca.created_at DESC, ca.id DESC" in database.decision_query
+    assert "ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC" in database.decision_query
     open_count_filter = database.summary_query.split(") AS open_count")[0]
     assert "risk_level" not in open_count_filter
 
@@ -148,7 +152,21 @@ async def test_analytics_returns_latest_decisions_grouped_by_model_risk():
     assert "latest.action" in query
     assert "ORDER BY ca.created_at DESC, ca.id DESC" in query
     assert "GROUP BY c.risk_level, latest.action" in query
-    assert "c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')" in query
+
+
+@pytest.mark.asyncio
+async def test_review_queue_keeps_all_cases_for_risk_lead_when_status_is_unfiltered():
+    database = FakeDatabase()
+    previous_db = state.db
+    state.db = database
+    try:
+        await list_cases(user=User("lead1", Role.RISK_LEAD), limit=10, offset=0)
+    finally:
+        state.db = previous_db
+
+    _, query, args = database.queries[0]
+    assert args[1] is None
+    assert "($2::text IS NULL OR c.status = $2)" in query
 
 
 @pytest.mark.asyncio

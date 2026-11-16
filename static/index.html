@@ -3,86 +3,114 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08111f" />
+    <meta name="theme-color" content="#e9e5e0" />
     <title>Fraud Copilot | Risk operations</title>
-    <link rel="stylesheet" href="/static/styles.css?v=risk-dashboard-4" />
+    <link rel="stylesheet" href="/static/styles.css?v=risk-dashboard-30" />
   </head>
   <body>
     <div id="toast" class="toast" role="status"></div>
     <main id="login-view" class="login-view">
-      <section class="login-card">
-        <img class="brand-mark" src="/static/fraud-copilot-logo.png?v=brand-3" alt="Fraud Copilot logo" />
-        <p class="eyebrow">RISK OPERATIONS PLATFORM</p>
-        <h1>Fraud Copilot</h1>
-        <p id="auth-subtitle" class="muted">Tập trung tín hiệu rủi ro. Ra quyết định nhanh hơn.</p>
-        <form id="login-form">
-          <label>Tên đăng nhập<input name="username" value="analyst1" autocomplete="username" required /></label>
-          <label>Mật khẩu<input name="password" type="password" value="analyst123" autocomplete="current-password" required /></label>
-          <button class="primary-button wide" type="submit">Đăng nhập <span>→</span></button>
-        </form>
-        <button id="auth-switch" class="auth-switch" type="button">Chưa có tài khoản? Tạo tài khoản</button>
-        <button id="forgot-password" class="auth-link" type="button">Quên mật khẩu?</button>
-        <button id="google-login" class="google-button" type="button">Tiếp tục với Google</button>
-        <p id="login-hint" class="login-hint">Demo: analyst1 / analyst123 · lead1 / lead123</p>
-      </section>
-      <div class="login-glow"></div>
+      <div class="login-frame">
+        <header class="login-header">
+          <a class="login-brand" href="/" aria-label="Fraud Copilot">
+            <img class="brand-mark" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" />
+            <span><b>Fraud <span>Copilot</span></b><small>RISK INTELLIGENCE</small></span>
+          </a>
+          <div class="login-header-note"><i></i> Không gian chuyên viên an toàn</div>
+        </header>
+        <div class="login-layout">
+          <section class="login-hero" aria-labelledby="login-hero-title">
+            <p class="eyebrow"><span class="login-eyebrow-dot"></span> RISK OPERATIONS PLATFORM</p>
+            <h1 id="login-hero-title">Nhìn rõ rủi ro.<br /><span>Ra quyết định tự tin.</span></h1>
+            <p class="login-hero-copy">Giao dịch, tín hiệu mô hình và hồ sơ điều tra trong cùng một không gian làm việc.</p>
+            <div class="login-highlights">
+              <div><span>01</span><p><b>Ưu tiên rõ ràng</b><small>Tập trung vào hồ sơ cần xem</small></p></div>
+              <div><span>02</span><p><b>Bằng chứng đầy đủ</b><small>Theo dõi tín hiệu xuyên suốt</small></p></div>
+              <div><span>03</span><p><b>Quyết định minh bạch</b><small>Lưu lại thao tác chuyên viên</small></p></div>
+            </div>
+          </section>
+          <section class="login-card" aria-labelledby="login-card-title">
+            <div class="login-card-heading">
+              <div class="login-card-symbol" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.5-2.9 8-7 10-4.1-2-7-5.5-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
+              </div>
+              <p class="login-card-eyebrow">SECURE ANALYST ACCESS</p>
+              <h2 id="login-card-title">Chào mừng trở lại</h2>
+              <p id="auth-subtitle" class="muted">Đăng nhập để tiếp tục tới không gian điều tra rủi ro.</p>
+            </div>
+            <form id="login-form">
+              <label>Tên đăng nhập<input name="username" value="analyst1" autocomplete="username" required /></label>
+              <label>Mật khẩu<input name="password" type="password" value="analyst123" autocomplete="current-password" required /></label>
+              <button class="primary-button wide" type="submit">Đăng nhập <span>→</span></button>
+            </form>
+            <button id="auth-switch" class="auth-switch" type="button">Chưa có tài khoản? Tạo tài khoản</button>
+            <button id="forgot-password" class="auth-link" type="button">Quên mật khẩu?</button>
+            <div class="login-divider"><span>hoặc</span></div>
+            <button id="google-login" class="google-button" type="button"><span aria-hidden="true">G</span> Tiếp tục với Google</button>
+            <p id="login-hint" class="login-hint">Demo: analyst1 / analyst123 · lead1 / lead123</p>
+          </section>
+        </div>
+        <footer class="login-footer"><span>FRAUD COPILOT</span><span>Risk operations workspace</span></footer>
+      </div>
+      <div class="login-glow" aria-hidden="true"></div>
     </main>
 
     <main id="app-view" class="app-shell hidden">
+      <video class="dashboard-background-video" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1">
+        <source src="/static/dashboard-background.mp4?v=video-project-1" type="video/mp4" />
+      </video>
       <aside class="sidebar">
         <div class="brand"><img class="brand-mark small" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" /><span>Fraud <b>Copilot</b></span></div>
         <div class="workspace-label">WORKSPACE</div>
         <nav>
-          <button id="dashboard-nav" class="nav-item active" title="Dashboard"><span class="nav-icon">▦</span> Dashboard</button>
-          <button id="analytics-nav" class="nav-item" title="Transactions"><span class="nav-icon">◈</span> Transactions</button>
+          <button id="dashboard-nav" class="nav-item active" title="Risk Overview"><span class="nav-icon">▦</span> Risk Overview</button>
+          <button id="analytics-nav" class="nav-item" title="Risk Analytics"><span class="nav-icon">◈</span> Risk Analytics</button>
           <button id="review-nav" class="nav-item" title="Review Queue"><img class="nav-icon review-nav-logo" src="/static/review-queue-logo.png?v=2" alt="" /> Review Queue <span id="review-nav-count" class="nav-badge hidden">0</span></button>
-          <button id="classifications-nav" class="nav-item" title="Manual Review"><span class="nav-icon">◌</span> Manual Review</button>
-          <button id="simulator-nav" class="nav-item" title="Simulator"><span class="nav-icon">▷</span> Simulator</button>
+          <button id="classifications-nav" class="nav-item" title="Decision History"><span class="nav-icon">◌</span> Decision History</button>
         </nav>
+        <label class="global-search"><span>⌕</span><input id="dashboard-search" type="search" placeholder="Tìm mã case hoặc giao dịch..." aria-label="Tìm mã case hoặc giao dịch"><kbd>Enter</kbd></label>
+        <div class="topbar-actions"><span class="live-status"><i></i> Chấm điểm đang hoạt động</span><button id="refresh-button" class="icon-button" title="Làm mới">↻</button><div class="avatar" id="user-avatar">A</div><div class="user-meta"><b id="user-name">Chuyên viên</b><small id="user-role">Chuyên viên phân tích rủi ro</small></div></div>
         <div class="sidebar-bottom">
           <div class="system-status"><span class="status-dot"></span><div><b>All systems normal</b><small>Updated just now</small></div></div>
           <button id="logout-button" class="logout">↪ <span>Log out</span></button>
         </div>
       </aside>
       <section class="content">
-        <header class="topbar">
-          <h2 id="page-title" class="visually-hidden">Dashboard</h2>
-          <label class="global-search"><span>⌕</span><input id="dashboard-search" type="search" placeholder="Tìm mã case hoặc giao dịch..." aria-label="Tìm mã case hoặc giao dịch"><kbd>Enter</kbd></label>
-          <div class="topbar-actions"><span class="live-status"><i></i> Chấm điểm đang hoạt động</span><button id="refresh-button" class="icon-button" title="Làm mới">↻</button><div class="avatar" id="user-avatar">A</div><div class="user-meta"><b id="user-name">Chuyên viên</b><small id="user-role">Chuyên viên phân tích rủi ro</small></div></div>
-        </header>
+        <h2 id="page-title" class="visually-hidden">Risk Overview</h2>
         <div class="page-body">
           <section id="dashboard-content" class="dashboard-content">
             <div class="dashboard-intro">
-              <div><p class="eyebrow">TỔNG QUAN VẬN HÀNH RỦI RO</p><h3>Dashboard giám sát gian lận</h3><p id="dashboard-updated">Đang tải dữ liệu...</p></div>
-              <button id="dashboard-review-link" class="primary-button">Xử lý hồ sơ <span>→</span></button>
+              <div><p class="eyebrow">LIVE RISK OPERATIONS · FRAUD COPILOT</p><h3>Fraud <span>Operations</span></h3><p id="dashboard-updated">Loading data...</p></div>
+              <button id="dashboard-review-link" class="primary-button">Review cases <span>→</span></button>
             </div>
             <div class="dashboard-kpis">
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon blue">↗</div><div><small>Giao dịch đã xử lý</small><strong id="dashboard-total">—</strong><span id="dashboard-total-subtitle">— giao dịch trong 60 phút qua</span></div></article>
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon red">!</div><div><small>Rủi ro cao đang mở</small><strong id="dashboard-high">—</strong><span id="dashboard-high-subtitle">— hồ sơ mới trong 60 phút</span></div></article>
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon amber">◷</div><div><small>Rủi ro trung bình đang mở</small><strong id="dashboard-medium">—</strong><span id="dashboard-medium-subtitle">— giao dịch chưa chấm điểm</span></div></article>
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon purple">%</div><div><small>Tỉ lệ cần rà soát</small><strong id="dashboard-review-rate">—</strong><span>Rủi ro cao + trung bình / đã chấm điểm</span></div></article>
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon green">⌁</div><div><small>Độ trễ p95 · 60 phút</small><strong id="dashboard-latency">—</strong><span>Mục tiêu luồng xử lý chính ≤ 500 ms</span></div></article>
-              <article class="dashboard-kpi"><div class="dashboard-kpi-icon teal">◎</div><div><small>Tỉ lệ phát hiện (chờ nhãn)</small><strong id="dashboard-recall">—</strong><span>Chưa có nhãn chuẩn để tính</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon blue">↗</div><div><small>Transactions Processed</small><strong id="dashboard-total">—</strong><span id="dashboard-total-subtitle">— transactions in the last 60 minutes</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon red">!</div><div><small>Open High-Risk Cases</small><strong id="dashboard-high">—</strong><span id="dashboard-high-subtitle">— new cases in the last 60 minutes</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon amber">◷</div><div><small>Open Medium-Risk Cases</small><strong id="dashboard-medium">—</strong><span id="dashboard-medium-subtitle">— unscored transactions</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon purple">%</div><div><small>Review Rate</small><strong id="dashboard-review-rate">—</strong><span>Open high- and medium-risk cases / scored transactions</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon green">⌁</div><div><small>P95 Latency · 60 min</small><strong id="dashboard-latency">—</strong><span>Core processing target: ≤ 500 ms</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon teal">◎</div><div><small>Recall (Awaiting Labels)</small><strong id="dashboard-recall">—</strong><span>Requires ground-truth labels</span></div></article>
             </div>
             <div class="dashboard-grid">
               <article class="dashboard-panel dashboard-simulator-panel">
-                <div class="dashboard-panel-heading"><div><h4>Tốc độ simulator</h4><p>So sánh tốc độ mục tiêu và số case mới thực tế · hai trục riêng · lịch sử tối đa 5 phút</p></div></div>
-                <div id="dashboard-simulator-chart" class="dashboard-simulator-chart" role="status">Đang chờ dữ liệu simulator…</div>
+                <div class="dashboard-panel-heading"><div><h4>Cases per Second</h4><p>Hover over a line point to inspect Low, Medium, and High rates · last 5 minutes</p></div></div>
+                <div id="dashboard-simulator-chart" class="dashboard-simulator-chart" role="status">Waiting for simulator data...</div>
               </article>
               <article class="dashboard-panel dashboard-ml-decision-panel">
-                <div class="dashboard-panel-heading"><div><h4>Kết quả xử lý theo mức độ rủi ro</h4><p>Quyết định của chuyên viên trong từng nhóm rủi ro do mô hình dự đoán.</p></div></div>
-                <div id="dashboard-decision-breakdown" class="decision-breakdown-grid dashboard-decision-breakdown" aria-live="polite"><p class="dashboard-empty">Đang tải dữ liệu quyết định...</p></div>
+                <div class="dashboard-panel-heading"><div><h4>Analyst Decisions by Risk Level</h4><p>Decision outcomes grouped by model-predicted risk level.</p></div></div>
+                <div id="dashboard-decision-breakdown" class="decision-breakdown-grid dashboard-decision-breakdown" aria-live="polite"><p class="dashboard-empty">Loading decision data...</p></div>
               </article>
               <article class="dashboard-panel dashboard-ml-operations-panel">
-                <div class="chart-heading"><div><h4>Độ trễ và thông lượng suy luận</h4><p>Độ trễ p95 của dịch vụ mô hình và số yêu cầu xử lý mỗi giây · 60 phút qua</p></div><span class="chart-live-indicator">Prometheus</span></div>
-                <div id="dashboard-ml-operations-chart" class="ml-operations-chart" aria-live="polite"><p class="chart-empty">Đang tải chỉ số mô hình…</p></div>
+                <div class="chart-heading"><div><h4>Model Service Latency &amp; Throughput</h4><p>P95 inference latency and requests per second over the last 60 minutes.</p></div><span class="chart-live-indicator">Prometheus</span></div>
+                <div id="dashboard-ml-operations-chart" class="ml-operations-chart" aria-live="polite"><p class="chart-empty">Loading model metrics...</p></div>
               </article>
               <article class="dashboard-panel dashboard-cases-panel">
-                <div class="dashboard-panel-heading"><div><h4>Giao dịch bị gắn cờ</h4><p>Case cần review · xếp theo xác suất rủi ro</p></div><button id="dashboard-view-all" class="text-button">Hàng đợi →</button></div>
+                <div class="dashboard-panel-heading"><div><h4>Flagged Transactions</h4><p>Cases awaiting review, ordered by fraud probability.</p></div><button id="dashboard-view-all" class="text-button">View queue →</button></div>
                 <div id="dashboard-recent-cases" class="dashboard-recent-cases" aria-live="polite"></div>
               </article>
             </div>
           </section>
+          <div id="work-queue-layout">
           <section id="review-content">
             <div id="review-kpi-grid" class="kpi-grid">
               <article class="kpi-card accent"><div class="kpi-icon">⚡</div><div><small>Open review cases</small><strong id="open-count">—</strong><span class="trend">Human review workload</span></div></article>
@@ -91,32 +119,22 @@
               <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>High priority</small><strong id="high-count">—</strong><span class="trend orange-text">Needs attention</span></div></article>
               <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>Medium priority</small><strong id="medium-count">—</strong><span class="trend orange-text">Needs review</span></div></article>
             </div>
-            <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><label class="simulator-rate">Mục tiêu <input id="simulator-tps" type="number" min="1" max="1000" step="1" value="10" inputmode="numeric" aria-label="Tốc độ mục tiêu, số giao dịch mỗi giây"><span>giao dịch/giây</span><small id="simulator-actual-tps" class="simulator-actual-tps">Case mở mới TB 5 giây: 0 case/giây</small></label><button id="load-test-batch" class="primary-button">▶ Chạy simulator</button><button id="reset-demo-button" class="secondary-button reset-demo-button" type="button">↺ Xóa dữ liệu demo &amp; chạy lại</button><div id="simulator-tracker" class="simulator-tracker hidden" aria-hidden="true"><video id="tracker-video" muted loop playsinline preload="metadata"><source src="/static/dog-tracker.mp4" type="video/mp4"></video></div><button id="export-button" class="secondary-button">⇩ Export view</button></div></div>
+            <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><label class="simulator-rate">Target <input id="simulator-tps" type="number" min="1" max="1000" step="1" value="10" inputmode="numeric" aria-label="Target transaction rate per second"><span>transactions / sec</span><small id="simulator-actual-tps" class="simulator-actual-tps">New cases (5-sec avg): 0 / sec</small></label><button id="load-test-batch" class="primary-button">▶ Run Simulator</button><button id="export-button" class="secondary-button">⇩ Export view</button></div></div>
             <section class="queue-card">
               <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="search-input" placeholder="Search case ID or transaction..." /></div><select id="risk-filter"><option value="">All risk levels</option><option value="HIGH">High risk</option><option value="MEDIUM">Medium risk</option><option value="LOW">Low risk</option></select><select id="status-filter"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="CONFIRMED_FRAUD">Confirmed fraud</option><option value="DISMISSED">Dismissed / safe</option><option value="CLOSED">Closed</option></select></div>
               <div class="table-wrap"><table><thead><tr><th>Case / transaction</th><th>Priority</th><th>Fraud probability</th><th>Workflow</th><th>Received</th><th>Evidence</th></tr></thead><tbody id="cases-body"><tr><td colspan="6" class="loading">Loading cases<span class="loader"></span></td></tr></tbody></table></div>
               <div class="table-footer"><span id="result-count">—</span><div><button id="prev-page" class="page-button" disabled>‹</button><span id="page-number" class="page-button active">1</span><button id="next-page" class="page-button" disabled>›</button></div></div>
             </section>
-            <section id="analytics-decisions" class="analytics-decisions hidden">
-              <div class="section-heading"><div><h3>Analyst decisions</h3><p>Latest recorded decision for each reviewed case.</p></div></div>
-              <div class="decision-summary-grid">
-                <article class="decision-summary-card"><small>Confirm fraud</small><strong id="decision-confirmed-fraud">0</strong></article>
-                <article class="decision-summary-card"><small>Dismiss / safe</small><strong id="decision-dismissed">0</strong></article>
-                <article class="decision-summary-card"><small>Insufficient evidence</small><strong id="decision-insufficient-evidence">0</strong></article>
-                <article class="decision-summary-card"><small>Escalate to Risk Lead</small><strong id="decision-escalated">0</strong></article>
-                <article class="decision-summary-card"><small>Need more info</small><strong id="decision-needs-more-info">0</strong></article>
-              </div>
-            </section>
           </section>
           <section id="classifications-content" class="hidden">
             <div class="section-heading classification-heading">
-              <div><h3>Manually classified transactions</h3><p>Saved analyst decisions and escalations, including reviewer and decision time.</p></div>
+              <div><h3>Analyst Decision History</h3><p>Recorded case decisions and escalations, with reviewer and decision time.</p></div>
               <button id="export-classifications" class="secondary-button">⇩ Export decisions</button>
             </div>
             <section class="queue-card">
               <div class="toolbar">
                 <label class="search-wrap"><span>⌕</span><input id="classification-search" placeholder="Search case, transaction, merchant, reviewer..." /></label>
-                <select id="classification-filter" aria-label="Filter manual decision">
+                <select id="classification-filter" aria-label="Filter analyst decisions">
                   <option value="">All decisions</option>
                   <option value="CONFIRMED_FRAUD">Confirmed fraud</option>
                   <option value="DISMISSED">Dismissed / safe</option>
@@ -130,6 +148,17 @@
               <div class="table-footer"><span id="classification-result-count">—</span><div><button id="classification-prev" class="page-button" disabled>‹</button><span id="classification-page" class="page-button active">1</span><button id="classification-next" class="page-button" disabled>›</button></div></div>
             </section>
           </section>
+          <section id="analytics-decisions" class="analytics-decisions hidden">
+            <div class="section-heading"><div><h3>Analyst Decision Summary</h3><p>Latest recorded decision for each reviewed case.</p></div></div>
+            <div class="decision-summary-grid">
+              <article class="decision-summary-card"><small>Confirm fraud</small><strong id="decision-confirmed-fraud">0</strong></article>
+              <article class="decision-summary-card"><small>Dismiss / safe</small><strong id="decision-dismissed">0</strong></article>
+              <article class="decision-summary-card"><small>Insufficient evidence</small><strong id="decision-insufficient-evidence">0</strong></article>
+              <article class="decision-summary-card"><small>Escalate to Risk Lead</small><strong id="decision-escalated">0</strong></article>
+              <article class="decision-summary-card"><small>Need more info</small><strong id="decision-needs-more-info">0</strong></article>
+            </div>
+          </section>
+          </div>
         </div>
       </section>
     </main>
@@ -139,7 +168,7 @@
       <div id="detail-content"></div>
     </aside>
     <div id="panel-backdrop" class="panel-backdrop"></div>
-    <script src="/static/risk-review.js?v=readable-risk-english-4"></script>
-    <script src="/static/app.js?v=risk-dashboard-12"></script>
+    <script src="/static/risk-review.js?v=readable-risk-english-5"></script>
+    <script src="/static/app.js?v=risk-dashboard-32"></script>
   </body>
 </html>

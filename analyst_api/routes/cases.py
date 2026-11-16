@@ -58,6 +58,26 @@ async def _case_summary() -> dict:
     return dict(row)
 
 
+async def _decision_summary() -> dict:
+    row = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (WHERE latest.action = 'OUTCOME_CONFIRMED_FRAUD') AS confirmed_fraud,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_DISMISSED') AS dismissed,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_INSUFFICIENT_EVIDENCE') AS insufficient_evidence,
+                  count(*) FILTER (WHERE latest.action = 'ESCALATE') AS escalated,
+                  count(*) FILTER (WHERE latest.action = 'NEEDS_MORE_INFO') AS needs_more_info
+           FROM (
+               SELECT DISTINCT ON (ca.case_id) ca.case_id, ca.action
+               FROM case_actions ca
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
+           ) latest"""
+    )
+    return dict(row)
+
+
 def can_update_outcome(status: CaseStatus | str, has_previous_outcome: bool) -> bool:
     status_value = status.value if isinstance(status, CaseStatus) else status
     if status_value in {CaseStatus.CLOSED.value, CaseStatus.CONFIRMED_SIMULATED.value}:
@@ -100,9 +120,7 @@ async def list_cases(
     limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
-    """Review Queue: newest transactions first. Risk Lead defaults to ESCALATED."""
-    if user.role == Role.RISK_LEAD and status is None:
-        status = CaseStatus.ESCALATED
+    """Review Queue: newest transactions first, without forcing a default status filter."""
     rows = await state.db.rfetch(
         """WITH numbered_cases AS (
                SELECT c.*,
@@ -124,11 +142,13 @@ async def list_cases(
            WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)""",
         risk_level, status)
     summary = await _case_summary()
+    decision_summary = await _decision_summary()
     return {
         "items": [dict(r) for r in rows],
         "limit": limit,
         "offset": offset,
         "total": total,
+        "decision_summary": decision_summary,
         **summary,
     }
 
@@ -179,25 +199,7 @@ async def list_analytics_transactions(
                    )
              )""")
     summary = await _case_summary()
-    decision_summary = await state.db.rfetchrow(
-        """SELECT count(*) FILTER (WHERE latest.action = 'OUTCOME_CONFIRMED_FRAUD') AS confirmed_fraud,
-                  count(*) FILTER (WHERE latest.action = 'OUTCOME_DISMISSED') AS dismissed,
-                  count(*) FILTER (WHERE latest.action = 'OUTCOME_INSUFFICIENT_EVIDENCE') AS insufficient_evidence,
-                  count(*) FILTER (WHERE latest.action = 'ESCALATE') AS escalated,
-                  count(*) FILTER (WHERE latest.action = 'NEEDS_MORE_INFO') AS needs_more_info
-           FROM cases c
-           JOIN LATERAL (
-               SELECT ca.action
-               FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true"""
-    )
+    decision_summary = await _decision_summary()
     decision_breakdown = await state.db.rfetch(
         """SELECT c.risk_level, latest.action, count(*) AS decision_count
            FROM cases c
@@ -400,6 +402,16 @@ async def list_classifications(
                SELECT c.*,
                       row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
                FROM cases c
+           ), latest_actions AS (
+               SELECT DISTINCT ON (ca.case_id)
+                      ca.case_id, ca.action, ca.actor, ca.role, ca.note, ca.created_at
+               FROM case_actions ca
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                   'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
            )
            SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
                   s.calibrated_prob, latest.action, latest.actor, latest.role,
@@ -410,18 +422,7 @@ async def list_classifications(
                   t.payload_masked->>'city' AS city,
                   t.payload_masked->>'state' AS region
            FROM numbered_cases c
-           JOIN LATERAL (
-               SELECT ca.action, ca.actor, ca.role, ca.note, ca.created_at
-               FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
-                     'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true
+           JOIN latest_actions latest ON latest.case_id = c.case_id
            JOIN transactions t ON t.txn_id = c.txn_id
            JOIN scoring_results s ON s.txn_id = c.txn_id
            WHERE ($1::text IS NULL OR latest.action = $1)
@@ -433,20 +434,19 @@ async def list_classifications(
            LIMIT $3 OFFSET $4""",
         action_filter, search.strip() if search and search.strip() else None, limit, offset)
     total = await state.db.rfetchval(
-        """SELECT count(*)
-           FROM cases c
-           JOIN LATERAL (
-               SELECT ca.action, ca.actor
+        """WITH latest_actions AS (
+               SELECT DISTINCT ON (ca.case_id) ca.case_id, ca.action, ca.actor
                FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
-                     'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                   'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
+           )
+           SELECT count(*)
+           FROM latest_actions latest
+           JOIN cases c ON c.case_id = latest.case_id
            JOIN transactions t ON t.txn_id = c.txn_id
            WHERE ($1::text IS NULL OR latest.action = $1)
              AND ($2::text IS NULL OR position(lower($2) in lower(concat_ws(
@@ -454,7 +454,14 @@ async def list_classifications(
                  t.payload_masked->>'merchant', t.payload_masked->>'category'
              ))) > 0)""",
         action_filter, search.strip() if search and search.strip() else None)
-    return {"items": [dict(row) for row in rows], "limit": limit, "offset": offset, "total": total}
+    decision_summary = await _decision_summary()
+    return {
+        "items": [dict(row) for row in rows],
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "decision_summary": decision_summary,
+    }
 
 
 @router.get("/{case_id}")

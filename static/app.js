@@ -9,6 +9,7 @@ const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
 const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
+let revealObserver = null;
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
 const titleCase = (value) => String(value || "").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -36,19 +37,26 @@ const decisionClass = (action) => ({
   CONFIRM_SIMULATED: "fraud",
 })[action] || "pending";
 const decisionSlices = [
-  { action: "OUTCOME_CONFIRMED_FRAUD", label: "Xác nhận gian lận", color: "#d84c67" },
-  { action: "OUTCOME_DISMISSED", label: "Không gian lận", color: "#15936b" },
-  { action: "ESCALATE", label: "Chuyển cấp xử lý", color: "#d97706" },
-  { action: "NEEDS_MORE_INFO", label: "Cần thêm thông tin", color: "#356ae6" },
-  { action: "OUTCOME_INSUFFICIENT_EVIDENCE", label: "Chưa đủ bằng chứng", color: "#7658d9" },
+  { action: "OUTCOME_CONFIRMED_FRAUD", label: "Confirmed fraud", color: "#d84c67" },
+  { action: "OUTCOME_DISMISSED", label: "Dismissed as safe", color: "#15936b" },
+  { action: "ESCALATE", label: "Escalated", color: "#d97706" },
+  { action: "NEEDS_MORE_INFO", label: "More information needed", color: "#356ae6" },
+  { action: "OUTCOME_INSUFFICIENT_EVIDENCE", label: "Insufficient evidence", color: "#7658d9" },
 ];
 const riskGroups = [
-  { risk: "HIGH", label: "Rủi ro cao" },
-  { risk: "MEDIUM", label: "Rủi ro trung bình" },
-  { risk: "LOW", label: "Rủi ro thấp" },
+  { risk: "HIGH", label: "High Risk" },
+  { risk: "MEDIUM", label: "Medium Risk" },
+  { risk: "LOW", label: "Low Risk" },
 ];
 const SIMULATOR_CHART_WINDOW_SECONDS = 300;
 const showToast = (message) => { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2800); };
+function renderDecisionSummary(decisions = {}) {
+  $("#decision-confirmed-fraud").textContent = decisions.confirmed_fraud ?? 0;
+  $("#decision-dismissed").textContent = decisions.dismissed ?? 0;
+  $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
+  $("#decision-escalated").textContent = decisions.escalated ?? 0;
+  $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
+}
 
 async function api(path, options = {}) {
   const response = await fetch(`/api/v1${path}`, { ...options, headers: { "Content-Type": "application/json", Authorization: `Bearer ${state.token}`, ...(options.headers || {}) } });
@@ -64,7 +72,72 @@ async function api(path, options = {}) {
 
 function showApp() {
   $("#login-view").classList.add("hidden");
-  $("#app-view").classList.remove("hidden");
+  const app = $("#app-view");
+  app.classList.remove("hidden");
+  app.classList.remove("app-entering");
+  void app.offsetWidth;
+  app.classList.add("app-entering");
+  animateCurrentView();
+}
+function animateCurrentView() {
+  $("#app-view").classList.toggle("dashboard-theme", state.view === "dashboard");
+  if (revealObserver) {
+    revealObserver.disconnect();
+    revealObserver = null;
+  }
+  const views = {
+    dashboard: ["#dashboard-content", ".dashboard-intro, .dashboard-kpi, .dashboard-panel"],
+    review: ["#review-content", "#review-kpi-grid > .kpi-card, .section-heading, .queue-card"],
+    analytics: ["#review-content", "#analytics-kpi-grid > .kpi-card, .section-heading, .queue-card, .decision-summary-card"],
+    classifications: ["#classifications-content", ".section-heading, .queue-card"],
+  };
+  const [selector, revealSelector] = views[state.view];
+  const section = $(selector);
+  document.querySelectorAll(".page-transition, .page-reveal, .page-pending").forEach((element) => {
+    element.classList.remove("page-transition", "page-reveal", "page-pending");
+    element.style.removeProperty("--reveal-delay");
+  });
+  const prefersReducedMotion = window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const dashboardVideo = $(".dashboard-background-video");
+  if (dashboardVideo) {
+    if (state.view === "dashboard" && !prefersReducedMotion) {
+      const playback = dashboardVideo.play();
+      if (playback) playback.catch((error) => console.warn("Dashboard background video could not play:", error));
+    } else {
+      dashboardVideo.pause();
+    }
+  }
+  if (!section || prefersReducedMotion) return;
+
+  const revealItems = [...section.querySelectorAll(revealSelector)];
+  void section.offsetWidth;
+  section.classList.add("page-transition");
+  if (!("IntersectionObserver" in window)) {
+    revealItems.forEach((element, index) => {
+      element.style.setProperty("--reveal-delay", `${index % 4 * 90}ms`);
+      element.classList.add("page-reveal");
+    });
+    return;
+  }
+  revealItems.forEach((element) => element.classList.add("page-pending"));
+  revealObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const index = revealItems.indexOf(entry.target);
+      entry.target.classList.remove("page-pending");
+      entry.target.style.setProperty("--reveal-delay", `${index % 4 * 90}ms`);
+      entry.target.classList.add("page-reveal");
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: 0.08, rootMargin: "0px 0px -48px 0px" });
+  revealItems.forEach((element) => revealObserver.observe(element));
+}
+function startDashboardPolling() {
+  if (state.dashboardPollTimer !== null) return;
+  state.dashboardPollTimer = setInterval(() => {
+    if (state.token && state.view === "dashboard") void loadDashboard();
+  }, 10000);
 }
 function startSimulatorPolling() {
   if (state.simulatorPollTimer !== null) return;
@@ -75,15 +148,20 @@ function startSimulatorPolling() {
     });
   }, 1000);
 }
-function startDashboardPolling() {
-  if (state.dashboardPollTimer !== null) return;
-  state.dashboardPollTimer = setInterval(() => {
-    if (state.token && state.view === "dashboard") void loadDashboard();
-  }, 10000);
-}
 function showLogin() {
-  $("#login-view").classList.remove("hidden");
-  $("#app-view").classList.add("hidden");
+  const dashboardVideo = $(".dashboard-background-video");
+  if (dashboardVideo) dashboardVideo.pause();
+  const login = $("#login-view");
+  login.classList.remove("hidden", "login-entering");
+  void login.offsetWidth;
+  login.classList.add("login-entering");
+  const app = $("#app-view");
+  app.classList.add("hidden");
+  app.classList.remove("app-entering");
+  document.querySelectorAll(".page-transition, .page-reveal").forEach((element) => {
+    element.classList.remove("page-transition", "page-reveal");
+    element.style.removeProperty("--reveal-delay");
+  });
   if (state.simulatorPollTimer !== null) clearInterval(state.simulatorPollTimer);
   state.simulatorPollTimer = null;
   if (state.dashboardPollTimer !== null) clearInterval(state.dashboardPollTimer);
@@ -119,17 +197,142 @@ function renderDecisionBreakdown(rows) {
     const gradient = total ? `conic-gradient(${segments.join(", ")})` : "#edf1f6";
     const legend = decisionSlices.map((slice, index) => {
       const percentage = total ? values[index] / total * 100 : 0;
-      return `<li><i class="legend-swatch" style="background:${slice.color}"></i><span>${slice.label}</span><b>${percentage.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</b></li>`;
+      return `<li><i class="legend-swatch" style="background:${slice.color}"></i><span>${slice.label}</span><b>${percentage.toLocaleString("en-US", { maximumFractionDigits: 1 })}%</b></li>`;
     }).join("");
-    return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Quyết định theo mức rủi ro dự đoán</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} quyết định"><span class="decision-donut-center">${total.toLocaleString("vi-VN")}<small>quyết định</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
+    return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Decisions by predicted risk level</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} decisions"><span class="decision-donut-center">${total.toLocaleString("en-US")}<small>decisions</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
   }).join("");
+}
+function renderSimulatorChart() {
+  const host = $("#dashboard-simulator-chart");
+  if (!state.simulatorHistory.length) {
+    host.innerHTML = `<p class="chart-empty">No simulator data is available yet.</p>`;
+    return;
+  }
+  const width = 760;
+  const height = 230;
+  const left = 54;
+  const right = 720;
+  const top = 18;
+  const bottom = 178;
+  const plotWidth = right - left;
+  const plotHeight = bottom - top;
+  const now = Date.now();
+  const windowStart = now - SIMULATOR_CHART_WINDOW_SECONDS * 1000;
+  const rows = state.simulatorHistory.filter((sample) => sample.timestamp >= windowStart);
+  if (!rows.length) {
+    host.innerHTML = `<p class="chart-empty">Waiting for simulator data...</p>`;
+    return;
+  }
+  const start = Math.max(windowStart, rows[0].timestamp);
+  const duration = Math.max(1000, now - start);
+  const maxRate = Math.max(1, ...rows.map((sample) => sample.total));
+  const getX = (sample) => left + Math.max(0, Math.min(1, (sample.timestamp - start) / duration)) * plotWidth;
+  const getY = (value) => bottom - Math.max(0, Math.min(1, value / maxRate)) * plotHeight;
+  const grid = Array.from({ length: 5 }, (_, index) => {
+    const y = top + plotHeight * index / 4;
+    const rate = (maxRate * (4 - index) / 4).toLocaleString("en-US", { maximumFractionDigits: 1 });
+    return `<line class="simulator-chart-gridline" x1="${left}" y1="${y}" x2="${right}" y2="${y}"></line><text class="simulator-chart-axis" x="${left - 8}" y="${y + 3}" text-anchor="end">${rate}</text>`;
+  }).join("");
+  const points = rows.map((sample) => ({ x: getX(sample), y: getY(sample.total) }));
+  const totalPath = points.reduce((path, point, index) => {
+    if (index === 0) return `M${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    const previous = points[index - 1];
+    const beforePrevious = points[Math.max(0, index - 2)];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    const control1X = previous.x + (point.x - beforePrevious.x) / 6;
+    const control1Y = previous.y + (point.y - beforePrevious.y) / 6;
+    const control2X = point.x - (next.x - previous.x) / 6;
+    const control2Y = point.y - (next.y - previous.y) / 6;
+    return `${path} C${control1X.toFixed(1)},${control1Y.toFixed(1)} ${control2X.toFixed(1)},${control2Y.toFixed(1)} ${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }, "");
+  const areaPath = `${totalPath} L${right},${bottom} L${left},${bottom} Z`;
+  const timeLabels = Array.from({ length: 5 }, (_, index) => {
+    const timestamp = new Date(start + duration * index / 4);
+    const secondsAgo = duration * (4 - index) / 4000;
+    const label = index === 4
+      ? "Now"
+      : duration < 60_000
+        ? `${secondsAgo.toLocaleString("en-US", { maximumFractionDigits: 1 })}s ago`
+        : timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const x = left + plotWidth * index / 4;
+    return `<text class="simulator-chart-axis" x="${x}" y="${bottom + 20}" text-anchor="${index === 0 ? "start" : index === 4 ? "end" : "middle"}">${label}</text>`;
+  }).join("");
+  const hitTargets = rows.map((sample, index) => {
+    const x = getX(sample).toFixed(1);
+    const y = getY(sample.total).toFixed(1);
+    const rate = sample.total.toLocaleString("en-US", { maximumFractionDigits: 1 });
+    const time = new Date(sample.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `<circle class="simulator-chart-point" data-index="${index}" cx="${x}" cy="${y}" r="9" tabindex="0" role="button" aria-label="${rate} cases per second at ${time}"></circle><circle class="simulator-chart-active-point" data-index="${index}" cx="${x}" cy="${y}" r="0"></circle>`;
+  }).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="group" aria-label="Interactive total cases per second chart over the last 5 minutes"><defs><linearGradient id="simulator-total-gradient" x1="0" x2="1"><stop offset="0%" stop-color="#d94f67"></stop><stop offset="100%" stop-color="#f5f5f6"></stop></linearGradient><linearGradient id="simulator-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d94f67" stop-opacity=".16"></stop><stop offset="100%" stop-color="#d94f67" stop-opacity="0"></stop></linearGradient></defs><text class="simulator-chart-axis-title" x="${left}" y="11">Cases / sec</text>${grid}<path class="simulator-chart-total-fill" d="${areaPath}"></path><path class="simulator-chart-total" d="${totalPath}"></path>${hitTargets}${timeLabels}</svg><div class="simulator-chart-tooltip" role="tooltip" aria-live="polite"></div>`;
+  const svg = host.querySelector("svg");
+  const tooltip = host.querySelector(".simulator-chart-tooltip");
+  const markers = svg.querySelectorAll(".simulator-chart-active-point");
+  const slices = [
+    { key: "low", label: "Low", color: "#22a06b" },
+    { key: "medium", label: "Medium", color: "#e5ad2f" },
+    { key: "high", label: "High", color: "#e5484d" },
+  ];
+  const hideTooltip = () => {
+    tooltip.classList.remove("visible");
+    markers.forEach((marker) => marker.setAttribute("r", "0"));
+  };
+  const showTooltip = (index) => {
+    const sample = rows[index];
+    const values = slices.map((slice) => Math.max(0, Number(sample[slice.key]) || 0));
+    const riskTotal = values.reduce((sum, value) => sum + value, 0);
+    const segments = [];
+    let accumulated = 0;
+    values.forEach((value, sliceIndex) => {
+        if (!riskTotal || !value) return;
+        const startAngle = accumulated / riskTotal * 100;
+        accumulated += value;
+        const endAngle = accumulated / riskTotal * 100;
+        segments.push(`${slices[sliceIndex].color} ${startAngle}% ${endAngle}%`);
+    });
+    const pie = segments.length ? `conic-gradient(${segments.join(", ")})` : "#edf1f6";
+    const legend = slices.map((slice, sliceIndex) => {
+        const percentage = riskTotal ? values[sliceIndex] / riskTotal * 100 : 0;
+        const value = values[sliceIndex].toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        return `<li><span><i style="background:${slice.color}"></i>${slice.label}</span><strong>${value}<small>${percentage.toLocaleString("en-US", { maximumFractionDigits: 1 })}%</small></strong></li>`;
+    }).join("");
+    const total = sample.total.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const time = new Date(sample.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    tooltip.innerHTML = `<div class="simulator-tooltip-pie" style="background:${pie}" role="img" aria-label="Low ${values[0]}, Medium ${values[1]}, High ${values[2]} cases per second"></div><div class="simulator-tooltip-details"><span class="simulator-tooltip-time">${time}</span><strong>${total}<small>cases / sec</small></strong><ul>${legend}</ul></div>`;
+    tooltip.classList.add("visible");
+    markers.forEach((marker, markerIndex) => marker.setAttribute("r", markerIndex === index ? "4" : "0"));
+    const svgRect = svg.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    const scaleX = svgRect.width / width;
+    const scaleY = svgRect.height / height;
+    const x = svgRect.left - hostRect.left + host.scrollLeft + points[index].x * scaleX;
+    const y = points[index].y * scaleY;
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const minLeft = host.scrollLeft + 8;
+    const maxLeft = Math.max(minLeft, host.scrollLeft + host.clientWidth - tooltipWidth - 8);
+    const maxTop = Math.max(8, host.clientHeight - tooltipHeight - 8);
+    tooltip.style.left = `${Math.max(minLeft, Math.min(maxLeft, x - tooltipWidth / 2))}px`;
+    tooltip.style.top = `${Math.max(8, Math.min(maxTop, y > tooltipHeight + 22 ? y - tooltipHeight - 14 : y + 14))}px`;
+  };
+  svg.querySelectorAll(".simulator-chart-point").forEach((marker) => {
+    const index = Number(marker.dataset.index);
+    marker.addEventListener("pointerenter", () => showTooltip(index));
+    marker.addEventListener("pointerleave", hideTooltip);
+    marker.addEventListener("focus", () => showTooltip(index));
+    marker.addEventListener("click", () => showTooltip(index));
+  });
+  svg.addEventListener("pointerleave", hideTooltip);
+  svg.addEventListener("focusout", (event) => {
+    if (!svg.contains(event.relatedTarget)) hideTooltip();
+  });
 }
 function renderMlOperationsChart(metrics) {
   const host = $("#dashboard-ml-operations-chart");
   const latency = (metrics.latency_p95_ms || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
   const throughput = (metrics.throughput_rps || []).filter((point) => Number.isFinite(Number(point.timestamp)) && Number.isFinite(Number(point.value)));
   if (!latency.length && !throughput.length) {
-    host.innerHTML = `<p class="chart-empty">Chưa có dữ liệu suy luận trong ${Number(metrics.window_minutes) || 60} phút qua.</p>`;
+    host.innerHTML = `<p class="chart-empty">No inference data in the last ${Number(metrics.window_minutes) || 60} minutes.</p>`;
     return;
   }
 
@@ -159,10 +362,10 @@ function renderMlOperationsChart(metrics) {
   const timeLabels = Array.from({ length: 5 }, (_, index) => {
     const x = left + plotWidth * index / 4;
     const timestamp = new Date((start + (end - start) * index / 4) * 1000);
-    const label = index === 4 ? "Hiện tại" : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const label = index === 4 ? "Now" : timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     return `<text class="chart-axis-label" x="${x}" y="${bottom + 22}" text-anchor="middle">${label}</text>`;
   }).join("");
-  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Độ trễ p95 và thông lượng suy luận trong ${Number(metrics.window_minutes) || 60} phút qua"><text class="chart-axis-title chart-latency" x="${left}" y="12">Độ trễ (ms)</text><text class="chart-axis-title chart-throughput" x="${right}" y="12" text-anchor="end">Yêu cầu/giây</text>${grid}<path class="chart-line chart-latency" d="${latency.length ? makePath(latency, maxLatency) : ""}"></path><path class="chart-line chart-throughput" d="${throughput.length ? makePath(throughput, maxThroughput) : ""}"></path>${timeLabels}<g transform="translate(255 ${height - 8})"><circle class="chart-latency" r="4"></circle><text class="chart-legend" x="9" y="4">Độ trễ suy luận p95</text><circle class="chart-throughput" cx="178" r="4"></circle><text class="chart-legend" x="187" y="4">Thông lượng</text></g></svg>`;
+  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="P95 inference latency and throughput over the last ${Number(metrics.window_minutes) || 60} minutes"><text class="chart-axis-title chart-latency" x="${left}" y="12">Latency (ms)</text><text class="chart-axis-title chart-throughput" x="${right}" y="12" text-anchor="end">Requests / sec</text>${grid}<path class="chart-line chart-latency" d="${latency.length ? makePath(latency, maxLatency) : ""}"></path><path class="chart-line chart-throughput" d="${throughput.length ? makePath(throughput, maxThroughput) : ""}"></path>${timeLabels}<g transform="translate(255 ${height - 8})"><circle class="chart-latency" r="4"></circle><text class="chart-legend" x="9" y="4">P95 inference latency</text><circle class="chart-throughput" cx="178" r="4"></circle><text class="chart-legend" x="187" y="4">Throughput</text></g></svg>`;
 }
 async function loadMlOperations() {
   try {
@@ -170,7 +373,7 @@ async function loadMlOperations() {
     if (state.view === "dashboard") renderMlOperationsChart(metrics);
   } catch (error) {
     if (state.view === "dashboard") {
-      $("#dashboard-ml-operations-chart").innerHTML = `<p class="chart-empty">Không tải được chỉ số mô hình: ${escapeHtml(error.message)}</p>`;
+      $("#dashboard-ml-operations-chart").innerHTML = `<p class="chart-empty">Unable to load model metrics: ${escapeHtml(error.message)}</p>`;
       showToast(error.message);
     }
   }
@@ -182,11 +385,11 @@ function renderDashboard(data) {
   const medium = Number(summary.medium_open) || 0;
   const formatter = new Intl.NumberFormat("en-US");
   $("#dashboard-total").textContent = formatter.format(total);
-  $("#dashboard-total-subtitle").textContent = `${formatter.format(Number(summary.scored_last_hour) || 0)} giao dịch trong 60 phút qua`;
+  $("#dashboard-total-subtitle").textContent = `${formatter.format(Number(summary.scored_last_hour) || 0)} transactions in the last 60 minutes`;
   $("#dashboard-high").textContent = formatter.format(high);
-  $("#dashboard-high-subtitle").textContent = `${formatter.format(Number(summary.high_open_last_hour) || 0)} case mới trong 60 phút`;
+  $("#dashboard-high-subtitle").textContent = `${formatter.format(Number(summary.high_open_last_hour) || 0)} new cases in the last 60 minutes`;
   $("#dashboard-medium").textContent = formatter.format(medium);
-  $("#dashboard-medium-subtitle").textContent = `${formatter.format(Number(summary.unscored_total) || 0)} giao dịch chưa chấm điểm`;
+  $("#dashboard-medium-subtitle").textContent = `${formatter.format(Number(summary.unscored_total) || 0)} unscored transactions`;
   $("#dashboard-review-rate").textContent = total
     ? `${((high + medium) / total * 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`
     : "—";
@@ -208,65 +411,16 @@ function renderDashboard(data) {
       const probability = Number(item.calibrated_prob);
       const amount = item.amount !== null && item.amount !== undefined && item.amount !== ""
         ? Number(item.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })
-        : "Không rõ số tiền";
+        : "Unknown amount";
       const confidence = Number.isFinite(probability) ? Math.min(100, Math.max(0, probability * 100)) : 0;
-      const riskLabel = item.risk_level === "HIGH" ? "Rủi ro cao" : item.risk_level === "MEDIUM" ? "Rủi ro trung bình" : "Rủi ro thấp";
+      const riskLabel = item.risk_level === "HIGH" ? "High risk" : item.risk_level === "MEDIUM" ? "Medium risk" : "Low risk";
       return `<button class="dashboard-case-row" type="button" data-dashboard-case-id="${escapeHtml(item.case_id)}"><span class="dashboard-case-risk risk-${riskClass(item.risk_level)}">${riskLabel}</span><span class="dashboard-case-main"><b>${escapeHtml(item.merchant || "Merchant chưa rõ")}</b><small>${escapeHtml(amount)} · ${escapeHtml(String(item.txn_id || "").slice(0, 12))}…</small><span class="dashboard-case-progress"><i style="width:${confidence}%"></i></span></span><span class="dashboard-case-probability">${formatProbability(probability)}</span><span class="dashboard-case-arrow">⌄</span></button>`;
     }).join("")
-    : `<p class="dashboard-empty">Hiện không có hồ sơ nào cần rà soát.</p>`;
+    : `<p class="dashboard-empty">There are no cases awaiting review.</p>`;
   document.querySelectorAll("[data-dashboard-case-id]").forEach((row) =>
     row.addEventListener("click", () => openDetail(row.dataset.dashboardCaseId))
   );
-  $("#dashboard-updated").textContent = `Cập nhật lúc ${new Date().toLocaleTimeString("vi-VN")} · Làm mới mỗi 10 giây`;
-}
-function renderSimulatorChart() {
-  const host = $("#dashboard-simulator-chart");
-  if (!state.simulatorHistory.length) {
-    host.innerHTML = `<p class="chart-empty">Chưa có dữ liệu simulator để hiển thị.</p>`;
-    return;
-  }
-  const width = 760;
-  const height = 230;
-  const left = 54;
-  const right = 720;
-  const top = 18;
-  const bottom = 178;
-  const plotWidth = right - left;
-  const plotHeight = bottom - top;
-  const now = Date.now();
-  const windowStart = now - SIMULATOR_CHART_WINDOW_SECONDS * 1000;
-  const rows = state.simulatorHistory.filter((sample) => sample.timestamp >= windowStart);
-  if (!rows.length) {
-    host.innerHTML = `<p class="chart-empty">Đang chờ dữ liệu simulator…</p>`;
-    return;
-  }
-  const start = Math.max(windowStart, rows[0].timestamp);
-  const duration = Math.max(1000, now - start);
-  const maxTarget = Math.max(1, ...rows.map((sample) => sample.target));
-  const maxActual = Math.max(0.2, ...rows.map((sample) => sample.actual));
-  const getX = (sample) => left + Math.max(0, Math.min(1, (sample.timestamp - start) / duration)) * plotWidth;
-  const getY = (value, maxValue) => bottom - Math.max(0, Math.min(1, value / maxValue)) * plotHeight;
-  const grid = Array.from({ length: 5 }, (_, index) => {
-    const y = top + plotHeight * index / 4;
-    const targetValue = (maxTarget * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
-    const actualValue = (maxActual * (4 - index) / 4).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-    return `<line class="simulator-chart-gridline" x1="${left}" y1="${y}" x2="${right}" y2="${y}"></line><text class="simulator-chart-axis" x="${left - 8}" y="${y + 3}" text-anchor="end">${targetValue}</text><text class="simulator-chart-axis" x="${right + 8}" y="${y + 3}">${actualValue}</text>`;
-  }).join("");
-  const makePath = (key, maxValue) => rows.map((sample, index) =>
-    `${index ? "L" : "M"}${getX(sample).toFixed(1)},${getY(sample[key], maxValue).toFixed(1)}`
-  ).join(" ");
-  const timeLabels = Array.from({ length: 5 }, (_, index) => {
-    const timestamp = new Date(start + duration * index / 4);
-    const secondsAgo = duration * (4 - index) / 4000;
-    const label = index === 4
-      ? "Hiện tại"
-      : duration < 60_000
-        ? `${secondsAgo.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}s trước`
-        : timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const x = left + plotWidth * index / 4;
-    return `<text class="simulator-chart-axis" x="${x}" y="${bottom + 20}" text-anchor="${index === 0 ? "start" : index === 4 ? "end" : "middle"}">${label}</text>`;
-  }).join("");
-  host.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Tốc độ mục tiêu và số case mới thực tế trong 5 phút gần nhất"><text class="simulator-chart-axis-title" x="${left}" y="11">Giao dịch/giây</text><text class="simulator-chart-axis-title" x="${right}" y="11" text-anchor="end">Case mới/giây</text>${grid}<path class="simulator-chart-line simulator-chart-target" d="${makePath("target", maxTarget)}"></path><path class="simulator-chart-line simulator-chart-actual" d="${makePath("actual", maxActual)}"></path>${timeLabels}</svg><div class="simulator-chart-legend"><span><i class="target"></i>Tốc độ mục tiêu</span><span><i class="actual"></i>Case mới thực tế/giây</span></div>`;
+  $("#dashboard-updated").textContent = `Updated at ${new Date().toLocaleTimeString("en-US")} · Refreshes every 10 seconds`;
 }
 async function loadDashboard() {
   if (state.dashboardLoading) {
@@ -279,7 +433,7 @@ async function loadDashboard() {
     if (state.view === "dashboard") renderDashboard(data);
   } catch (error) {
     if (state.view === "dashboard") {
-      $("#dashboard-decision-breakdown").innerHTML = `<p class="dashboard-empty">Không tải được dữ liệu dashboard: ${escapeHtml(error.message)}</p>`;
+      $("#dashboard-decision-breakdown").innerHTML = `<p class="dashboard-empty">Unable to load overview data: ${escapeHtml(error.message)}</p>`;
       showToast(error.message);
     }
   } finally {
@@ -324,12 +478,7 @@ async function loadCases() {
     $("#open-count").textContent = result.open_count ?? 0;
     $("#high-count").textContent = result.high_count ?? 0;
     $("#medium-count").textContent = result.medium_count ?? 0;
-    const decisions = result.decision_summary || {};
-    $("#decision-confirmed-fraud").textContent = decisions.confirmed_fraud ?? 0;
-    $("#decision-dismissed").textContent = decisions.dismissed ?? 0;
-    $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
-    $("#decision-escalated").textContent = decisions.escalated ?? 0;
-    $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
+    renderDecisionSummary(result.decision_summary || {});
     renderCases();
   } catch (error) { $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Không tải được dữ liệu: ${escapeHtml(error.message)}</td></tr>`; showToast(error.message); }
 }
@@ -374,6 +523,7 @@ async function loadClassifications() {
     const result = await api(`/cases/classifications?${params}`);
     state.classifications = result.items || [];
     state.total = Number(result.total || 0);
+    renderDecisionSummary(result.decision_summary || {});
     renderClassifications();
   } catch (error) {
     $("#classifications-body").innerHTML = `<tr><td colspan="8" class="empty">Could not load manual decisions: ${escapeHtml(error.message)}</td></tr>`;
@@ -390,22 +540,25 @@ function setView(view) {
   const dashboard = view === "dashboard";
   const analytics = view === "analytics";
   const classifications = view === "classifications";
+  const showDecisionSummary = !dashboard;
   state.page = 0;
+  $("#work-queue-layout").classList.toggle("with-summary", showDecisionSummary);
   $("#dashboard-nav").classList.toggle("active", dashboard);
   $("#review-nav").classList.toggle("active", view === "review");
   $("#analytics-nav").classList.toggle("active", analytics);
   $("#classifications-nav").classList.toggle("active", classifications);
-  $("#page-title").textContent = dashboard ? "Dashboard" : classifications ? "Manual Review" : analytics ? "Analytics" : "Review Queue";
+  $("#page-title").textContent = dashboard ? "Risk Overview" : classifications ? "Decision History" : analytics ? "Risk Analytics" : "Review Queue";
   $("#review-kpi-grid").classList.toggle("hidden", view !== "review");
   $("#analytics-kpi-grid").classList.toggle("hidden", !analytics);
-  $("#analytics-decisions").classList.toggle("hidden", !analytics);
+  $("#analytics-decisions").classList.toggle("hidden", !showDecisionSummary);
   $("#dashboard-content").classList.toggle("hidden", !dashboard);
   $("#review-content").classList.toggle("hidden", dashboard || classifications);
   $("#classifications-content").classList.toggle("hidden", !classifications);
-  $("#queue-title").textContent = analytics ? "Medium & High transactions" : "Priority cases";
+  $("#queue-title").textContent = analytics ? "High & Medium Risk Transactions" : "Case Review Queue";
   $("#queue-description").textContent = analytics
-    ? "Medium và High risk, sắp xếp theo xác suất giảm dần."
-    : "Cases include LOW signals; only Medium and High receive briefs.";
+    ? "Transactions ranked by model-predicted fraud probability."
+    : "Cases across all risk levels, ordered by model confidence.";
+  animateCurrentView();
   loadCurrentView();
 }
 async function loadTestBatch() {
@@ -419,32 +572,10 @@ async function loadTestBatch() {
       body: JSON.stringify({ action, ...(tps === undefined ? {} : { tps }) }),
     });
     applySimulatorState(result);
-    showToast(action === "stop" ? "Đã dừng simulator trên tất cả các trang" : "Đã chạy simulator");
+    showToast(action === "stop" ? "Simulator stopped across all pages" : "Simulator started");
   } catch (error) {
     showToast(error.message);
-    if (/giao dịch\/giây/.test(error.message)) {
-      $("#simulator-tps").focus();
-    }
-  }
-}
-async function resetDemoData() {
-  const confirmed = confirm(
-    "Xóa các giao dịch và case do simulator tạo, cùng quyết định/brief liên quan? Tài khoản và audit log được giữ lại. Simulator sẽ chạy lại từ đầu."
-  );
-  if (!confirmed) return;
-
-  const button = $("#reset-demo-button");
-  button.disabled = true;
-  try {
-    const result = await api("/demo/reset", { method: "POST" });
-    state.page = 0;
-    applySimulatorState(result);
-    await loadCurrentView();
-    showToast(`Đã xóa ${result.deleted_cases} case và ${result.deleted_transactions} giao dịch demo; simulator chạy lại từ đầu`);
-  } catch (error) {
-    showToast(error.message);
-  } finally {
-    button.disabled = false;
+    if (/transactions\/sec/.test(error.message)) $("#simulator-tps").focus();
   }
 }
 async function syncSimulatorState() {
@@ -472,29 +603,39 @@ function applySimulatorState(simulator, broadcast = true) {
   const history = Array.isArray(simulator.open_case_rate_history)
     ? simulator.open_case_rate_history
     : [];
-  state.simulatorHistory = history.map((point) => ({
-    timestamp: Number(point.timestamp) * 1000,
-    target: Number(simulator.tps) || 0,
-    actual: Number(point.value) || 0,
-  }));
+  state.simulatorHistory = history.map((point) => {
+    const low = Number(point.low) || 0;
+    const medium = Number(point.medium) || 0;
+    const high = Number(point.high) || 0;
+    const value = Number(point.value);
+    return {
+      timestamp: Number(point.timestamp) * 1000,
+      low,
+      medium,
+      high,
+      total: Number.isFinite(value) ? value : low + medium + high,
+    };
+  });
   if (!state.simulatorHistory.length) {
     state.simulatorHistory.push({
       timestamp: sampledAt,
-      target: Number(simulator.tps) || 0,
-      actual: Number(simulator.open_cases_per_second) || 0,
+      low: 0,
+      medium: 0,
+      high: 0,
+      total: Number(simulator.open_cases_per_second) || 0,
     });
   }
   const cutoff = sampledAt - SIMULATOR_CHART_WINDOW_SECONDS * 1000;
   state.simulatorHistory = state.simulatorHistory.filter((point) => point.timestamp >= cutoff);
   if (state.view === "dashboard") renderSimulatorChart();
   $("#simulator-actual-tps").textContent =
-    `Case mở mới TB 5 giây: ${Number(simulator.open_cases_per_second || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} case/giây`;
+    `New cases (5-sec avg): ${Number(simulator.open_cases_per_second || 0).toLocaleString("en-US", { maximumFractionDigits: 1 })} / sec`;
   localStorage.setItem("fraud_test_offset", String(state.testOffset));
   localStorage.setItem("fraud_simulator_tps", String(state.simulatorTps));
   if (!state.simulatorTpsInputDirty) $("#simulator-tps").value = String(state.simulatorTps);
   if (wasRunning !== state.simulatorRunning) setSimulatorRunning(state.simulatorRunning);
   if (state.simulatorError && state.simulatorError !== state.simulatorSyncError) {
-    showToast(`Simulator đã dừng: ${state.simulatorError}`);
+    showToast(`Simulator stopped: ${state.simulatorError}`);
     state.simulatorSyncError = state.simulatorError;
   }
   if (state.testOffset !== previousOffset && Date.now() - state.lastSimulatorViewRefresh >= 3000) {
@@ -509,29 +650,17 @@ simulatorChannel?.addEventListener("message", ({ data }) => {
 function setSimulatorRunning(running) {
   state.simulatorRunning = running;
   const button = $("#load-test-batch");
-  const tracker = $("#simulator-tracker");
-  const video = $("#tracker-video");
-  button.textContent = running ? "■ Dừng simulator" : "▶ Chạy simulator";
+  button.textContent = running ? "■ Stop Simulator" : "▶ Run Simulator";
   button.classList.toggle("warn", running);
-  tracker.classList.toggle("hidden", !running);
-  tracker.setAttribute("aria-hidden", String(!running));
-  if (running) {
-    if (video.readyState > 0) video.currentTime = 0;
-    video.play().catch(() => showToast("Không phát được video truy vết."));
-  } else {
-    video.pause();
-    if (video.readyState > 0) video.currentTime = 0;
-  }
 }
 function readSimulatorTps() {
   const input = $("#simulator-tps");
   const tps = Number(input.value);
   if (!input.value || !Number.isInteger(tps) || tps < 1 || tps > MAX_SIMULATOR_TPS) {
-    throw new Error(`Nhập số nguyên từ 1 đến ${MAX_SIMULATOR_TPS} giao dịch/giây`);
+    throw new Error(`Enter an integer from 1 to ${MAX_SIMULATOR_TPS} transactions/sec`);
   }
   return tps;
 }
-
 async function openDetail(caseId, editDecision = false) {
   try {
     const item = await api(`/cases/${caseId}`); state.selected = item;
@@ -610,7 +739,8 @@ function closeDetail() { $("#detail-panel").classList.remove("open"); $("#panel-
 function setAuthMode(mode) {
   state.authMode = mode;
   const register = mode === "register";
-  $("#auth-subtitle").textContent = register ? "Tạo tài khoản để tham gia quy trình điều tra." : "Tập trung tín hiệu rủi ro. Ra quyết định nhanh hơn.";
+  $("#auth-subtitle").textContent = register ? "Tạo tài khoản để tham gia quy trình điều tra." : "Đăng nhập để tiếp tục tới không gian điều tra rủi ro.";
+  $("#login-card-title").textContent = register ? "Tạo tài khoản" : "Chào mừng trở lại";
   $("#login-form").querySelector("button[type=submit]").innerHTML = register ? "Tạo tài khoản <span>→</span>" : "Đăng nhập <span>→</span>";
   $("#auth-switch").textContent = register ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Tạo tài khoản";
   $("#login-hint").classList.toggle("hidden", register);
@@ -651,7 +781,8 @@ $("#login-form").addEventListener("submit", async (event) => {
     startDashboardPolling();
     try {
       await syncSimulatorState();
-      if (!state.simulatorRunning && !state.simulatorEverStarted) await loadTestBatch();
+    } catch (error) {
+      showToast(error.message);
     } finally {
       startSimulatorPolling();
     }
@@ -669,7 +800,7 @@ $("#simulator-tps").addEventListener("change", async () => {
     const tps = readSimulatorTps();
     if (tps === previousTps) {
       state.simulatorTpsInputDirty = false;
-      $("#simulator-tps").value = String(previousTps);
+      input.value = String(previousTps);
       return;
     }
     input.disabled = true;
@@ -683,12 +814,12 @@ $("#simulator-tps").addEventListener("change", async () => {
     } finally {
       input.disabled = false;
     }
-    showToast(`Tốc độ simulator đổi thành ${tps} giao dịch/giây trên tất cả các trang`);
+    showToast(`Simulator rate set to ${tps} transactions/sec`);
   } catch (error) {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-button").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#simulator-nav").addEventListener("click", () => { setView("review"); setTimeout(() => $("#load-test-batch").scrollIntoView({ behavior: "smooth", block: "center" }), 0); }); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
 $("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {
