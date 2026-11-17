@@ -1,6 +1,8 @@
 localStorage.removeItem("fraud_token");
 const DEFAULT_SIMULATOR_TPS = 10;
 const MAX_SIMULATOR_TPS = 1000;
+const INTRO_DURATION_MS = 1450;
+const INTRO_EXIT_MS = 240;
 const savedSimulatorTps = Number(localStorage.getItem("fraud_simulator_tps"));
 const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulatorTps >= 1 && savedSimulatorTps <= MAX_SIMULATOR_TPS
   ? savedSimulatorTps
@@ -104,6 +106,7 @@ async function api(path, options = {}) {
 }
 
 function showApp() {
+  $("#intro-view").classList.add("hidden");
   $("#login-view").classList.add("hidden");
   const app = $("#app-view");
   app.classList.remove("hidden");
@@ -188,7 +191,23 @@ function startSimulatorPolling() {
     });
   }, 1000);
 }
+function showIntro() {
+  const intro = $("#intro-view");
+  intro.classList.remove("hidden", "intro-exiting");
+  $("#login-view").classList.add("hidden");
+  $("#app-view").classList.add("hidden");
+  setTimeout(() => {
+    if (intro.classList.contains("hidden")) return;
+    intro.classList.add("intro-exiting");
+    setTimeout(() => {
+      if (!intro.classList.contains("hidden")) showLogin();
+    }, INTRO_EXIT_MS);
+  }, INTRO_DURATION_MS);
+}
 function showLogin() {
+  const intro = $("#intro-view");
+  intro.classList.add("hidden");
+  intro.classList.remove("intro-exiting");
   const dashboardVideo = $(".dashboard-background-video");
   if (dashboardVideo) dashboardVideo.pause();
   const login = $("#login-view");
@@ -618,6 +637,23 @@ async function loadTestBatch() {
     if (/transactions\/sec/.test(error.message)) $("#simulator-tps").focus();
   }
 }
+async function resetDemoData() {
+  if (!window.confirm("This deletes simulator-generated transactions, their cases and review actions, then immediately restarts replay from the beginning. Continue?")) return;
+  const button = $("#reset-demo-data");
+  button.disabled = true;
+  try {
+    const result = await api("/demo/reset", { method: "POST" });
+    state.page = 0;
+    state.lastSimulatorViewRefresh = Date.now();
+    applySimulatorState(result);
+    loadCurrentView();
+    showToast(`Deleted ${result.deleted_transactions} demo transactions and ${result.deleted_cases} cases; replay restarted`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
 async function syncSimulatorState() {
   if (!state.token || state.simulatorPolling) return;
   state.simulatorPolling = true;
@@ -862,7 +898,7 @@ $("#simulator-tps").addEventListener("change", async () => {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
 $("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {
@@ -881,4 +917,4 @@ $("#export-classifications").addEventListener("click", () => {
   link.click();
   URL.revokeObjectURL(link.href);
 });
-showLogin();
+showIntro();
