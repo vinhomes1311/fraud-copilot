@@ -49,13 +49,46 @@ const riskGroups = [
   { risk: "LOW", label: "Low Risk" },
 ];
 const SIMULATOR_CHART_WINDOW_SECONDS = 300;
+const decisionSummaryFields = [
+  ["decision-confirmed-fraud", "confirmed_fraud"],
+  ["decision-dismissed", "dismissed"],
+  ["decision-insufficient-evidence", "insufficient_evidence"],
+  ["decision-escalated", "escalated"],
+  ["decision-needs-more-info", "needs_more_info"],
+];
+const decisionSummaryFrames = new WeakMap();
 const showToast = (message) => { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2800); };
+function animateDecisionCount(element, target) {
+  const previousFrame = decisionSummaryFrames.get(element);
+  if (previousFrame) cancelAnimationFrame(previousFrame);
+
+  const parsedCurrent = Number(element.textContent.trim().replace(/,/g, ""));
+  const current = Number.isFinite(parsedCurrent) ? parsedCurrent : 0;
+  if (current === target || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    element.textContent = String(target);
+    return;
+  }
+
+  const startedAt = performance.now();
+  const duration = 550;
+  const update = (now) => {
+    const progress = Math.min((now - startedAt) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    element.textContent = String(Math.round(current + (target - current) * eased));
+    if (progress < 1) {
+      decisionSummaryFrames.set(element, requestAnimationFrame(update));
+    } else {
+      element.textContent = String(target);
+      decisionSummaryFrames.delete(element);
+    }
+  };
+  decisionSummaryFrames.set(element, requestAnimationFrame(update));
+}
 function renderDecisionSummary(decisions = {}) {
-  $("#decision-confirmed-fraud").textContent = decisions.confirmed_fraud ?? 0;
-  $("#decision-dismissed").textContent = decisions.dismissed ?? 0;
-  $("#decision-insufficient-evidence").textContent = decisions.insufficient_evidence ?? 0;
-  $("#decision-escalated").textContent = decisions.escalated ?? 0;
-  $("#decision-needs-more-info").textContent = decisions.needs_more_info ?? 0;
+  for (const [id, field] of decisionSummaryFields) {
+    const value = Number(decisions[field] ?? 0);
+    animateDecisionCount($(`#${id}`), Number.isFinite(value) ? value : 0);
+  }
 }
 
 async function api(path, options = {}) {
@@ -111,16 +144,23 @@ function animateCurrentView() {
   if (!section || prefersReducedMotion) return;
 
   const revealItems = [...section.querySelectorAll(revealSelector)];
+  const summaryRevealItems = state.view === "dashboard"
+    ? []
+    : [...document.querySelectorAll("#analytics-decisions .decision-summary-card")];
   void section.offsetWidth;
   section.classList.add("page-transition");
   if (!("IntersectionObserver" in window)) {
-    revealItems.forEach((element, index) => {
+    [...revealItems, ...summaryRevealItems].forEach((element, index) => {
       element.style.setProperty("--reveal-delay", `${index % 4 * 90}ms`);
       element.classList.add("page-reveal");
     });
     return;
   }
   revealItems.forEach((element) => element.classList.add("page-pending"));
+  summaryRevealItems.forEach((element, index) => {
+    element.style.setProperty("--reveal-delay", `${index % 4 * 90}ms`);
+    element.classList.add("page-reveal");
+  });
   revealObserver = new IntersectionObserver((entries, observer) => {
     entries.forEach((entry) => {
       if (!entry.isIntersecting) return;
@@ -650,7 +690,10 @@ simulatorChannel?.addEventListener("message", ({ data }) => {
 function setSimulatorRunning(running) {
   state.simulatorRunning = running;
   const button = $("#load-test-batch");
-  button.textContent = running ? "■ Stop Simulator" : "▶ Run Simulator";
+  const icon = running
+    ? '<svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" /></svg>'
+    : '<svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none" /></svg>';
+  button.innerHTML = `${icon}${running ? "Stop Simulator" : "Run Simulator"}`;
   button.classList.toggle("warn", running);
 }
 function readSimulatorTps() {
