@@ -5,6 +5,7 @@ import json
 import pytest
 
 from benchmarks.build_validation_holdout import ROOT, TARGET, build_cases
+import benchmarks.build_validation_holdout as holdout_builder
 from benchmarks.compare_llm import load_cases
 from benchmarks.playbook_eval import validate_references
 from llm_worker.local_integration import KB_PATH, canonical_features, project_evidence
@@ -41,6 +42,25 @@ def test_holdout_is_frozen_new_and_arithmetically_coherent():
         if 'avg_amt_24h' in features:
             assert features['sum_amt_24h'] == pytest.approx(count * features['avg_amt_24h'])
         assert 'HOLDOUT-PRIVATE-CANARY' not in json.dumps(project_evidence(ctx))
+
+
+def test_holdout_writer_uses_portable_bytes_and_does_not_overwrite(tmp_path, monkeypatch):
+    target = tmp_path / 'holdout.json'
+    monkeypatch.setattr(holdout_builder, 'TARGET', target)
+    holdout_builder.main()
+
+    fixture = target.read_bytes()
+    manifest_bytes = target.with_suffix('.manifest.json').read_bytes()
+    manifest = json.loads(manifest_bytes)
+    assert manifest['fixture_hash_format'] == 'utf-8-lf'
+    assert b'\r' not in fixture and b'\r' not in manifest_bytes
+    assert fixture.endswith(b'\n') and manifest_bytes.endswith(b'\n')
+    assert json.loads(fixture) == build_cases()
+    assert hashlib.sha256(fixture).hexdigest() == manifest['fixture_sha256']
+
+    with pytest.raises(SystemExit, match='already frozen'):
+        holdout_builder.main()
+    assert target.read_bytes() == fixture
 
 
 @pytest.mark.asyncio

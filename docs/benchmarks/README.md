@@ -251,6 +251,11 @@ holdout. Đây là case chưa chạy trước đó, **chưa phải dữ liệu t
 được analyst độc lập thẩm định**. Generator `build_validation_holdout.py` ghi
 lại cách xây dựng; mặc định từ chối ghi đè fixture đã tồn tại.
 
+Fixture và manifest dùng UTF-8 với xuống dòng LF, được cố định bằng
+`.gitattributes` để SHA-256 byte giống nhau trên Windows và Linux. Manifest giữ
+hash CRLF cũ trong `original_crlf_fixture_sha256` để truy vết lần chuẩn hóa;
+36 case và `canonical_cases_sha256` không thay đổi.
+
 ```powershell
 # 36 case, 1 lần/case/model + 1 warm-up: 74 generation request.
 $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434'

@@ -1,0 +1,2 @@
+# Frozen fixture byte hashes must match on Windows and Linux checkouts.
+benchmarks/fixtures/*.json text eol=lf

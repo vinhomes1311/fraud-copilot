@@ -195,10 +195,12 @@ def main():
     if TARGET.exists():
         raise SystemExit('Fixture already frozen; do not overwrite it after inference.')
     cases = build_cases()
-    TARGET.write_text(json.dumps(cases, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    # Hash the same UTF-8/LF bytes that Git stores, independent of the host OS.
+    TARGET.write_bytes((json.dumps(cases, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
     manifest = {
         'created_at_utc': datetime.now(timezone.utc).isoformat(),
         'fixture': TARGET.name, 'case_count': len(cases),
+        'fixture_hash_format': 'utf-8-lf',
         'fixture_sha256': hashlib.sha256(TARGET.read_bytes()).hexdigest(),
         'canonical_cases_sha256': hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
         'retrieval_policy_sha256': hashlib.sha256((ROOT/'llm_worker/retrieval_policy.py').read_bytes()).hexdigest(),
@@ -207,7 +209,7 @@ def main():
         'provenance': 'New synthetic contexts and playbook-derived reference proposals authored separately from v2; not independently adjudicated or production data.',
         'procedure': 'Do not tune policy, prompt or reference labels after observing holdout outputs; report all failures.',
     }
-    TARGET.with_suffix('.manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
+    TARGET.with_suffix('.manifest.json').write_bytes((json.dumps(manifest, indent=2)+'\n').encode('utf-8'))
     print(json.dumps(manifest, indent=2))
 
 
