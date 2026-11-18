@@ -1,3 +1,4 @@
+from benchmarks.mock_llm import explanatory_selection
 import copy
 import json
 import os
@@ -33,7 +34,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             'features': {'txn_count_24h': 0, 'avg_amt_24h': 0},
             'explanations': [{'feature': 'amt', 'value': 100, 'contribution': 0.2}]}
         self.chunks = await ApprovedPlaybookRetriever().retrieve(['amt'], 'HIGH')
-        self.selection = {'checklist_ids': ['PB-03']}
+        self.selection = explanatory_selection(['PB-03'])
 
     def reply(self):
         return {'choices': [{'finish_reason': 'stop', 'message': {
@@ -70,17 +71,19 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body['response_format']['type'], 'json_schema')
         self.assertTrue(body['response_format']['json_schema']['strict'])
         self.assertEqual(set(body['response_format']['json_schema']['schema']['required']),
-                         {'checklist_ids'})
+                         {'checklist_ids', 'rationales'})
         self.assertEqual(set(body['response_format']['json_schema']['schema']['properties']),
-                         {'checklist_ids'})
+                         {'checklist_ids', 'rationales'})
         self.assertEqual(body['max_completion_tokens'], 1024)
         self.assertFalse(body['store'])
         self.assertNotIn('reasoning_effort', body)
         self.assertEqual(result.tokens_used, 120)
         self.assertEqual(result.model_name, 'test-model')
         self.assertEqual(result.brief.citations[0].rule_code, 'PB-03')
-        self.assertEqual(result.brief.summary, ' '.join(
-            item['text'] for item in project_evidence(self.ctx).values()))
+        self.assertIn('Transaction amount: 100', result.brief.summary)
+        self.assertIn('Calibrated probability: 80%', result.brief.summary)
+        self.assertNotIn('PRIVATE', result.brief.summary)
+        self.assertNotIn('Checklist actions are team proposals', result.brief.summary)
         check_grounding(result.brief, self.chunks)
 
     def test_online_defaults_require_only_key(self):
@@ -108,7 +111,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         def handler(request):
             captured.append(request)
             reply = self.reply()
-            selection = dict(self.selection, checklist_ids=['PB-06'])
+            selection = explanatory_selection(['PB-06'])
             reply['choices'][0]['message']['content'] = json.dumps(selection)
             return httpx.Response(200, json=reply)
 
@@ -129,6 +132,8 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[6], 120)
         self.assertEqual(args[7], 'generation-api')
         self.assertEqual(args[1]['citations'][0]['rule_code'], 'PB-06')
+        self.assertGreater(len(args[1]['checklist'][0]['rationale'].split()), 25)
+        self.assertEqual(args[1]['checklist'][0]['evidence_ids'], ['EV-AMOUNT'])
 
     async def test_json_mode_and_legacy_token_parameter(self):
         with patch.dict(os.environ, {'LLM_API_RESPONSE_FORMAT': 'json_object',
@@ -177,7 +182,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         kb = json.loads(KB_PATH.read_text(encoding='utf-8'))
         self.chunks = [Chunk(section_id=c['section_id'], rule_code=c['rule_code'], text=c['text'])
                        for c in kb['chunks']]
-        self.selection = {'checklist_ids': ['PB-28']}
+        self.selection = explanatory_selection(['PB-28'])
         result, requests = await self.run_api()
         body = json.loads(requests[0].content)
         self.assertEqual(body['messages'][0]['content'], OLLAMA_SELECTION_PROMPT)
@@ -185,7 +190,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             'checklist_ids']['items']['enum']
         self.assertEqual(allowed, ['PB-28'])
         self.assertEqual([c.rule_code for c in result.brief.checklist], ['PB-28'])
-        self.selection = {'checklist_ids': ['PB-11', 'PB-13']}
+        self.selection = explanatory_selection(['PB-11', 'PB-13'])
         with self.assertRaisesRegex(ValueError, 'Missing required'):
             await self.run_api()
 

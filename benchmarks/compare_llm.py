@@ -30,6 +30,7 @@ import llm_worker.local_integration as local_module
 from fraud_common.config import get_settings
 from llm_worker.grounding import check_grounding
 from llm_worker.rag import ApprovedPlaybookRetriever
+from benchmarks.mock_llm import explanatory_selection
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CASES = ROOT / 'benchmarks/fixtures/cases.json'
@@ -330,6 +331,10 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
               'playbook_sha256': hashlib.sha256(local_module.KB_PATH.read_bytes()).hexdigest(),
               'retrieval_policy_sha256': hashlib.sha256(
                   (ROOT / 'llm_worker/retrieval_policy.py').read_bytes()).hexdigest(),
+              'brief_renderer_sha256': hashlib.sha256(
+                  (ROOT / 'llm_worker/brief_renderer.py').read_bytes()).hexdigest(),
+              'narrative_validator_sha256': hashlib.sha256(
+                  (ROOT / 'llm_worker/narrative.py').read_bytes()).hexdigest(),
               'base_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'ollama_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'adapter_source_sha256': {
@@ -343,7 +348,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
         prototype = factories[provider]()
         options = {'model': prototype.model_name(), 'completion_cap': config.completion_cap}
         if provider == 'api':
-            options.update(selection_contract='checklist-only-v1',
+            options.update(selection_contract='explained-brief-v2',
                            evidence_source='backend-all-evidence',
                            response_format=prototype.response_format,
                            token_parameter=prototype.token_parameter,
@@ -351,7 +356,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                            reasoning_effort=prototype.reasoning_effort or 'provider_default',
                            temperature='provider_default')
         else:
-            options.update(selection_contract='checklist-only-v1', evidence_source='backend-all-evidence',
+            options.update(selection_contract='explained-brief-v2', evidence_source='backend-all-evidence',
                              response_format='json_schema', temperature=0,
                              keep_alive=os.getenv('OLLAMA_KEEP_ALIVE', '10m'))
         report['provider_options'][provider] = options
@@ -406,7 +411,7 @@ def mock_response(request):
     available = [c['id'] for c in playbook]
     mandatory = [c['id'] for c in playbook if c.get('selection_role') == 'mandatory_gap']
     ids = mandatory or [i for i in ids if i in available] or available[:1]
-    content = json.dumps({'checklist_ids': ids})
+    content = json.dumps(explanatory_selection(ids))
     if request.url.path.endswith('/chat/completions'):
         return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': content}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})

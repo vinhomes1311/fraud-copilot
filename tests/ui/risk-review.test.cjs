@@ -112,6 +112,25 @@ test('checklist retains rule codes without repeating references or the original 
   assert.match(render(null, 'LOW'), /Low-risk cases do not generate briefs automatically/);
 });
 
+test('brief shows generated explanations with supporting facts and escapes generated text', () => {
+  const app = readFileSync(resolve(root, 'static/app.js'), 'utf8');
+  const functionText = app.slice(app.indexOf('function renderBrief('), app.indexOf('function renderEvidence('));
+  const escapeHtml = (value) => String(value ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const render = vm.runInNewContext(`${functionText}; renderBrief`, { escapeHtml });
+  const html = render({
+    key_signals: ['Transaction amount: 1500.'],
+    checklist: [{action: 'Average transaction amount: 100.', rule_code: 'PB-08',
+      rationale: 'The current amount exceeds the recent average. <img src=x onerror=alert()>',
+      evidence_ids: ['EV-AMOUNT']}],
+    citations: [{quote: 'Internal playbook instructions'}],
+  }, 'HIGH');
+  assert.match(html, /The current amount exceeds the recent average/);
+  assert.match(html, /Supporting case facts/);
+  assert.match(html, /Transaction amount: 1500/);
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img|EV-AMOUNT|Internal playbook instructions/);
+});
+
 test('case drawer integrates the new sections and copies the full ID without changing server data', async () => {
   const elements = new Map();
   function element(selector) {

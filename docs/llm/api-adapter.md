@@ -85,15 +85,38 @@ embedding/Ollama. Đây chưa phải semantic retrieval cho KB lớn. Có thể 
 ## Hợp đồng dữ liệu và xử lý lỗi
 
 Client gửi evidence đã lọc theo allowlist và các đoạn playbook được phê duyệt.
-API và Ollama dùng chung prompt và hợp đồng `checklist-only-v1`: LLM chỉ trả
-`{"checklist_ids":["PB-03"]}` (1–3 ID duy nhất). Ứng dụng tự đưa toàn bộ evidence
-đã lọc vào brief theo thứ tự cố định; model không cần chép lại `evidence_ids`.
+API và Ollama dùng chung prompt và hợp đồng `explained-brief-v2`: LLM chọn
+1–3 `checklist_ids` duy nhất và sinh `rationales`, mỗi rule có một đoạn giải thích
+tiếng Anh khoảng 40–75 từ, kèm `rule_code`, `evidence_ids` và `text`.
+Backend dựng số liệu; model giải thích ý nghĩa và liên hệ giữa các tín hiệu của case.
+Các so sánh lớn hơn/nhỏ hơn/bằng giữa số tiền và mean/max hợp lệ được backend tính
+trước. Không dùng baseline mặc định làm căn cứ so sánh.
 Quy tắc không áp dụng được loại khỏi prompt và schema trước inference. Trường hợp
 bắt buộc kiểm tra thiếu baseline maximum chỉ cho phép chọn quy tắc data-gap tương ứng.
 Ứng dụng xác minh ID, checklist không trùng và render brief từ nguồn đã kiểm tra.
+Nội dung hiển thị được dựng bằng tiếng Anh từ số liệu case đã projection:
+giờ giao dịch, số giao dịch và mức tiền tham chiếu thực có. Không hiển thị chú
+thích thiếu múi giờ, loại tiền, baseline hoặc xác suất; không thay dữ liệu thiếu bằng 0.
+Các hướng dẫn như “Ghi rõ”, “Bỏ qua”, “Không tự suy luận” trong playbook chỉ phục
+vụ model; không chép `implementation_action` hoặc prompt vào summary/checklist.
+Ví dụ PB-19 hiển thị “Transaction hour: 13.”
+Phía dưới số liệu là phần giải thích do LLM sinh; mục “Supporting case facts”
+cho phép xem các tín hiệu còn lại. Brief cũ không có rationale vẫn đọc được.
+Rationale chỉ được tham chiếu fact có thể hiển thị, không dùng gap/prompt làm
+bằng chứng. Giá trị số trong prose phải dùng placeholder như `{{EV-AMOUNT}}`;
+backend thay bằng giá trị nguồn và từ chối số tự viết, note thiếu dữ liệu, text
+quá ngắn và tham chiếu sai. Đây là kiểm tra cấu trúc/nguồn số liệu, không phải
+bảo đảm tính đúng đắn ngữ nghĩa của mọi nhận định tự do do model sinh.
+Playbook v2.1 là bản dịch tiếng Anh, giữ rule ID và điều kiện áp dụng của v2.0.
+Citation giữ quote nguyên văn của nguồn tiếng Anh, tách khỏi phần trình bày.
+Kết quả benchmark cũ vẫn thuộc phiên bản nguồn/prompt cũ.
+Brief đã lưu trước cập nhật cần được tạo lại để có nội dung mới.
 Citation phải có quote không rỗng khớp nguyên văn nguồn được truy xuất; mỗi rule
 trong checklist cần citation riêng. Model không tự thay đổi điểm rủi ro hay routing.
-Sau khi cập nhật, khởi động lại worker; output còn chứa `evidence_ids` bị từ chối.
+Sau khi cập nhật, rebuild/restart `analyst-api` và `llm-worker`. Output chỉ chứa
+checklist ID mà thiếu rationale bị từ chối thay vì âm thầm sinh brief ngắn.
+Mặc định trần output là 1024 token. Nếu `.env` cũ còn
+`OLLAMA_MAX_COMPLETION_TOKENS=128`, đổi thành 1024 khi dùng Ollama.
 Request mặc định đặt `store=false` (có thể bỏ bằng `LLM_API_STORE=omit`), không theo redirect và không đưa key vào prompt.
 Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
 

@@ -893,6 +893,11 @@ tbody tr:hover { background: #fff8f9; }
 .factor-context { font-size: 11px; color: #766d7e; line-height: 1.7; margin: 12px 0 0; }
 .investigation-checklist { margin: 0; padding-left: 18px; }
 .investigation-checklist li + li { margin-top: 12px; }
+.brief-facts { margin: 0; font-weight: 600; color: #514659; }
+.brief-rationale { margin: 7px 0 0; line-height: 1.8; }
+.brief-supporting-facts { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.brief-supporting-facts > summary { cursor: pointer; font-weight: 600; }
+.brief-supporting-facts ul { padding-left: 18px; margin-bottom: 0; }
 .brief-fallback-label { color: #88601e; margin: 0 0 12px; font-size: 11px; }
 .model-details, .transaction-details { border-bottom: 1px solid var(--line); padding: 20px 0; }
 .model-details > summary, .transaction-details > summary { cursor: pointer; color: #675c70; font-size: 12px; font-weight: 600; line-height: 1.6; }

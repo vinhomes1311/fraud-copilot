@@ -165,17 +165,19 @@ ghi vào report. Không tự retry để tránh trộn chi phí/độ trễ retr
 
 ## So sánh công bằng và giới hạn
 
-- API và Ollama dùng chung prompt và hợp đồng `checklist-only-v1`: model chỉ chọn 1–3 checklist ID;
-  backend đưa toàn bộ evidence đã kiểm duyệt vào brief theo thứ tự cố định.
+- API và Ollama dùng chung prompt và hợp đồng `explained-brief-v2`: model chọn 1–3 checklist ID
+  và viết đoạn giải thích ngắn cho từng rule, kèm evidence ID. Backend dựng số liệu
+  và kiểm tra nguồn số trong prose; các nhận định ngữ nghĩa vẫn cần analyst đánh giá.
   Checklist lạ, trùng, rỗng, quá 3 mục hoặc field ngoài hợp đồng vẫn bị từ chối.
   Đây là cải thiện prompt/adapter, không phải train lại hoặc đổi trọng số model.
   `provider_options` ghi rõ hợp đồng và nguồn evidence; report cũng lưu hash prompt
-  chung. Không dùng latency hoặc số output token để kết luận về chất lượng lựa chọn;
+  chung và hash validator cho phần giải thích. Kết quả cũ thuộc hợp đồng chỉ chọn ID
+  không so sánh trực tiếp với tác vụ sinh giải thích dài hơn. Không dùng latency
+  hoặc số output token để kết luận về chất lượng lựa chọn;
   cần kiểm tra rule tham chiếu trên bộ case đại diện.
 - `--completion-cap` mặc định 1024 được áp dụng cho cả hai provider. Ollama worker
-  thường mặc định 128, cấu hình bằng `OLLAMA_MAX_COMPLETION_TOKENS`;
-  benchmark truyền cap riêng qua constructor. Để đo đúng cấu hình demo, thêm
-  `--completion-cap 128`.
+  cũng mặc định 1024, cấu hình bằng `OLLAMA_MAX_COMPLETION_TOKENS`;
+  benchmark truyền cap riêng qua constructor. Cap cũ 128 có thể cắt mất phần giải thích.
 - Dùng chung context theo từng case và seed để xáo thứ tự case giống nhau. Hai provider chạy từng
   batch nối tiếp để tránh tranh tài nguyên. Thử đảo `--providers api ollama` và lặp
   nhiều lần khi cần giảm ảnh hưởng thứ tự, cache và nhiệt độ máy.

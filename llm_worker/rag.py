@@ -18,13 +18,13 @@ class Retriever(Protocol):
 
 _FAKE_PLAYBOOK = [
     Chunk(section_id="PB-2.1", rule_code="AMT-01",
-          text="Giao dịch có giá trị lớn bất thường so với lịch sử tài khoản cần xác minh nguồn gốc."),
+          text="A transaction amount unusually large relative to account history requires verification of its origin."),
     Chunk(section_id="PB-3.2", rule_code="GEO-02",
-          text="Khoảng cách giữa nơi cư trú và điểm bán lớn: kiểm tra khả năng thẻ bị sao chép."),
+          text="A large home-to-merchant distance calls for reviewing the possibility of card cloning."),
     Chunk(section_id="PB-4.1", rule_code="VEL-03",
-          text="Nhiều giao dịch trong thời gian ngắn là dấu hiệu velocity attack."),
+          text="Many transactions within a short period are a signal of a possible velocity attack."),
     Chunk(section_id="PB-9.1", rule_code="ESC-01",
-          text="Rủi ro cao hoặc không xác minh được cần chuyển cấp cho Risk Lead."),
+          text="High risk or unsuccessful verification requires escalation to the Risk Lead."),
 ]
 _SIGNAL_TO_RULE = {"amt": "AMT-01", "dist_home_merchant_km": "GEO-02", "txn_count_24h": "VEL-03"}
 

@@ -1,3 +1,4 @@
+from benchmarks.mock_llm import explanatory_selection
 """Check .env startup behavior and the synthetic smoke command without real APIs."""
 import json
 import os
@@ -62,7 +63,7 @@ async def test_live_smoke_uses_synthetic_evidence_and_validates_grounding():
         captured.append(request)
         return httpx.Response(200, json={
             'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(
-                {'checklist_ids': ['PB-03']})}}],
+                explanatory_selection(['PB-03']))}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
 
     with patch.dict(os.environ, {'LLM_API_KEY': 'synthetic-key'}, clear=True), \

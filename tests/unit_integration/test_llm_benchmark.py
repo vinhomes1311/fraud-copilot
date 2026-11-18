@@ -384,9 +384,9 @@ def test_rag_llm_times_semantic_retrieval_for_both_providers(tmp_path, monkeypat
     assert report['architecture_coverage']['semantic_retrieval_timed'] is True
     assert report['retrieval_options']['kind'] == 'ollama'
     assert report['retrieval_options']['embedding_model']
-    assert report['provider_options']['ollama']['selection_contract'] == 'checklist-only-v1'
+    assert report['provider_options']['ollama']['selection_contract'] == 'explained-brief-v2'
     assert report['provider_options']['ollama']['evidence_source'] == 'backend-all-evidence'
-    assert report['provider_options']['api']['selection_contract'] == 'checklist-only-v1'
+    assert report['provider_options']['api']['selection_contract'] == 'explained-brief-v2'
     assert report['provider_options']['api']['evidence_source'] == 'backend-all-evidence'
     assert report['base_system_prompt_sha256'] == report['ollama_system_prompt_sha256']
     assert report['ollama_system_prompt_sha256']

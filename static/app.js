@@ -72,12 +72,15 @@ function renderBrief(brief, riskLevel) {
   if (!brief) return riskLevel === "LOW"
     ? "Low-risk cases do not generate briefs automatically. You can still review and add notes."
     : "Brief is being generated or is not yet available.";
-  if (typeof brief === "string") return "No investigation checklist available.";
+  if (typeof brief === "string") return "No case brief available.";
   const checklist = (brief.checklist || []).map((item) =>
-    `<li>${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</li>`
+    `<li><p class="brief-facts">${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</p>${item.rationale ? `<p class="brief-rationale">${escapeHtml(item.rationale)}</p>` : ""}</li>`
   ).join("");
+  const supportingFacts = (brief.checklist || []).some((item) => item.rationale)
+    ? (brief.key_signals || []).map((fact) => `<li>${escapeHtml(fact)}</li>`).join("") : "";
   return (brief.source === "rule_based" ? `<p class="brief-fallback-label">Rule-based fallback</p>` : "")
-    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No investigation checklist available.</p>`);
+    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No case brief available.</p>`)
+    + (supportingFacts ? `<details class="brief-supporting-facts"><summary>Supporting case facts</summary><ul>${supportingFacts}</ul></details>` : "");
 }
 function renderEvidence(item) {
   if (!item.brief_status) return `<span class="evidence muted-label">No brief</span>`;
@@ -322,7 +325,7 @@ async function openDetail(caseId, editDecision = false) {
       : `${reclassifying ? `<p class="section-note reclassification-note">Revising this decision appends a new entry to the audit history.</p>` : ""}<label class="decision-note-label" for="decision-note">Review note <span>(optional)</span></label><textarea id="decision-note" maxlength="2000" placeholder="Add investigation notes or handoff context..."></textarea><div class="decision-actions">${actionButtons}</div>`;
     $("#detail-content").innerHTML = window.RiskReview.renderOverview(item)
       + window.RiskReview.renderSignals(item)
-      + `<section class="detail-section"><h4>Investigation checklist</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>`
+      + `<section class="detail-section"><h4>Case brief</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>`
       + window.RiskReview.renderTechnicalDetails(item)
       + `<details class="transaction-details"><summary>Transaction details</summary><div class="data-grid">${transaction}</div></details><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
     $("#detail-content .copy-transaction-id")?.addEventListener("click", async () => {
