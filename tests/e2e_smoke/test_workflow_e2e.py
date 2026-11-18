@@ -26,6 +26,7 @@ import scoring_worker.pipeline.pii as pii_module
 import scoring_worker.pipeline.routing as routing_module
 import scoring_worker.processor as scoring_module
 from analyst_api.state import state
+from benchmarks.mock_llm import explanatory_selection
 from fraud_common.db import Database, _init_conn
 from fraud_common.queues import ReliableQueue
 from fraud_common.schemas import Explanation, ScoringOutput
@@ -116,7 +117,7 @@ async def test_entire_workflow(monkeypatch, provider):
             'checklist_ids']['items']['enum']
         # Mirror a compliant model: choose an ID allowed by this request's actual
         # retrieved playbook and any mandatory-gap schema constraint.
-        selection = {'checklist_ids': [allowed_rules[0]]}
+        selection = explanatory_selection([allowed_rules[0]])
         return httpx.Response(200, json={
             'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(selection)}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
@@ -213,6 +214,9 @@ async def test_entire_workflow(monkeypatch, provider):
                         assert case['brief_status'] == 'READY', case
                         assert case['brief']['citations'] and case['brief']['checklist']
                         assert case['brief']['source'] == 'llm'
+                        if provider == 'api':
+                            assert all(item['rationale'] and item['evidence_ids']
+                                       for item in case['brief']['checklist'])
                         assert 'cc_num' not in case['transaction'] and 'is_fraud' not in case['transaction']
                         assert 'PRIVATE' not in json.dumps(case['transaction'])
 

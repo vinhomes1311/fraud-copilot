@@ -29,9 +29,8 @@ def display_number(value):
     return str(value)
 
 
-def case_facts(evidence, factors=None):
+def case_facts(evidence):
     """Return display text keyed by projected evidence ID, never by raw payload."""
-    factors = factors or {}
     facts = {}
     for key, item in evidence.items():
         if key == 'EV-AMOUNT':
@@ -54,7 +53,7 @@ def case_facts(evidence, factors=None):
             unit = ' km' if name == 'dist_home_merchant_km' else ''
             facts[key] = f'{label}: {value}{unit}.'
         elif key.startswith('EV-FACTOR-'):
-            factor = factors.get(key, item)
+            factor = item
             if not {'feature', 'value', 'contribution'} <= factor.keys():
                 raise ValueError('Missing verified factor values for case rendering')
             label = FEATURE_LABELS[factor['feature']]
@@ -109,8 +108,8 @@ RULE_FACTS = {
 }
 
 
-def render_brief(evidence, selected_chunks, factors=None, rationales=None):
-    facts = case_facts(evidence, factors)
+def render_brief(evidence, selected_chunks, rationales=None):
+    facts = case_facts(evidence)
     gaps = [key for key in facts if key.endswith('-GAP')]
     factor_ids = [key for key in facts if key.startswith('EV-FACTOR-')]
     checklist = []

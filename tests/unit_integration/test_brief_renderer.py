@@ -84,9 +84,7 @@ async def test_rendered_action_changes_with_case_and_distinguishes_missing_from_
     result = await generate(ctx, ['PB-19', 'PB-06'])
     assert result.brief.checklist[0].action == 'Transaction hour: 2.'
     assert 'No transactions recorded in the previous 24 hours.' not in body(result.brief)
-    assert 'EV-HISTORY-GAP' not in case_facts(project_evidence(ctx), {
-        'EV-FACTOR-0': {'feature': 'hour_of_day', 'value': 2, 'contribution': -0.27},
-    })
+    assert 'EV-HISTORY-GAP' not in case_facts(project_evidence(ctx))
     assert 'missing' not in body(result.brief).lower()
     assert 'unavailable' not in body(result.brief).lower()
 
@@ -123,14 +121,13 @@ def test_renderer_ignores_model_prose_and_missing_data_notes():
     evidence = project_evidence(context())
     for item in evidence.values():
         item['text'] = 'INTERNAL-PROSE-CANARY'
-    factors = {'EV-FACTOR-0': {'feature':'hour_of_day','value':13,'contribution':-0.27}}
-    facts = case_facts(evidence, factors)
+    facts = case_facts(evidence)
     assert set(facts) == set(evidence) - {'EV-LIMIT', 'EV-MAX-7D-GAP'}
     assert 'INTERNAL-PROSE-CANARY' not in ' '.join(facts.values())
     kb = json.loads(KB_PATH.read_text(encoding='utf-8'))['chunks']
     assert set(RULE_FACTS) | {'PB-05','PB-23','PB-25','PB-28'} == {c['id'] for c in kb}
     with pytest.raises(ValueError, match='Missing case-fact renderer'):
-        render_brief(evidence,[dict(kb[0],rule_code='PB-UNKNOWN')],factors)
+        render_brief(evidence,[dict(kb[0],rule_code='PB-UNKNOWN')])
 
 
 @pytest.mark.asyncio

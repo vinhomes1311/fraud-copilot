@@ -28,6 +28,7 @@ from analyst_api.events import enqueue_brief
 import llm_worker.api_client as api_module
 import llm_worker.local_integration as local_module
 from benchmarks.compare_llm import RequestPacer, load_cases, ROOT
+from benchmarks.mock_llm import explanatory_selection
 from fraud_common.db import Database, _init_conn
 from fraud_common.queues import ReliableQueue
 from fraud_common.resilience import CircuitBreaker
@@ -87,7 +88,7 @@ class SyntheticFaultSuccess(local_module.OllamaClient):
     async def chat(self, model, schema, evidence, selected_chunks):
         allowed = schema['properties']['checklist_ids']['items']['enum']
         return {'done': True, 'prompt_eval_count': 100, 'eval_count': 20,
-                'message': {'content': json.dumps({'checklist_ids': allowed[:1]})}}
+                'message': {'content': json.dumps(explanatory_selection(allowed[:1]))}}
 
 
 async def validate(output, interval):

@@ -1,4 +1,3 @@
-from benchmarks.mock_llm import explanatory_selection
 """Check .env startup behavior and the synthetic smoke command without real APIs."""
 import json
 import os
@@ -11,6 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+
+from benchmarks.mock_llm import explanatory_selection
 
 from llm_worker.smoke_test import check
 

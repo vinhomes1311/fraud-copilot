@@ -14,6 +14,38 @@ INTERNAL_NOTES = re.compile(
     r'\b(?:write|record|ignore|omit) (?:the |a |these |this )|'
     r'\b(?:customer was contacted|card was blocked|verified with the customer)\b', re.I)
 
+MAX_CHECKLIST_ITEMS = 3
+MAX_RATIONALE_EVIDENCE = 6
+
+
+def brief_schema(evidence, chunks):
+    """One output contract for local constrained decoding and hosted JSON Schema."""
+    mandatory = [c['id'] for c in chunks if c.get('selection_role') == 'mandatory_gap']
+    allowed = mandatory or [c['id'] for c in chunks]
+    maximum = len(mandatory) if mandatory else MAX_CHECKLIST_ITEMS
+    rationale = {
+        'type': 'object', 'additionalProperties': False,
+        'required': ['rule_code', 'evidence_ids', 'text'],
+        'properties': {
+            'rule_code': {'type': 'string', 'enum': allowed},
+            'evidence_ids': {
+                'type': 'array', 'minItems': 1, 'maxItems': MAX_RATIONALE_EVIDENCE,
+                'uniqueItems': True,
+                'items': {'type': 'string', 'enum': list(case_facts(evidence))}},
+            'text': {'type': 'string'},
+        },
+    }
+    return {
+        'type': 'object', 'additionalProperties': False,
+        'required': ['checklist_ids', 'rationales'],
+        'properties': {
+            'checklist_ids': {'type': 'array', 'minItems': 1, 'maxItems': maximum,
+                              'uniqueItems': True, 'items': {'type': 'string', 'enum': allowed}},
+            'rationales': {'type': 'array', 'minItems': 1, 'maxItems': maximum,
+                           'items': rationale},
+        },
+    }
+
 
 def prompt_payload(evidence, chunks):
     """Separate visible case facts and verified comparisons from source instructions."""
@@ -44,7 +76,7 @@ def validate_rationales(items, rules, evidence):
         rule, ids, prose = item['rule_code'], item['evidence_ids'], item['text']
         if not isinstance(rule, str) or rule not in rules or rule in result:
             raise ValueError('Unknown or duplicate rationale rule')
-        if (not isinstance(ids, list) or not 1 <= len(ids) <= 6 or
+        if (not isinstance(ids, list) or not 1 <= len(ids) <= MAX_RATIONALE_EVIDENCE or
                 any(not isinstance(key, str) for key in ids) or
                 len(ids) != len(set(ids)) or not set(ids) <= facts.keys()):
             raise ValueError('Rationale must reference visible verified case facts')

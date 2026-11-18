@@ -32,7 +32,6 @@ class StubLLMClient:
         if random.random() < s.llm_stub_fail_rate:                  # giả lập lỗi để test breaker/fallback
             raise RuntimeError("stub LLM failure")
         tx = ctx["transaction"]
-        signals = [e["feature"] for e in ctx["explanations"]]
         brief = BriefContent(
             summary=(f"Transaction {ctx['txn_id']}, amount {tx.get('amt')} at {tx.get('merchant')} "
                      f"({tx.get('category')}), risk level {ctx['risk_level']} "

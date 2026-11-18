@@ -85,7 +85,6 @@ class KagglePlaybookTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_kaggle_fixtures_render_grounded_playbook_actions(self):
         chunks = await ApprovedPlaybookRetriever().retrieve([], 'MEDIUM')
-        kb = load(KB_PATH)
         reply = {'done': True, 'prompt_eval_count': 100, 'eval_count': 10,
                  'message': {'content': json.dumps(explanatory_selection(['PB-03']))}}
         for case in self.cases:

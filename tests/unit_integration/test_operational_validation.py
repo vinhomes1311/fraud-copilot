@@ -1,6 +1,6 @@
 import pytest
 
-from benchmarks.operational_validation import validate_test_service_urls
+from benchmarks.operational_validation import SyntheticFaultSuccess, validate_test_service_urls
 
 
 @pytest.mark.parametrize('db,redis', [
@@ -22,3 +22,17 @@ def test_operational_runner_accepts_dedicated_local_services(monkeypatch):
     monkeypatch.setenv('FRAUD_TEST_DB_URL',db)
     monkeypatch.setenv('FRAUD_TEST_REDIS_URL',redis)
     assert validate_test_service_urls()==(db,redis)
+
+
+@pytest.mark.asyncio
+async def test_fault_success_fixture_uses_current_explained_brief_contract():
+    from benchmarks.compare_llm import load_cases
+    from llm_worker.grounding import check_grounding
+    from llm_worker.rag import ApprovedPlaybookRetriever
+
+    ctx = load_cases()[0]['context']
+    chunks = await ApprovedPlaybookRetriever().retrieve_context(ctx)
+    result = await SyntheticFaultSuccess().generate(ctx, chunks)
+    check_grounding(result.brief, chunks)
+    assert result.tokens_used == 120
+    assert all(item.rationale and item.evidence_ids for item in result.brief.checklist)

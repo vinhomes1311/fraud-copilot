@@ -7,7 +7,8 @@ from urllib.parse import urlsplit
 import httpx
 
 from fraud_common.config import get_settings
-from .local_integration import OllamaClient, OLLAMA_SELECTION_PROMPT
+from .local_integration import OllamaClient
+from .prompts import BRIEF_SYSTEM_PROMPT
 from .narrative import prompt_payload
 
 
@@ -96,7 +97,7 @@ class APIClient(OllamaClient):
             'model': model, 'stream': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
-                {'role': 'system', 'content': OLLAMA_SELECTION_PROMPT},
+                {'role': 'system', 'content': BRIEF_SYSTEM_PROMPT},
                 {'role': 'user', 'content': json.dumps(
                     prompt_payload(evidence, selected_chunks), ensure_ascii=False)},
             ],

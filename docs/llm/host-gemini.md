@@ -13,7 +13,7 @@ Chỉ MEDIUM/HIGH tự phát case_events để tạo brief; LOW cần analyst y�
 Mọi terminal đều đứng ở thư mục gốc repository:
 
 ```powershell
-Set-Location C:\Yuuki\code\test\fraud-copilot
+Set-Location C:\path\to\fraud-copilot
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Test-Path data\models\fraud_xgboost.joblib
 ```

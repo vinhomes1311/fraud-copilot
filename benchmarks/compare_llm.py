@@ -31,6 +31,7 @@ from fraud_common.config import get_settings
 from llm_worker.grounding import check_grounding
 from llm_worker.rag import ApprovedPlaybookRetriever
 from benchmarks.mock_llm import explanatory_selection
+from llm_worker.prompts import BRIEF_CONTRACT_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CASES = ROOT / 'benchmarks/fixtures/cases.json'
@@ -335,8 +336,8 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                   (ROOT / 'llm_worker/brief_renderer.py').read_bytes()).hexdigest(),
               'narrative_validator_sha256': hashlib.sha256(
                   (ROOT / 'llm_worker/narrative.py').read_bytes()).hexdigest(),
-              'base_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
-              'ollama_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
+              'base_system_prompt_sha256': hashlib.sha256(local_module.BRIEF_SYSTEM_PROMPT.encode()).hexdigest(),
+              'ollama_system_prompt_sha256': hashlib.sha256(local_module.BRIEF_SYSTEM_PROMPT.encode()).hexdigest(),
               'adapter_source_sha256': {
                   'api': hashlib.sha256(Path(api_module.__file__).read_bytes()).hexdigest(),
                   'ollama': hashlib.sha256(Path(local_module.__file__).read_bytes()).hexdigest()},
@@ -348,7 +349,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
         prototype = factories[provider]()
         options = {'model': prototype.model_name(), 'completion_cap': config.completion_cap}
         if provider == 'api':
-            options.update(selection_contract='explained-brief-v2',
+            options.update(selection_contract=BRIEF_CONTRACT_VERSION,
                            evidence_source='backend-all-evidence',
                            response_format=prototype.response_format,
                            token_parameter=prototype.token_parameter,
@@ -356,7 +357,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                            reasoning_effort=prototype.reasoning_effort or 'provider_default',
                            temperature='provider_default')
         else:
-            options.update(selection_contract='explained-brief-v2', evidence_source='backend-all-evidence',
+            options.update(selection_contract=BRIEF_CONTRACT_VERSION, evidence_source='backend-all-evidence',
                              response_format='json_schema', temperature=0,
                              keep_alive=os.getenv('OLLAMA_KEEP_ALIVE', '10m'))
         report['provider_options'][provider] = options

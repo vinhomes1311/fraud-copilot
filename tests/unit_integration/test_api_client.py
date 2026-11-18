@@ -174,7 +174,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                     await self.run_api(reply)
 
     async def test_shared_prompt_and_schema_respect_exclusive_data_gap(self):
-        from llm_worker.local_integration import KB_PATH, OLLAMA_SELECTION_PROMPT
+        from llm_worker.local_integration import KB_PATH, BRIEF_SYSTEM_PROMPT
         from llm_worker.rag import Chunk
         from benchmarks.compare_llm import ROOT, load_cases
         cases = load_cases(ROOT / 'benchmarks/fixtures/playbook_v2_boundary_cases.json')
@@ -185,7 +185,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.selection = explanatory_selection(['PB-28'])
         result, requests = await self.run_api()
         body = json.loads(requests[0].content)
-        self.assertEqual(body['messages'][0]['content'], OLLAMA_SELECTION_PROMPT)
+        self.assertEqual(body['messages'][0]['content'], BRIEF_SYSTEM_PROMPT)
         allowed = body['response_format']['json_schema']['schema']['properties'][
             'checklist_ids']['items']['enum']
         self.assertEqual(allowed, ['PB-28'])

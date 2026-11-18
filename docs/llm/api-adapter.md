@@ -117,6 +117,11 @@ Sau khi cập nhật, rebuild/restart `analyst-api` và `llm-worker`. Output ch�
 checklist ID mà thiếu rationale bị từ chối thay vì âm thầm sinh brief ngắn.
 Mặc định trần output là 1024 token. Nếu `.env` cũ còn
 `OLLAMA_MAX_COMPLETION_TOKENS=128`, đổi thành 1024 khi dùng Ollama.
+Các tham số vận hành chung nằm trong `.env.example`: `LLM_MAX_ATTEMPTS`,
+`BRIEF_TOKEN_BUDGET`, `REGEN_LIMIT_PER_HOUR`, `BREAKER_FAILURE_THRESHOLD`,
+`BREAKER_RESET_S` và timeout/concurrency. Compose truyền cùng cấu hình queue cho
+API và worker; hai override chỉ đổi phần riêng của provider. Giới hạn nội dung
+và điều kiện playbook là hợp đồng trong code, không phải biến môi trường.
 Request mặc định đặt `store=false` (có thể bỏ bằng `LLM_API_STORE=omit`), không theo redirect và không đưa key vào prompt.
 Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
 
