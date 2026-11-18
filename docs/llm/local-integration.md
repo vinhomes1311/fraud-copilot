@@ -8,7 +8,7 @@ to local semantic retrieval.
 
 Source snapshot: vinhomes1311/fraud-copilot main at 38274b9f1a61d60acccf01ce7dd09d1aa1105e78.
 
-The Ollama adapter uses the local approved five-principle playbook and local
+The Ollama adapter uses the local approved 29-rule playbook and local
 selection validator. It keeps the shared JobEnvelope, integer case IDs, database,
 retry, fallback and BriefContent contracts. It never recalculates scoring/routing.
 No synthetic UUID, explanation method, contribution scale or historical median is invented.

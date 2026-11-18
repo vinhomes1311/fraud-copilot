@@ -139,6 +139,22 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body['max_tokens'], 1024)
         self.assertNotIn('max_completion_tokens', body)
 
+    async def test_gemini_configuration_omits_storage_and_keeps_grounding(self):
+        with patch.dict(os.environ, {
+            'LLM_API_BASE_URL': 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            'LLM_API_MODEL': 'gemini-3.5-flash-lite',
+            'LLM_API_TOKEN_PARAMETER': 'max_tokens', 'LLM_API_STORE': 'omit',
+        }):
+            result, requests = await self.run_api()
+        body = json.loads(requests[0].content)
+        self.assertEqual(str(requests[0].url),
+                         'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+        self.assertNotIn('store', body)
+        self.assertEqual(body['max_tokens'], 1024)
+        self.assertEqual(body['response_format']['type'], 'json_schema')
+        self.assertEqual(result.model_name, 'gemini-3.5-flash-lite')
+        check_grounding(result.brief, self.chunks)
+
     async def test_missing_duplicate_unknown_and_extra_selection_rejected(self):
         bad = [dict(self.selection, checklist_ids=['FAKE']),
                dict(self.selection, evidence_ids=['EV-AMOUNT']),
@@ -254,6 +270,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             ('LLM_API_BASE_URL', 'https://user:secret@provider.example/v1'),
             ('LLM_API_BASE_URL', 'https://provider.example/v1?key=secret'),
             ('LLM_API_RESPONSE_FORMAT', 'text'), ('LLM_API_TOKEN_PARAMETER', 'bad'),
+            ('LLM_API_STORE', 'true'), ('LLM_API_STORE', ''),
             ('LLM_API_MAX_COMPLETION_TOKENS', '0'),
             ('LLM_API_REASONING_EFFORT', 'unsupported'),
         ):

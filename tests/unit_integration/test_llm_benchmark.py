@@ -8,6 +8,15 @@ import pytest
 from benchmarks import compare_llm as bench
 
 
+@pytest.fixture(autouse=True)
+def default_api_transport(monkeypatch):
+    # Developer .env may select Gemini or another compatible provider.
+    monkeypatch.setenv('LLM_API_RESPONSE_FORMAT', 'json_schema')
+    monkeypatch.setenv('LLM_API_TOKEN_PARAMETER', 'max_completion_tokens')
+    monkeypatch.setenv('LLM_API_STORE', 'false')
+    monkeypatch.setenv('LLM_API_REASONING_EFFORT', '')
+
+
 def report_at(path):
     return json.loads((path / 'results.json').read_text(encoding='utf-8'))
 
@@ -23,6 +32,7 @@ def test_default_only_plans_without_key_or_transport(monkeypatch, capsys):
     assert plan['requests'] == 32
     assert plan['measured_per_provider'] == 15
     assert plan['warmup_per_provider'] == 1
+    assert plan['effective_retriever'] == 'shared-case-playbook'
 
 
 def test_mock_both_transports_receive_same_case_playbook_and_cap(tmp_path, monkeypatch, capsys):
@@ -42,6 +52,7 @@ def test_mock_both_transports_receive_same_case_playbook_and_cap(tmp_path, monke
     bodies = [json.loads(request.content) for request in requests]
     contexts = [json.loads(body['messages'][1]['content']) for body in bodies]
     assert all(context == contexts[0] for context in contexts)
+    assert contexts[0]['playbook'][0]['id'] == 'PB-06'
     assert 'synthetic-history-gap' not in requests[0].content.decode()
     for body in bodies:
         if 'options' in body:
@@ -53,7 +64,9 @@ def test_mock_both_transports_receive_same_case_playbook_and_cap(tmp_path, monke
         assert summary['attempted_measured'] == 2 and summary['valid_briefs'] == 2
         assert summary['warmup_attempts'] == 1
         assert summary['known_usage_all_phases']['total_tokens'] == 360
-        assert summary['reference_match_rate'] == 1
+        # The legacy smoke references only accept PB-03/PB-05; the applicable
+        # context now prioritizes PB-06 and the mock selects that specific card.
+        assert summary['reference_match_rate'] == 0
         assert summary['latency_success_s']['p95'] >= 0
         assert summary['estimated_api_usd_known_usage_uncached'] is None
     ollama = next(row for row in report['samples'] if row['provider'] == 'ollama')
@@ -66,9 +79,92 @@ def test_mock_both_transports_receive_same_case_playbook_and_cap(tmp_path, monke
     assert 'DO-NOT-SAVE-THIS-KEY' not in capsys.readouterr().out
 
 
+def test_generation_freezes_applicable_context_per_case_for_both_models(tmp_path, monkeypatch):
+    original_retrieve = bench.retrieve_context
+    original_reply = bench.mock_response
+    retrieval_calls = []
+    sent_contexts = {'ollama': [], 'api': []}
+
+    async def capture_retrieval(retriever, context, top_k):
+        retrieval_calls.append(context['txn_id'])
+        return await original_retrieve(retriever, context, top_k=top_k)
+
+    def capture_request(request):
+        provider = 'api' if request.url.path.endswith('/chat/completions') else 'ollama'
+        body = json.loads(request.content)
+        sent_contexts[provider].append(json.loads(body['messages'][1]['content']))
+        return original_reply(request)
+
+    monkeypatch.setattr(bench, 'retrieve_context', capture_retrieval)
+    monkeypatch.setattr(bench, 'mock_response', capture_request)
+    output = tmp_path / 'per-case'
+    assert bench.main(['--mock', '--repeats', '2', '--warmup', '1',
+                       '--output-dir', str(output)]) == 0
+    report = report_at(output)
+    assert len(retrieval_calls) == len(set(retrieval_calls)) == 5
+    assert sent_contexts['ollama'] == sent_contexts['api']
+    options = report['retrieval_options']
+    assert options['kind'] == 'shared-case-playbook'
+    assert options['precomputed_per_case'] is True
+    rules = options['case_rules']
+    assert rules['amount-high'][0] == 'PB-08'
+    assert rules['velocity-high'][0] == 'PB-10'
+    assert rules['distance-medium'][0] == 'PB-18'
+    assert rules['history-gap'][0] == 'PB-06'
+    assert len({tuple(ids) for ids in rules.values()}) >= 4
+    for sample in report['samples']:
+        assert sample['ok']
+        assert sample['retrieved_rules'] == rules[sample['case_id']]
+        assert sample['retrieval_started'] is False and sample['retrieval_s'] is None
+    assert all(len(ids) <= 5 for ids in rules.values())
+    assert report['architecture_coverage']['semantic_retrieval_timed'] is False
+
+
+def test_generation_retrieval_ignores_case_ids_and_reference_labels(tmp_path, monkeypatch):
+    import copy
+    cases = bench.load_cases(selected=['history-gap'])
+    cases.append(copy.deepcopy(cases[0]))
+    cases[0].update(id='renamed-one', reference_any_rules=['PB-29'],
+                    reference_rationale='PRIVATE-REFERENCE-ONE')
+    cases[1].update(id='renamed-two', reference_any_rules=['PB-06'],
+                    reference_rationale='PRIVATE-REFERENCE-TWO')
+    fixture = tmp_path / 'cases.json'
+    fixture.write_text(json.dumps(cases), encoding='utf-8')
+    original = bench.mock_response
+    bodies = []
+
+    def capture(request):
+        bodies.append(request.content.decode())
+        return original(request)
+
+    monkeypatch.setattr(bench, 'mock_response', capture)
+    output = tmp_path / 'reference-independent'
+    assert bench.main(['--mock', '--cases', str(fixture), '--repeats', '1',
+                       '--warmup', '0', '--output-dir', str(output)]) == 0
+    report = report_at(output)
+    rules = report['retrieval_options']['case_rules']
+    assert rules['renamed-one'] == rules['renamed-two']
+    assert rules['renamed-one'][0] == 'PB-06'
+    assert all('PRIVATE-REFERENCE' not in body and 'renamed-' not in body for body in bodies)
+
+
+def test_generation_includes_required_gap_from_detailed_playbook(tmp_path):
+    output = tmp_path / 'required-gap'
+    assert bench.main(['--mock', '--cases', str(bench.ROOT / 'benchmarks/fixtures/playbook_v2_boundary_cases.json'),
+                       '--case-ids', 'boundary-4', '--repeats', '1', '--warmup', '0',
+                       '--output-dir', str(output)]) == 0
+    report = report_at(output)
+    for sample in report['samples']:
+        assert sample['ok']
+        assert 'PB-28' in sample['retrieved_rules']
+        assert sample['checklist_rules'] == ['PB-28']
+
+
 @pytest.mark.parametrize('options', [
     ['--repeats', '0'], ['--warmup', '-1'], ['--concurrency', '0'],
     ['--timeout', 'nan'], ['--timeout', 'inf'], ['--completion-cap', '0'],
+    ['--api-min-interval', '-1'], ['--api-min-interval', 'nan'],
+    ['--api-min-interval', 'inf'], ['--api-min-interval', '3601'],
     ['--max-requests', '1'], ['--api-input-price-per-million', '1'],
     ['--api-input-price-per-million', '-1', '--api-output-price-per-million', '2'],
 ])
@@ -194,6 +290,58 @@ def test_percentile_empty_single_and_interpolation():
     assert bench.percentile([], .95) is None
     assert bench.percentile([2], .95) == 2
     assert bench.percentile([3, 1], .5) == 2
+
+
+@pytest.mark.asyncio
+async def test_pacer_spaces_concurrent_attempts_and_counts_elapsed_work(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    now = [0.0]
+    waits = []
+
+    async def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(bench, 'time', SimpleNamespace(perf_counter=lambda: now[0]))
+    monkeypatch.setattr(bench.asyncio, 'sleep', sleep)
+    pacer = bench.RequestPacer(15)
+    await pacer.wait()  # First attempt starts immediately.
+    assert waits == []
+    now[0] = 4  # Attempt used four seconds; only eleven seconds remain.
+    await asyncio.gather(pacer.wait(), pacer.wait())
+    assert waits == [11, 15]
+    now[0] += 20  # Slow requests need no extra delay.
+    await pacer.wait()
+    assert waits == [11, 15]
+    await bench.RequestPacer(0).wait()
+    assert waits == [11, 15]
+
+
+def test_comparison_uses_both_groups_even_when_worker_selects_local(tmp_path, monkeypatch):
+    monkeypatch.setenv('LLM_PROVIDER', 'ollama')
+    monkeypatch.setenv('OLLAMA_MODEL', 'local-test')
+    monkeypatch.setenv('LLM_API_MODEL', 'gemini-test')
+    monkeypatch.setenv('LLM_API_TOKEN_PARAMETER', 'max_tokens')
+    monkeypatch.setenv('LLM_API_STORE', 'omit')
+    original = bench.mock_response
+    bodies = []
+
+    def capture(request):
+        bodies.append(json.loads(request.content))
+        return original(request)
+
+    monkeypatch.setattr(bench, 'mock_response', capture)
+    output = tmp_path / 'both'
+    assert bench.main(['--mock', '--case-ids', 'history-gap', '--repeats', '1',
+                       '--warmup', '0', '--output-dir', str(output)]) == 0
+    report = report_at(output)
+    assert report['provider_options']['ollama']['model'] == 'local-test'
+    assert report['provider_options']['api']['model'] == 'gemini-test'
+    api_body = next(body for body in bodies if body['model'] == 'gemini-test')
+    assert api_body['max_tokens'] == 1024 and 'store' not in api_body
+    assert report['providers']['ollama']['valid_briefs'] == 1
+    assert report['providers']['api']['valid_briefs'] == 1
 
 
 def test_output_permissions_are_checked_before_model_requests(tmp_path, monkeypatch):

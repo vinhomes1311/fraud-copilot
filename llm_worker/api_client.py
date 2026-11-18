@@ -59,6 +59,10 @@ class APIClient(OllamaClient):
         self.token_parameter = os.getenv('LLM_API_TOKEN_PARAMETER', 'max_completion_tokens')
         if self.token_parameter not in ('max_completion_tokens', 'max_tokens'):
             raise ValueError('Invalid LLM_API_TOKEN_PARAMETER')
+        # Compatible endpoints such as Gemini need not implement response storage.
+        self.store_parameter = os.getenv('LLM_API_STORE', 'false').strip()
+        if self.store_parameter not in ('false', 'omit'):
+            raise ValueError('LLM_API_STORE must be false or omit')
         self.max_tokens = int(os.getenv('LLM_API_MAX_COMPLETION_TOKENS', '1024'))
         if self.max_tokens <= 0:
             raise ValueError('LLM_API_MAX_COMPLETION_TOKENS must be positive')
@@ -81,7 +85,7 @@ class APIClient(OllamaClient):
         if self.response_format == 'json_schema':
             fmt['json_schema'] = {'name': 'brief_selection', 'strict': True, 'schema': api_schema}
         payload = {
-            'model': model, 'stream': False, 'store': False, 'response_format': fmt,
+            'model': model, 'stream': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
                 {'role': 'system', 'content': OLLAMA_SELECTION_PROMPT},
@@ -89,6 +93,8 @@ class APIClient(OllamaClient):
                     {'evidence': evidence, 'playbook': selected_chunks}, ensure_ascii=False)},
             ],
         }
+        if self.store_parameter == 'false':
+            payload['store'] = False
         if self.reasoning_effort:
             payload['reasoning_effort'] = self.reasoning_effort
         try:

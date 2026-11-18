@@ -5,7 +5,8 @@ import pytest
 from benchmarks.compare_llm import ROOT, load_cases
 from benchmarks.playbook_eval import validate_references
 from llm_worker.local_integration import SemanticRetriever, KB_PATH
-from llm_worker.retrieval_policy import applicability, retrieve_context
+from llm_worker.retrieval_policy import applicability, retrieve_context, rank_applicable
+from llm_worker.rag import ApprovedPlaybookRetriever
 
 def cases():
     return load_cases(ROOT/'benchmarks/fixtures/playbook_v2_cases.json')
@@ -23,6 +24,33 @@ def test_context_and_identifiers_do_not_change_policy():
     ctx['transaction']['email']='PRIVATE-CANARY'
     ctx['features']['unknown']='PRIVATE-CANARY'
     assert applicability(ctx)==expected
+
+
+@pytest.mark.asyncio
+async def test_low_routing_without_focal_signal_survives_dense_context():
+    ctx = copy.deepcopy(next(c['context'] for c in cases() if c['id'] == 'kaggle-baseline-low'))
+    ctx.update(case_id=876543, txn_id='unseen-low-context')
+    ctx['features'].update(trans_count_1h=1, trans_count_7d=14, avg_amt_7d=32,
+                           max_amt_7d=75, std_amt_7d=9, sum_amt_24h=100,
+                           dist_home_merchant_km=4)
+    before = copy.deepcopy(ctx)
+    chunks = await retrieve_context(ApprovedPlaybookRetriever(), ctx, top_k=5)
+    assert 'PB-26' in {c.rule_code for c in chunks}
+    assert len(chunks) == 5 and ctx == before
+    # The same guarantee holds when semantic order ranks this card last.
+    ranked = list(reversed(json.loads(KB_PATH.read_text(encoding='utf-8'))['chunks']))
+    assert 'PB-26' in {c['rule_code'] for c in rank_applicable(ranked, ctx)[:5]}
+    ctx['explanations'] = [{'feature':'dist_home_merchant_km','value':4,'contribution':0.2}]
+    chunks = await retrieve_context(ApprovedPlaybookRetriever(), ctx, top_k=5)
+    assert chunks[0].rule_code == 'PB-18'
+
+
+@pytest.mark.asyncio
+async def test_v2_reference_groups_remain_retrievable_after_low_context_fix():
+    for case in cases():
+        chunks = await retrieve_context(ApprovedPlaybookRetriever(), case['context'], top_k=5)
+        ids = {c.rule_code for c in chunks}
+        assert all(ids.intersection(group) for group in case['reference_groups']), case['id']
 
 @pytest.mark.asyncio
 async def test_semantic_query_includes_history_state_but_not_identifiers():

@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-11-18T10:26:27.232972+00:00",
+  "fixture": "playbook_holdout_20261118.json",
+  "case_count": 36,
+  "fixture_sha256": "f613c3b76d8d9aacaee885bb98b1127fdab0d12b9a04cc3f61ffc833614202e2",
+  "canonical_cases_sha256": "f4e749ec6a5e25ea427af018001d4ab472ac98d5b44d797844583400405342d6",
+  "retrieval_policy_sha256": "19415d9b10cea16de9eb0651e4b6737354c37091b521f74f0586a50eb1497664",
+  "playbook_sha256": "abd92fdf7d2fb4413262b81ef726f358258578034bd249875f856c0b1a456424",
+  "status": "frozen-before-inference",
+  "provenance": "New synthetic contexts and playbook-derived reference proposals authored separately from v2; not independently adjudicated or production data.",
+  "procedure": "Do not tune policy, prompt or reference labels after observing holdout outputs; report all failures.",
+  "pre_inference_revision": "Validated arithmetic and nested history-window consistency before any model call."
+}

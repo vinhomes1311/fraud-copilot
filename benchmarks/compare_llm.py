@@ -54,6 +54,7 @@ class Config:
     api_output_price_per_million: float | None = None
     scope: str = 'generation'
     retriever: str = 'ollama'
+    api_min_interval_s: float = 0
 
     def validate(self, case_count):
         if self.scope not in ('generation', 'rag-llm') or self.retriever not in ('playbook', 'ollama'):
@@ -66,6 +67,8 @@ class Config:
             raise ValueError('Require repeats >= 1, warmup >= 0, concurrency in 1..64')
         if not math.isfinite(self.timeout_s) or not 0 < self.timeout_s <= 3600:
             raise ValueError('Timeout must be in (0, 3600] seconds')
+        if not math.isfinite(self.api_min_interval_s) or not 0 <= self.api_min_interval_s <= 3600:
+            raise ValueError('API minimum interval must be in [0, 3600] seconds')
         if self.completion_cap <= 0 or not 1 <= self.max_requests <= 10000:
             raise ValueError('Require a positive completion cap and max_requests in 1..10000')
         if case_count < 1 or self.request_count(case_count) > self.max_requests:
@@ -128,6 +131,25 @@ class MeasuredAPI(Recorder, api_module.APIClient):
     pass
 
 
+class RequestPacer:
+    """Space API attempt starts, including warmups, outside request latency."""
+
+    def __init__(self, interval_s):
+        self.interval_s = interval_s
+        self.last_started = None
+        self.lock = asyncio.Lock()
+
+    async def wait(self):
+        if not self.interval_s:
+            return
+        async with self.lock:
+            if self.last_started is not None:
+                remaining = self.interval_s - (time.perf_counter() - self.last_started)
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
+            self.last_started = time.perf_counter()
+
+
 class MeasuredOllama(Recorder, local_module.OllamaClient):
     def __init__(self, model, cap):
         super().__init__(max_tokens=cap)
@@ -172,13 +194,12 @@ async def measure(provider, factory, case, chunks, config, phase, repeat, retrie
         client = factory()
         row['model'] = client.model_name()
         context = copy.deepcopy(case['context'])
-        active_chunks = chunks
+        active_chunks = copy.deepcopy(chunks)
         if retriever is not None:
             stage = 'retrieval'
             row['retrieval_started'] = True
             timer = time.perf_counter()
             try:
-                signals = [e['feature'] for e in context.get('explanations', [])]
                 active_chunks = await asyncio.wait_for(
                     retrieve_context(retriever, context, top_k=5), config.timeout_s)
             finally:
@@ -269,13 +290,21 @@ def summarize(rows, planned, elapsed, config):
 
 async def run_benchmark(config, cases, factories, mode, retriever=None):
     config.validate(len(cases))
-    chunks = await ApprovedPlaybookRetriever().retrieve([], 'MEDIUM')
+    # Freeze one context per case before either provider's timed attempts.
+    # Only case evidence drives retrieval; reference labels never enter it.
+    case_chunks = {}
+    if config.scope == 'generation':
+        retriever = None
+        shared_retriever = ApprovedPlaybookRetriever()
+        for case in cases:
+            case_chunks[case['id']] = await retrieve_context(
+                shared_retriever, copy.deepcopy(case['context']), top_k=5)
     if config.scope == 'rag-llm' and retriever is None:
         retriever = local_module.SemanticRetriever() if config.retriever == 'ollama' else ApprovedPlaybookRetriever()
     jobs = [(repeat, case) for repeat in range(config.repeats) for case in cases]
     random.Random(config.seed).shuffle(jobs)
     report = {'mode': mode, 'created_at_utc': datetime.now(timezone.utc).isoformat(),
-              'scope': ('brief generation with shared approved playbook; excludes embeddings, queues and DB'
+              'scope': ('brief generation with shared per-case applicable playbook; excludes retrieval timing, embeddings, queues and DB'
                         if config.scope == 'generation' else 'retrieval -> LLM -> grounding; excludes queue and DB'),
               'brief_token_budget': brief_budget(),
               'configured_brief_token_budget': get_settings().brief_token_budget,
@@ -287,7 +316,10 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                   'llm_latency_sla_s': None,
                   'evaluation': 'partial Cold Path only; not full architecture acceptance'},
               'retrieval_options': {
-                  'kind': config.retriever if config.scope == 'rag-llm' else 'shared-playbook',
+                  'kind': config.retriever if config.scope == 'rag-llm' else 'shared-case-playbook',
+                  'precomputed_per_case': config.scope == 'generation',
+                  'case_rules': {name: [c.rule_code for c in chunks]
+                                 for name, chunks in case_chunks.items()},
                   'embedding_model': (os.getenv('OLLAMA_EMBED_MODEL', 'embeddinggemma:300m')
                                       if config.scope == 'rag-llm' and config.retriever == 'ollama' else None),
                     'top_k': 5,
@@ -296,6 +328,8 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
               'config': asdict(config), 'case_ids': [case['id'] for case in cases],
               'cases_sha256': hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
               'playbook_sha256': hashlib.sha256(local_module.KB_PATH.read_bytes()).hexdigest(),
+              'retrieval_policy_sha256': hashlib.sha256(
+                  (ROOT / 'llm_worker/retrieval_policy.py').read_bytes()).hexdigest(),
               'base_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'ollama_system_prompt_sha256': hashlib.sha256(local_module.OLLAMA_SELECTION_PROMPT.encode()).hexdigest(),
               'adapter_source_sha256': {
@@ -313,6 +347,7 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                            evidence_source='backend-all-evidence',
                            response_format=prototype.response_format,
                            token_parameter=prototype.token_parameter,
+                           store_parameter=prototype.store_parameter,
                            reasoning_effort=prototype.reasoning_effort or 'provider_default',
                            temperature='provider_default')
         else:
@@ -323,9 +358,12 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
     for provider in config.providers:
         rows = []
         stopped = False
+        pacer = RequestPacer(config.api_min_interval_s if provider == 'api' else 0)
         for index in range(config.warmup):
-            row = await measure(provider, factories[provider], cases[index % len(cases)],
-                                chunks, config, 'warmup', index, retriever)
+            await pacer.wait()
+            case = cases[index % len(cases)]
+            row = await measure(provider, factories[provider], case,
+                                case_chunks.get(case['id'], []), config, 'warmup', index, retriever)
             rows.append(row)
             if row['fatal']:
                 stopped = True
@@ -342,7 +380,11 @@ async def run_benchmark(config, cases, factories, mode, retriever=None):
                     repeat, case = queue.get_nowait()
                 except asyncio.QueueEmpty:
                     return
-                row = await measure(provider, factories[provider], case, chunks, config, 'measured', repeat, retriever)
+                await pacer.wait()
+                if stopped:
+                    return
+                row = await measure(provider, factories[provider], case,
+                                    case_chunks.get(case['id'], []), config, 'measured', repeat, retriever)
                 rows.append(row)
                 if row['fatal']:
                     stopped = True
@@ -360,8 +402,10 @@ def mock_response(request):
         return httpx.Response(200, json={'embeddings': [[1.0, float(i + 1)] for i in range(len(payload['input']))]})
     evidence = json.loads(payload['messages'][1]['content'])['evidence']
     ids = ['PB-03', 'PB-05'] if 'EV-HISTORY-GAP' in evidence else ['PB-01', 'PB-03']
-    available = [c['id'] for c in json.loads(payload['messages'][1]['content'])['playbook']]
-    ids = [i for i in ids if i in available] or available[:1]
+    playbook = json.loads(payload['messages'][1]['content'])['playbook']
+    available = [c['id'] for c in playbook]
+    mandatory = [c['id'] for c in playbook if c.get('selection_role') == 'mandatory_gap']
+    ids = mandatory or [i for i in ids if i in available] or available[:1]
     content = json.dumps({'checklist_ids': ids})
     if request.url.path.endswith('/chat/completions'):
         return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': content}}],
@@ -420,6 +464,7 @@ def write_report(report, output):
                      f"{result['skipped_measured']} | {rate} | {fmt(lat['p50'])} | {fmt(lat['p95'])} | "
                      f"{fmt(result['valid_briefs_per_s'])} | {result['stopped_after'] or '-'} |")
     lines += ['', 'Warm-up is excluded from latency/throughput but included in known usage/cost.',
+              'API pacing is excluded from per-attempt latency; batch throughput includes pacing waits.',
               ('Mock timings are synthetic and cannot establish which model is faster.' if report['mode'] == 'mock'
                else 'Live results require multiple samples/runs before drawing performance conclusions.'),
               'Cost is an uncached-price estimate of known usage, not an invoice; failed requests may have unknown usage.',
@@ -444,6 +489,8 @@ def main(argv=None):
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--concurrency', type=int, default=1)
+    parser.add_argument('--api-min-interval', type=float, default=0, metavar='SECONDS',
+                        help='Minimum time between API attempt starts; excluded from per-attempt latency.')
     parser.add_argument('--timeout', type=float, default=120)
     parser.add_argument('--completion-cap', type=int, default=1024)
     parser.add_argument('--max-requests', type=int, default=100)
@@ -457,7 +504,7 @@ def main(argv=None):
     config = Config(tuple(args.providers), args.repeats, args.warmup, args.concurrency,
                     args.timeout, args.completion_cap, args.max_requests, args.seed,
                     args.api_input_price_per_million, args.api_output_price_per_million,
-                    args.scope, args.retriever)
+                    args.scope, args.retriever, args.api_min_interval)
     try:
         cases = load_cases(args.cases, args.case_ids)
         config.validate(len(cases))
@@ -466,7 +513,7 @@ def main(argv=None):
                 'llm_requests': config.llm_request_count(len(cases)),
                 'embedding_requests': config.embedding_request_count(len(cases)),
                 'scope': config.scope,
-                'effective_retriever': config.retriever if config.scope == 'rag-llm' else 'shared-playbook',
+                'effective_retriever': config.retriever if config.scope == 'rag-llm' else 'shared-case-playbook',
                 'embedding_model': (os.getenv('OLLAMA_EMBED_MODEL', 'embeddinggemma:300m')
                                     if config.scope == 'rag-llm' and config.retriever == 'ollama' else None),
                 'architecture_source': ARCHITECTURE['source_url'],

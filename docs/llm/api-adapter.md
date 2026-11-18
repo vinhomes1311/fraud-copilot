@@ -21,6 +21,8 @@ LLM_PROVIDER=api
 LLM_API_BASE_URL=https://api.openai.com/v1
 LLM_API_MODEL=gpt-5.4-mini
 LLM_API_KEY=<API key của bạn>
+LLM_API_TOKEN_PARAMETER=max_completion_tokens
+LLM_API_STORE=false
 LLM_RETRIEVER=playbook
 LLM_JOB_TIMEOUT_S=120
 LLM_VISIBILITY_TIMEOUT_S=300
@@ -51,7 +53,11 @@ Worker kiểm tra cấu hình LLM trước khi kết nối DB.
 
 ## Chọn model và tối ưu
 
-Mặc định `gpt-5.4-mini` là điểm bắt đầu cho tác vụ chọn evidence và checklist có
+Khi không đặt URL/model trong môi trường, client mặc định dùng OpenAI
+`gpt-5.4-mini`. File `.env.example` có sẵn ví dụ Gemini; hướng dẫn giữ cả hai
+provider và so sánh nằm trong [benchmark guide](../benchmarks/README.md#giữ-cả-ollama-và-gemini-trong-env).
+
+`gpt-5.4-mini` là điểm bắt đầu cho tác vụ chọn evidence và checklist có
 cấu trúc. Model này hỗ trợ Chat Completions và Structured Outputs theo
 [OpenAI Docs](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
 Đây không phải kết luận về model tốt nhất cho dữ liệu của dự án: cần đo citation,
@@ -68,6 +74,8 @@ tỷ lệ thành công, độ trễ và token trên bộ case đại diện trư
 - Mặc định dùng `json_schema`. Provider chỉ hỗ trợ JSON mode có thể đặt
   `LLM_API_RESPONSE_FORMAT=json_object`; việc kiểm tra ID tại ứng dụng vẫn bắt buộc.
 - Nếu provider yêu cầu tham số cũ, đặt `LLM_API_TOKEN_PARAMETER=max_tokens`.
+- `LLM_API_STORE=false` (mặc định) gửi `store=false`; `omit` bỏ tham số cho
+  endpoint tương thích không hỗ trợ nó. Đây không phải chính sách lưu giữ dữ liệu.
 - `LLM_CONCURRENCY=1` là điểm bắt đầu để hạn chế request đồng thời.
 
 `LLM_RETRIEVER=playbook` đưa toàn bộ KB nhỏ hiện có vào context, không gọi
@@ -86,7 +94,7 @@ bắt buộc kiểm tra thiếu baseline maximum chỉ cho phép chọn quy tắ
 Citation phải có quote không rỗng khớp nguyên văn nguồn được truy xuất; mỗi rule
 trong checklist cần citation riêng. Model không tự thay đổi điểm rủi ro hay routing.
 Sau khi cập nhật, khởi động lại worker; output còn chứa `evidence_ids` bị từ chối.
-Request đặt `store=false`, không theo redirect và không đưa key vào prompt.
+Request mặc định đặt `store=false` (có thể bỏ bằng `LLM_API_STORE=omit`), không theo redirect và không đưa key vào prompt.
 Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
 
 Endpoint phải trả `finish_reason=stop`, nội dung JSON và usage nguyên không âm
