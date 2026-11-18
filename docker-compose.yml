@@ -8,6 +8,7 @@ x-app-env: &app-env
   SIMULATOR_API_KEY: ${SIMULATOR_API_KEY:-dev-sim-key}
   PII_SALT: ${PII_SALT:-dev-salt}
   APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+  PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USERNAME: ${SMTP_USERNAME:-}

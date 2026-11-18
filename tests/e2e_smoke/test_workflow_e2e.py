@@ -88,7 +88,8 @@ async def test_entire_workflow(monkeypatch, provider):
     # is checked separately, so the E2E must not depend on a local joblib file.
     def fake_predict(features):
         amount = float(features['amt'])
-        probability = 0.1 if amount < 100 else 0.5 if amount < 1400 else 0.9
+        # Seed thresholds from db/init.sql: LOW < 0.006 <= MEDIUM < 0.25 <= HIGH.
+        probability = 0.001 if amount < 100 else 0.1 if amount < 1400 else 0.9
         return ScoringOutput(
             raw_model_score=probability,
             calibrated_prob=probability,
@@ -226,7 +227,8 @@ async def test_entire_workflow(monkeypatch, provider):
                     response = await http.post(f'/api/v1/cases/{high_case}/actions',
                         headers=headers['analyst'], json={'action': 'ESCALATE', 'note': 'Synthetic review'})
                     assert response.status_code == 200, response.text
-                    lead_queue = await http.get('/api/v1/cases', headers=headers['lead'])
+                    lead_queue = await http.get(
+                        '/api/v1/cases?status=ESCALATED', headers=headers['lead'])
                     assert [row['case_id'] for row in lead_queue.json()['items']] == [high_case]
                     response = await http.post(f'/api/v1/cases/{high_case}/resolve',
                         headers=headers['lead'], json={'decision': 'CLOSE', 'note': 'Synthetic close'})

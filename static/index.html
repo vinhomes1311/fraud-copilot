@@ -3,85 +3,187 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08111f" />
+    <meta name="theme-color" content="#e9e5e0" />
     <title>Fraud Copilot | Risk operations</title>
-    <link rel="stylesheet" href="/static/styles.css?v=readable-risk-english-4" />
+    <link rel="stylesheet" href="/static/styles.css?v=account-logout-1" />
   </head>
   <body>
     <div id="toast" class="toast" role="status"></div>
-    <main id="login-view" class="login-view">
-      <section class="login-card">
-        <img class="brand-mark" src="/static/fraud-copilot-logo.png?v=brand-3" alt="Fraud Copilot logo" />
-        <p class="eyebrow">RISK OPERATIONS PLATFORM</p>
-        <h1>Fraud Copilot</h1>
-        <p id="auth-subtitle" class="muted">Tập trung tín hiệu rủi ro. Ra quyết định nhanh hơn.</p>
-        <form id="login-form">
-          <label>Tên đăng nhập<input name="username" value="analyst1" autocomplete="username" required /></label>
-          <label>Mật khẩu<input name="password" type="password" value="analyst123" autocomplete="current-password" required /></label>
-          <button class="primary-button wide" type="submit">Đăng nhập <span>→</span></button>
-        </form>
-        <button id="auth-switch" class="auth-switch" type="button">Chưa có tài khoản? Tạo tài khoản</button>
-        <button id="forgot-password" class="auth-link" type="button">Quên mật khẩu?</button>
-        <button id="google-login" class="google-button" type="button">Tiếp tục với Google</button>
-        <p id="login-hint" class="login-hint">Demo: analyst1 / analyst123 · lead1 / lead123</p>
+    <main id="intro-view" class="intro-view" aria-label="Đang khởi chạy Fraud Copilot">
+      <section class="intro-splash" aria-labelledby="intro-title">
+        <div class="intro-splash-orbit" aria-hidden="true">
+          <span class="intro-splash-orbit-dot"></span>
+          <span class="intro-splash-orbit-dot"></span>
+        </div>
+        <img class="intro-splash-logo" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" />
+        <p class="intro-kicker"><span></span> RISK INTELLIGENCE PLATFORM</p>
+        <h1 id="intro-title">Fraud <span>Copilot</span></h1>
+        <p class="intro-splash-tagline">Nhìn rõ rủi ro. Ra quyết định tự tin.</p>
+        <div class="intro-loading-track" aria-hidden="true">
+          <span></span>
+        </div>
       </section>
-      <div class="login-glow"></div>
+    </main>
+    <main id="login-view" class="login-view hidden">
+      <div class="login-frame">
+        <header class="login-header">
+          <a class="login-brand" href="/" aria-label="Fraud Copilot">
+            <img class="brand-mark" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" />
+            <span><b>Fraud <span>Copilot</span></b><small>RISK INTELLIGENCE</small></span>
+          </a>
+          <div class="login-header-note"><i></i> Không gian chuyên viên an toàn</div>
+        </header>
+        <div class="login-layout">
+          <section class="login-hero" aria-labelledby="login-hero-title">
+            <p class="eyebrow"><span class="login-eyebrow-dot"></span> RISK OPERATIONS PLATFORM</p>
+            <h1 id="login-hero-title">Nhìn rõ rủi ro.<br /><span>Ra quyết định tự tin.</span></h1>
+            <p class="login-hero-copy">Giao dịch, tín hiệu mô hình và hồ sơ điều tra trong cùng một không gian làm việc.</p>
+            <div class="login-highlights">
+              <div><span>01</span><p><b>Ưu tiên rõ ràng</b><small>Tập trung vào hồ sơ cần xem</small></p></div>
+              <div><span>02</span><p><b>Bằng chứng đầy đủ</b><small>Theo dõi tín hiệu xuyên suốt</small></p></div>
+              <div><span>03</span><p><b>Quyết định minh bạch</b><small>Lưu lại thao tác chuyên viên</small></p></div>
+            </div>
+          </section>
+          <section class="login-card" aria-labelledby="login-card-title">
+            <div class="login-card-heading">
+              <div class="login-card-symbol" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.5-2.9 8-7 10-4.1-2-7-5.5-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
+              </div>
+              <p class="login-card-eyebrow">SECURE ANALYST ACCESS</p>
+              <h2 id="login-card-title">Chào mừng trở lại</h2>
+              <p id="auth-subtitle" class="muted">Đăng nhập để tiếp tục tới không gian điều tra rủi ro.</p>
+            </div>
+            <form id="login-form">
+              <label>Tên đăng nhập<input name="username" value="analyst1" autocomplete="username" required /></label>
+              <label>Mật khẩu<input name="password" type="password" value="analyst123" autocomplete="current-password" required /></label>
+              <button class="primary-button wide" type="submit">Đăng nhập <span>→</span></button>
+            </form>
+            <button id="auth-switch" class="auth-switch" type="button">Chưa có tài khoản? Tạo tài khoản</button>
+            <button id="forgot-password" class="auth-link" type="button">Quên mật khẩu?</button>
+            <div class="login-divider"><span>hoặc</span></div>
+            <button id="google-login" class="google-button" type="button"><span aria-hidden="true">G</span> Tiếp tục với Google</button>
+            <p id="login-hint" class="login-hint">Demo: analyst1 / analyst123 · lead1 / lead123</p>
+          </section>
+        </div>
+        <footer class="login-footer"><span>FRAUD COPILOT</span><span>Risk operations workspace</span></footer>
+      </div>
+      <div class="login-glow" aria-hidden="true"></div>
     </main>
 
     <main id="app-view" class="app-shell hidden">
+      <video class="dashboard-background-video" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1">
+        <source src="/static/dashboard-background.mp4?v=video-project-1" type="video/mp4" />
+      </video>
       <aside class="sidebar">
         <div class="brand"><img class="brand-mark small" src="/static/fraud-copilot-logo.png?v=brand-3" alt="" /><span>Fraud <b>Copilot</b></span></div>
         <div class="workspace-label">WORKSPACE</div>
         <nav>
-          <button id="review-nav" class="nav-item active"><img class="nav-icon review-nav-logo" src="/static/review-queue-logo.png?v=2" alt="" /> Review queue</button>
-          <button id="analytics-nav" class="nav-item"><span class="nav-icon">◈</span> Analytics</button>
-          <button id="classifications-nav" class="nav-item"><span class="nav-icon">◌</span> Manual decisions</button>
+          <button id="dashboard-nav" class="nav-item active" title="Risk Overview"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg> Risk Overview</button>
+          <button id="analytics-nav" class="nav-item" title="Risk Analytics"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16" /><path d="M7 16v-4" /><path d="M12 16V8" /><path d="M17 16V4" /></svg> Risk Analytics</button>
+          <button id="review-nav" class="nav-item" title="Review Queue"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="M4 13h4l2 3h4l2-3h4" /></svg> Review Queue <span id="review-nav-count" class="nav-badge hidden">0</span></button>
+          <button id="classifications-nav" class="nav-item" title="Decision History"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg> Decision History</button>
         </nav>
+        <label class="global-search"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input id="dashboard-search" type="search" placeholder="Tìm mã case hoặc giao dịch..." aria-label="Tìm mã case hoặc giao dịch"><kbd>Enter</kbd></label>
+        <div class="topbar-actions"><span class="live-status"><i></i> Chấm điểm đang hoạt động</span><button id="refresh-button" class="icon-button" title="Làm mới"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M19 12a7 7 0 0 0-12-4L5 10" /><path d="M4 17v-5h5" /><path d="M5 12a7 7 0 0 0 12 4l2-2" /></svg></button><button id="account-button" class="account-button" type="button" aria-label="Mở hồ sơ tài khoản" aria-haspopup="dialog" aria-controls="profile-dialog"><span class="avatar" id="user-avatar">A</span><span class="user-meta"><b id="user-name">Chuyên viên</b><small id="user-role">Chuyên viên phân tích rủi ro</small></span></button></div>
         <div class="sidebar-bottom">
           <div class="system-status"><span class="status-dot"></span><div><b>All systems normal</b><small>Updated just now</small></div></div>
-          <button id="logout-button" class="logout">↪ <span>Đăng xuất</span></button>
+          <button id="logout-button" class="logout"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 17 5-5-5-5" /><path d="M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></svg><span>Log out</span></button>
         </div>
       </aside>
       <section class="content">
-        <header class="topbar">
-          <div><p class="eyebrow">FRAUD TRIAGE CONTROL CENTER</p><h2 id="page-title">Review queue</h2></div>
-          <div class="topbar-actions"><span class="live-status"><i></i> Scoring online</span><button id="refresh-button" class="icon-button" title="Làm mới">↻</button><div class="avatar" id="user-avatar">A</div><div class="user-meta"><b id="user-name">Analyst</b><small id="user-role">Risk analyst</small></div></div>
-        </header>
+        <h2 id="page-title" class="visually-hidden">Risk Overview</h2>
         <div class="page-body">
+          <section id="dashboard-content" class="dashboard-content">
+            <div class="dashboard-intro">
+              <div><p class="eyebrow">LIVE RISK OPERATIONS · FRAUD COPILOT</p><h3>Fraud <span>Operations</span></h3><p id="dashboard-updated">Loading data...</p></div>
+              <button id="dashboard-review-link" class="primary-button">Review cases <span>→</span></button>
+            </div>
+            <div class="dashboard-kpis">
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon blue"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6 4 4 6-8" /><path d="M15 7h5v5" /></svg></div><div><small>Transactions Processed</small><strong id="dashboard-total">—</strong><span id="dashboard-total-subtitle">— transactions in the last 60 minutes</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon red"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v4" /><path d="M12 16h.01" /></svg></div><div><small>Open High-Risk Cases</small><strong id="dashboard-high">—</strong><span id="dashboard-high-subtitle">— new cases in the last 60 minutes</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon amber"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg></div><div><small>Open Medium-Risk Cases</small><strong id="dashboard-medium">—</strong><span id="dashboard-medium-subtitle">— unscored transactions</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon purple">%</div><div><small>Review Rate</small><strong id="dashboard-review-rate">—</strong><span>Open high- and medium-risk cases / scored transactions</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon green"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4" /></svg></div><div><small>P95 Latency · 60 min</small><strong id="dashboard-latency">—</strong><span>Core processing target: ≤ 500 ms</span></div></article>
+              <article class="dashboard-kpi"><div class="dashboard-kpi-icon teal"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg></div><div><small>Recall (Awaiting Labels)</small><strong id="dashboard-recall">—</strong><span>Requires ground-truth labels</span></div></article>
+            </div>
+            <div class="dashboard-grid">
+              <article class="dashboard-panel dashboard-simulator-panel">
+                <div class="dashboard-panel-heading"><div><h4>Cases per Second</h4><p>Hover over a line point to inspect Low, Medium, and High rates · last 5 minutes</p></div></div>
+                <div id="dashboard-simulator-chart" class="dashboard-simulator-chart" role="status">Waiting for simulator data...</div>
+              </article>
+              <article class="dashboard-panel dashboard-ml-decision-panel">
+                <div class="dashboard-panel-heading"><div><h4>Analyst Decisions by Risk Level</h4><p>Decision outcomes grouped by model-predicted risk level.</p></div></div>
+                <div id="dashboard-decision-breakdown" class="decision-breakdown-grid dashboard-decision-breakdown" aria-live="polite"><p class="dashboard-empty">Loading decision data...</p></div>
+              </article>
+              <article class="dashboard-panel dashboard-ml-operations-panel">
+                <div class="chart-heading"><div><h4>Model Service Latency &amp; Throughput</h4><p>P95 inference latency and requests per second over the last 60 minutes.</p></div><span class="chart-live-indicator">Prometheus</span></div>
+                <div id="dashboard-ml-operations-chart" class="ml-operations-chart" aria-live="polite"><p class="chart-empty">Loading model metrics...</p></div>
+              </article>
+              <article class="dashboard-panel dashboard-cases-panel">
+                <div class="dashboard-panel-heading"><div><h4>Flagged Transactions</h4><p>Cases awaiting review, ordered by fraud probability.</p></div><button id="dashboard-view-all" class="text-button">View queue →</button></div>
+                <div id="dashboard-recent-cases" class="dashboard-recent-cases" aria-live="polite"></div>
+              </article>
+              <article class="dashboard-panel dashboard-signal-health-panel">
+                <header class="signal-health-header">
+                  <div>
+                    <p class="signal-health-eyebrow">LAST 24 HOURS</p>
+                    <h4>Pipeline Overview</h4>
+                    <p>Model signals, input quality, and queues that need attention.</p>
+                  </div>
+                  <span class="signal-health-live"><i></i> Live</span>
+                </header>
+                <div id="dashboard-signal-health" class="signal-health-grid" aria-live="polite">
+                  <section class="signal-health-group">
+                    <div class="signal-group-heading"><span class="signal-group-icon model-icon">⌁</span><div><h5>Model Signals</h5><p>Most frequent explanation factors</p></div></div>
+                    <div id="dashboard-top-features" class="signal-health-list"><p class="signal-health-empty">Loading model signals...</p></div>
+                  </section>
+                  <section class="signal-health-group">
+                    <div class="signal-group-heading"><span class="signal-group-icon data-icon">⌖</span><div><h5>Input Validation</h5><p>Most common validation issues</p></div></div>
+                    <div id="dashboard-validation-issues" class="signal-health-list"><p class="signal-health-empty">Loading validation data...</p></div>
+                  </section>
+                  <section class="signal-health-group">
+                    <div class="signal-group-heading"><span class="signal-group-icon queue-icon">↻</span><div><h5>Queue Health</h5><p>Unscored transactions and dead-letter jobs</p></div></div>
+                    <div id="dashboard-queue-health" class="signal-queue-list"><p class="signal-health-empty">Loading queue status...</p></div>
+                  </section>
+                </div>
+              </article>
+            </div>
+          </section>
+          <div id="work-queue-layout">
           <section id="review-content">
             <div id="review-kpi-grid" class="kpi-grid">
-              <article class="kpi-card accent"><div class="kpi-icon">⚡</div><div><small>Open review cases</small><strong id="open-count">—</strong><span class="trend">Human review workload</span></div></article>
+              <article class="kpi-card accent"><div class="kpi-icon"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2" /><path d="M9 11h6M9 15h6" /></svg></div><div><small>Open review cases</small><strong id="open-count">—</strong><span class="trend">Human review workload</span></div></article>
             </div>
             <div id="analytics-kpi-grid" class="kpi-grid hidden">
-              <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>High priority</small><strong id="high-count">—</strong><span class="trend orange-text">Needs attention</span></div></article>
-              <article class="kpi-card"><div class="kpi-icon orange">!</div><div><small>Medium priority</small><strong id="medium-count">—</strong><span class="trend orange-text">Needs review</span></div></article>
+              <article class="kpi-card"><div class="kpi-icon orange"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v4" /><path d="M12 16h.01" /></svg></div><div><small>High priority</small><strong id="high-count">—</strong><span class="trend orange-text">Needs attention</span></div></article>
+              <article class="kpi-card"><div class="kpi-icon orange"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v4" /><path d="M12 16h.01" /></svg></div><div><small>Medium priority</small><strong id="medium-count">—</strong><span class="trend orange-text">Needs review</span></div></article>
             </div>
-            <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><label class="simulator-rate">Mục tiêu <input id="simulator-tps" type="number" min="1" max="1000" step="1" value="10" inputmode="numeric" aria-label="Tốc độ mục tiêu, số giao dịch mỗi giây"><span>giao dịch/giây</span><small id="simulator-actual-tps" class="simulator-actual-tps">Case mở mới TB 5 giây: 0 case/giây</small></label><button id="load-test-batch" class="primary-button">▶ Chạy simulator</button><button id="reset-demo-button" class="secondary-button reset-demo-button" type="button">↺ Xóa dữ liệu demo &amp; chạy lại</button><div id="simulator-tracker" class="simulator-tracker hidden" aria-hidden="true"><video id="tracker-video" muted loop playsinline preload="metadata"><source src="/static/dog-tracker.mp4" type="video/mp4"></video></div><button id="export-button" class="secondary-button">⇩ Export view</button></div></div>
+            <div class="section-heading"><div><h3 id="queue-title">Priority cases</h3><p id="queue-description">Cases are sorted by model confidence.</p></div><div class="section-actions"><label class="simulator-rate">Target <input id="simulator-tps" type="number" min="1" max="1000" step="1" value="10" inputmode="numeric" aria-label="Target transaction rate per second"><span>transactions / sec</span><small id="simulator-actual-tps" class="simulator-actual-tps">New cases (5-sec avg): 0 / sec</small></label><button id="load-test-batch" class="primary-button"><svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none" /></svg>Run Simulator</button><button id="reset-demo-data" class="secondary-button reset-demo-button" title="Delete simulator-generated data and replay from the beginning"><svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" /><path d="M3 3v5h5" /></svg>Reset &amp; replay</button><button id="export-button" class="secondary-button"><svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" /></svg>Export view</button></div></div>
             <section class="queue-card">
-              <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="search-input" placeholder="Search case ID or transaction..." /></div><select id="risk-filter"><option value="">All risk levels</option><option value="HIGH">High risk</option><option value="MEDIUM">Medium risk</option><option value="LOW">Low risk</option></select><select id="status-filter"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="CONFIRMED_FRAUD">Confirmed fraud</option><option value="DISMISSED">Dismissed / safe</option><option value="CLOSED">Closed</option></select></div>
+              <div class="toolbar filter-toolbar">
+                <label class="search-wrap"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input id="search-input" placeholder="Search case ID or transaction..." aria-label="Search cases" /></label>
+                <select id="risk-filter" aria-label="Priority"><option value="">All priorities</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+                <select id="score-filter" aria-label="Fraud probability"><option value="">All probabilities</option><option value="0-25">0–25%</option><option value="25-50">25–50%</option><option value="50-75">50–75%</option><option value="75-100">75–100%</option></select>
+                <select id="status-filter" aria-label="Workflow"><option value="">All workflows</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="RETURNED">Returned</option><option value="CONFIRMED_FRAUD">Confirmed fraud</option><option value="CONFIRMED_SIMULATED">Confirmed (demo)</option><option value="DISMISSED">Dismissed / safe</option><option value="CLOSED">Closed</option></select>
+                <label class="filter-date"><span>Received from</span><input id="received-from-filter" type="date" aria-label="Received from"></label>
+                <label class="filter-date"><span>Received to</span><input id="received-to-filter" type="date" aria-label="Received to"></label>
+                <select id="evidence-filter" aria-label="Evidence"><option value="">All evidence</option><option value="NONE">No brief</option><option value="PENDING">Pending</option><option value="RUNNING">Running</option><option value="READY">Ready</option><option value="FAILED">Failed</option><option value="FAILED_TIMEOUT">Failed (timeout)</option></select>
+                <select id="sort-filter" aria-label="Sort by"><option value="newest">Newest received</option><option value="oldest">Oldest received</option><option value="highest_score">Highest probability</option><option value="lowest_score">Lowest probability</option></select>
+                <button id="review-filter-reset" class="filter-reset" type="button" title="Clear filters" aria-label="Clear filters"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" /><path d="m16 16 4 4m0-4-4 4" /></svg></button>
+              </div>
               <div class="table-wrap"><table><thead><tr><th>Case / transaction</th><th>Priority</th><th>Fraud probability</th><th>Workflow</th><th>Received</th><th>Evidence</th></tr></thead><tbody id="cases-body"><tr><td colspan="6" class="loading">Loading cases<span class="loader"></span></td></tr></tbody></table></div>
               <div class="table-footer"><span id="result-count">—</span><div><button id="prev-page" class="page-button" disabled>‹</button><span id="page-number" class="page-button active">1</span><button id="next-page" class="page-button" disabled>›</button></div></div>
-            </section>
-            <section id="analytics-decisions" class="analytics-decisions hidden">
-              <div class="section-heading"><div><h3>Analyst decisions</h3><p>Latest recorded decision for each reviewed case.</p></div></div>
-              <div class="decision-summary-grid">
-                <article class="decision-summary-card"><small>Confirm fraud</small><strong id="decision-confirmed-fraud">0</strong></article>
-                <article class="decision-summary-card"><small>Dismiss / safe</small><strong id="decision-dismissed">0</strong></article>
-                <article class="decision-summary-card"><small>Insufficient evidence</small><strong id="decision-insufficient-evidence">0</strong></article>
-                <article class="decision-summary-card"><small>Escalate to Risk Lead</small><strong id="decision-escalated">0</strong></article>
-                <article class="decision-summary-card"><small>Need more info</small><strong id="decision-needs-more-info">0</strong></article>
-              </div>
             </section>
           </section>
           <section id="classifications-content" class="hidden">
             <div class="section-heading classification-heading">
-              <div><h3>Manually classified transactions</h3><p>Saved analyst decisions and escalations, including reviewer and decision time.</p></div>
-              <button id="export-classifications" class="secondary-button">⇩ Export decisions</button>
+              <div><h3>Analyst Decision History</h3><p>Recorded case decisions and escalations, with reviewer and decision time.</p></div>
+              <button id="export-classifications" class="secondary-button"><svg class="symbol-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" /></svg>Export decisions</button>
             </div>
             <section class="queue-card">
-              <div class="toolbar">
-                <label class="search-wrap"><span>⌕</span><input id="classification-search" placeholder="Search case, transaction, merchant, reviewer..." /></label>
-                <select id="classification-filter" aria-label="Filter manual decision">
+              <div class="toolbar filter-toolbar">
+                <label class="search-wrap"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input id="classification-search" placeholder="Search case, transaction, merchant, reviewer..." /></label>
+                <select id="classification-filter" aria-label="Filter analyst decisions">
                   <option value="">All decisions</option>
                   <option value="CONFIRMED_FRAUD">Confirmed fraud</option>
                   <option value="DISMISSED">Dismissed / safe</option>
@@ -90,21 +192,71 @@
                   <option value="INSUFFICIENT_EVIDENCE">Insufficient evidence</option>
                   <option value="CONFIRM_SIMULATED">Confirmed (demo)</option>
                 </select>
+                <select id="classification-status-filter" aria-label="Case status"><option value="">All statuses</option><option value="OPEN">Open</option><option value="IN_REVIEW">In review</option><option value="ESCALATED">Escalated</option><option value="NEEDS_MORE_INFO">Needs more info</option><option value="RETURNED">Returned</option><option value="CONFIRMED_FRAUD">Confirmed fraud</option><option value="CONFIRMED_SIMULATED">Confirmed (demo)</option><option value="DISMISSED">Dismissed / safe</option><option value="CLOSED">Closed</option></select>
+                <select id="classification-stream-filter" aria-label="Scoring stream"><option value="">All streams</option><option value="SCORED">Scored</option><option value="UNSCORED">Unscored</option></select>
+                <select id="classification-merchant-filter" aria-label="Merchant type">
+                  <option value="">All merchant types</option>
+                  <option value="entertainment">Entertainment</option><option value="food_dining">Food &amp; dining</option><option value="gas_transport">Gas &amp; transport</option><option value="grocery_net">Grocery (online)</option><option value="grocery_pos">Grocery (in-person)</option><option value="health_fitness">Health &amp; fitness</option><option value="home">Home</option><option value="kids_pets">Kids &amp; pets</option><option value="misc_net">Miscellaneous (online)</option><option value="misc_pos">Miscellaneous (in-person)</option><option value="personal_care">Personal care</option><option value="shopping_net">Shopping (online)</option><option value="shopping_pos">Shopping (in-person)</option><option value="travel">Travel</option>
+                </select>
+                <select id="classification-score-filter" aria-label="Fraud score"><option value="">All scores</option><option value="0-25">0–25%</option><option value="25-50">25–50%</option><option value="50-75">50–75%</option><option value="75-100">75–100%</option></select>
+                <select id="classification-sort-filter" aria-label="Sort order"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="highest_score">Highest score</option><option value="lowest_score">Lowest score</option></select>
+                <button id="classification-filter-reset" class="filter-reset" type="button" title="Clear filters" aria-label="Clear filters"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" /><path d="m16 16 4 4m0-4-4 4" /></svg></button>
               </div>
               <div class="table-wrap"><table class="classification-table"><thead><tr><th>Case / transaction</th><th>Merchant</th><th>Model risk</th><th>Analyst decision</th><th>Reviewer</th><th>Amount</th><th>Decision time</th><th>Action</th></tr></thead><tbody id="classifications-body"><tr><td colspan="8" class="loading">Loading decisions<span class="loader"></span></td></tr></tbody></table></div>
               <div class="table-footer"><span id="classification-result-count">—</span><div><button id="classification-prev" class="page-button" disabled>‹</button><span id="classification-page" class="page-button active">1</span><button id="classification-next" class="page-button" disabled>›</button></div></div>
             </section>
           </section>
+          <section id="analytics-decisions" class="analytics-decisions hidden">
+            <div class="section-heading"><div><h3>Analyst Decision Summary</h3><p>Latest recorded decision for each reviewed case.</p></div></div>
+            <div class="decision-summary-grid">
+              <article class="decision-summary-card"><small>Confirm fraud</small><strong id="decision-confirmed-fraud">0</strong></article>
+              <article class="decision-summary-card"><small>Dismiss / safe</small><strong id="decision-dismissed">0</strong></article>
+              <article class="decision-summary-card"><small>Insufficient evidence</small><strong id="decision-insufficient-evidence">0</strong></article>
+              <article class="decision-summary-card"><small>Escalate to Risk Lead</small><strong id="decision-escalated">0</strong></article>
+              <article class="decision-summary-card"><small>Need more info</small><strong id="decision-needs-more-info">0</strong></article>
+            </div>
+          </section>
+          </div>
         </div>
       </section>
     </main>
 
+    <dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-title">
+      <button id="profile-close" class="profile-close" type="button" aria-label="Đóng hồ sơ">×</button>
+      <p class="profile-eyebrow">RISK OPERATIONS PROFILE</p>
+      <div class="profile-identity">
+        <div id="profile-avatar" class="profile-avatar">A</div>
+        <div>
+          <h2 id="profile-title">Hồ sơ chuyên viên</h2>
+          <p id="profile-username" class="profile-username"></p>
+          <span id="profile-role" class="profile-role"></span>
+        </div>
+      </div>
+      <div class="profile-stats">
+        <article><strong id="profile-cases-reviewed">0</strong><span>Hồ sơ đã xem xét</span></article>
+        <article><strong id="profile-active-streak">0</strong><span>Ngày hoạt động liên tiếp</span></article>
+        <article><strong id="profile-active-days">0</strong><span>Tổng ngày hoạt động</span></article>
+      </div>
+      <div class="profile-badges-heading">
+        <div><p class="profile-eyebrow">MILESTONES</p><h3>Huy hiệu</h3></div>
+        <span class="profile-badge-caption">Tích lũy qua hồ sơ đã xử lý</span>
+      </div>
+      <div id="profile-badges" class="profile-badges" aria-live="polite">
+        <p class="profile-loading">Đang tải hồ sơ...</p>
+      </div>
+      <div class="profile-actions">
+        <button id="profile-logout-button" class="profile-logout-button" type="button">
+          <svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 17 5-5-5-5" /><path d="M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </dialog>
     <aside id="detail-panel" class="detail-panel">
       <div class="detail-header"><div><p class="eyebrow">CASE DETAIL</p><h2 id="detail-title">Case —</h2></div><button id="close-detail" class="close-button">×</button></div>
       <div id="detail-content"></div>
     </aside>
     <div id="panel-backdrop" class="panel-backdrop"></div>
-    <script src="/static/risk-review.js?v=readable-risk-english-4"></script>
-    <script src="/static/app.js?v=readable-risk-english-4"></script>
+    <script src="/static/risk-review.js?v=readable-risk-english-5"></script>
+    <script src="/static/app.js?v=account-logout-1"></script>
   </body>
 </html>

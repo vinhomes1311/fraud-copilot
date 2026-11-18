@@ -174,7 +174,10 @@ Lệnh này chạy toàn bộ workflow:
 ```text
 fraudTrain.csv + fraudTest.csv
         ↓
-feature engineering và chronological split
+feature engineering trên dữ liệu gộp (test thừa hưởng lịch sử thẻ từ train)
+        ↓
+fraudTrain → 85% train cũ nhất + 15% validation gần nhất (split.validation_ratio)
+fraudTest  → test hold-out, giữ nguyên
         ↓
 data/processed/train.csv
 data/processed/validation.csv
@@ -216,6 +219,37 @@ python -m ml_pipeline.evaluate_artifact `
   --test-data data\fraudTest.csv `
   --output reports\ml-model-evaluation.json
 ```
+
+`--history-data` (mặc định `data/fraudTrain.csv`) chỉ dùng để khởi tạo lịch sử
+từng thẻ cho feature rolling, giống lúc train và lúc scoring online; metric chỉ
+tính trên các dòng của `--test-data`. Truyền `--history-data ""` để tắt.
+
+### 6. So sánh XGBoost với các model khác
+
+XGBoost vẫn là model production. Lệnh sau train thêm các model đối chứng trên
+đúng cùng split và quy trình (fit trên train → isotonic calibration và chọn
+threshold F1 trên validation → đánh giá một lần trên test), không ghi đè
+artifact trong `data/models`:
+
+```powershell
+python -m pip install -r requirements-ml.txt   # LightGBM (tùy chọn)
+python -m ml_pipeline.compare_models --config ml_pipeline/config.json
+```
+
+Model có sẵn: `rule_based`, `logistic_regression`, `random_forest`, `lightgbm`,
+`xgboost`, `ensemble_xgboost_lightgbm`. Chọn tập con bằng `--models`, dùng lại
+`data/processed/*.csv` của lần train trước bằng `--use-processed`, hoặc chạy
+thử nhanh bằng `--fast`:
+
+```powershell
+python -m ml_pipeline.compare_models --models xgboost,lightgbm --use-processed
+```
+
+Kết quả nằm ở `reports/model-comparison.json`, `.csv` và `.md` gồm PR-AUC,
+ROC-AUC, Precision/Recall/F1 tại threshold đã chọn, Recall/Precision@Top 1%,
+TP/FP/FN, Brier, thời gian train và độ trễ dự đoán, xếp hạng theo PR-AUC trên
+test kèm chênh lệch so với XGBoost. Nếu chưa cài LightGBM, LightGBM và ensemble
+được đánh dấu `skipped` còn các model khác vẫn chạy.
 
 Sau khi có artifact, scoring worker sẽ dùng file
 `data/models/fraud_xgboost.joblib`. Nếu xóa artifact hoặc chưa train, scoring
@@ -342,8 +376,16 @@ biến môi trường hoặc `.env` trước khi khởi động process nếu d�
 
 ## Dashboard
 
-Dashboard được serve bởi Analyst API tại `/`. Sau khi đăng nhập, màn hình review
-queue hỗ trợ:
+Dashboard được serve bởi Analyst API tại `/`. Sau khi đăng nhập, trang Dashboard
+giám sát hiển thị tổng giao dịch đã chấm điểm, case High/Medium đang mở, tỉ lệ
+cần review, p95 latency, biểu đồ quyết định theo nhóm rủi ro ML và biểu đồ
+latency/throughput inference 60 phút lấy từ Prometheus, tốc độ mục tiêu và số
+case mới thực tế mỗi giây của simulator (lịch sử tối đa 5 phút), cùng các case ưu tiên.
+Các chỉ số giao dịch lấy từ PostgreSQL; Recall hiển thị chưa có nhãn ground
+truth. Thanh tìm kiếm chuyển tới hàng đợi để tìm case/giao dịch; mục Simulator
+mở điều khiển simulator trong hàng đợi xét duyệt.
+
+Trang Review queue hỗ trợ:
 
 - lọc theo risk level và trạng thái;
 - xem confidence, trạng thái brief và chi tiết transaction đã che PII;
@@ -406,6 +448,7 @@ mật khẩu đã hash.
 | `GET` | `/api/v1/cases/classifications` | Analyst, Risk Lead | Giao dịch đã được analyst phân loại/chuyển tiếp; hỗ trợ `decision`, `search`, `limit`, `offset` |
 | `PUT` | `/api/v1/cases/{case_id}/outcome` | Analyst, Risk Lead | Cập nhật hoặc phân loại lại kết quả; mọi lần chỉnh sửa được lưu trong lịch sử và audit log |
 | `GET` | `/api/v1/cases/{case_id}` | Analyst, Risk Lead | Chi tiết case và lịch sử thao tác |
+| `GET` | `/api/v1/cases/analytics/ml-operations` | Analyst, Risk Lead | p95 inference latency và throughput từ Prometheus |
 | `POST` | `/api/v1/cases/manual` | Analyst, Risk Lead | Tạo case thủ công cho giao dịch LOW/unscored |
 | `POST` | `/api/v1/cases/{case_id}/actions` | Analyst | `NOTE`, `NEEDS_MORE_INFO`, `CONFIRM_SIMULATED`, `ESCALATE` |
 | `POST` | `/api/v1/cases/{case_id}/notes` | Analyst, Risk Lead | Thêm note append-only |
@@ -508,6 +551,7 @@ LLM_STUB_FAIL_RATE=0.5 docker compose up -d --build
 - `GET /healthz`: kiểm tra API còn kết nối Redis.
 - Prometheus scrape Analyst API tại `/metrics/`.
 - Worker expose metrics ở `METRICS_PORT` (`9101` cho scoring, `9102` cho LLM).
+- Analytics hiển thị phân bổ quyết định theo risk level và xu hướng inference p95/RPS trong 60 phút; API truy vấn Prometheus qua `PROMETHEUS_URL`.
 - `X-Request-Id` được truyền thành `trace_id` qua queue, log và audit record.
 - Redis queue có thống kê `ready`, `processing`, `dead` qua endpoint admin.
 
@@ -652,7 +696,8 @@ Notebook đã được chuyển thành package `ml_pipeline` với các hàm đ�
 
 - `read_csv_safely` và `validate_schema`: kiểm tra file, cột bắt buộc và timestamp.
 - `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
-- `chronological_split`: chia train/validation/test không làm rò rỉ tương lai.
+- `chronological_split` / `chronological_train_validation_split`: chia train/validation/test theo thời gian, không làm rò rỉ tương lai và không bỏ dòng nào của fraudTrain.
+- `candidates` và `compare_models`: các model đối chứng (rule-based, Logistic Regression, Random Forest, LightGBM, ensemble) và báo cáo so sánh với XGBoost.
 - `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
 
 Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.

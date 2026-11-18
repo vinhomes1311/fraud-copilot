@@ -93,15 +93,23 @@ class FakeResetDatabase:
     async def rfetchval(self, _query, *_args):
         return 0
 
+    async def rfetch(self, _query, *_args):
+        return []
+
 
 class FakeCaseRateDatabase:
-    def __init__(self, recent_case_count):
+    def __init__(self, recent_case_count, rate_history=None):
         self.recent_case_count = recent_case_count
+        self.rate_history = rate_history or []
         self.queries = []
 
     async def rfetchval(self, query, *args):
         self.queries.append((query, args))
         return self.recent_case_count
+
+    async def rfetch(self, query, *args):
+        self.queries.append((query, args))
+        return self.rate_history
 
 
 class FakeQueue:
@@ -142,6 +150,7 @@ async def test_simulator_controls_share_state_and_preserve_progress():
         "offset": 42,
         "tps": 5,
         "open_cases_per_second": 0.0,
+        "open_case_rate_history": [],
         "error": "",
         "version": 0,
     }
@@ -228,6 +237,7 @@ async def test_reset_demo_data_clears_only_simulator_records_and_restarts():
     assert result["tps"] == 25
     assert result["running"] is True
     assert result["open_cases_per_second"] == 0
+    assert result["open_case_rate_history"] == []
     assert fake_redis.deleted == ["idem:txn:demo-transaction"]
     assert len(database.connection.executed) == 6
     assert all("audit_log" not in query for query in database.connection.executed)
@@ -276,7 +286,11 @@ async def test_simulator_runner_does_not_take_lock_while_stopped(monkeypatch):
 @pytest.mark.asyncio
 async def test_simulator_reports_open_cases_created_per_second_and_caches_sample():
     fake_redis = FakeRedis()
-    database = FakeCaseRateDatabase(recent_case_count=18)
+    history = [
+        {"timestamp": 1_800_000_000, "value": 0.2, "low": 0.1, "medium": 0.05, "high": 0.05},
+        {"timestamp": 1_800_000_005, "value": 0.0, "low": 0.0, "medium": 0.0, "high": 0.0},
+    ]
+    database = FakeCaseRateDatabase(recent_case_count=18, rate_history=history)
     previous = (state.redis, state.db)
     state.redis = fake_redis
     state.db = database
@@ -288,9 +302,20 @@ async def test_simulator_reports_open_cases_created_per_second_and_caches_sample
 
     assert first["open_cases_per_second"] == 3.6
     assert second["open_cases_per_second"] == 3.6
-    assert len(database.queries) == 1
-    query, args = database.queries[0]
-    assert "FROM cases" in query
-    assert "created_at >=" in query
-    assert "status IN ('OPEN', 'IN_REVIEW', 'NEEDS_MORE_INFO', 'ESCALATED', 'RETURNED')" in query
-    assert args == (demo.OPEN_CASE_RATE_WINDOW_SECONDS,)
+    assert first["open_case_rate_history"] == history
+    assert second["open_case_rate_history"] == history
+    assert len(database.queries) == 2
+    rate_query, rate_args = database.queries[0]
+    assert "FROM cases" in rate_query
+    assert "created_at >=" in rate_query
+    assert "status IN ('OPEN', 'IN_REVIEW', 'NEEDS_MORE_INFO', 'ESCALATED', 'RETURNED')" in rate_query
+    assert rate_args == (demo.OPEN_CASE_RATE_WINDOW_SECONDS,)
+    history_query, history_args = database.queries[1]
+    assert "date_bin('5 seconds', created_at" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'LOW')" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'MEDIUM')" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'HIGH')" in history_query
+    assert "generate_series(" in history_query
+    assert "date_bin('5 seconds', now(), 'epoch'::timestamptz) - interval '5 seconds'" in history_query
+    assert "created_at < date_bin('5 seconds', now(), 'epoch'::timestamptz)" in history_query
+    assert history_args == (demo.SIMULATOR_CHART_WINDOW_SECONDS,)

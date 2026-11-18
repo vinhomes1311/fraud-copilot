@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import re
 import secrets
@@ -9,14 +10,43 @@ from urllib.parse import urlencode
 
 import asyncpg
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Query
 from fastapi.responses import RedirectResponse
 
-from ..auth import User, authenticate, create_token, hash_password
+from ..auth import User, authenticate, create_token, current_user, hash_password
 from fraud_common.schemas import Role
 from ..state import state
 
 router = APIRouter(tags=["auth"])
+
+BADGE_MILESTONES = (
+    ("expert", "Expert", 25, "Đã xem xét 25 hồ sơ"),
+    ("master", "Master", 100, "Đã xem xét 100 hồ sơ"),
+)
+
+
+def active_day_streak(active_days: list[date], today: date) -> int:
+    recorded_days = set(active_days)
+    anchor = today if today in recorded_days else today - timedelta(days=1)
+    streak = 0
+    while anchor in recorded_days:
+        streak += 1
+        anchor -= timedelta(days=1)
+    return streak
+
+
+def profile_badges(cases_reviewed: int) -> list[dict[str, int | str | bool]]:
+    return [
+        {
+            "id": badge_id,
+            "name": name,
+            "target": target,
+            "progress": min(cases_reviewed, target),
+            "earned": cases_reviewed >= target,
+            "description": description,
+        }
+        for badge_id, name, target, description in BADGE_MILESTONES
+    ]
 
 
 class LoginRequest(BaseModel):
@@ -65,6 +95,49 @@ async def login(body: LoginRequest):
     if not user:
         raise HTTPException(401, "Sai tài khoản hoặc mật khẩu")
     return {"access_token": create_token(user), "token_type": "bearer", "role": user.role}
+
+
+@router.get("/auth/profile")
+async def get_profile(user: User = Depends(current_user)):
+    row = await state.db.rfetchrow(
+        """WITH reviewed AS (
+               SELECT count(DISTINCT case_id)::int AS cases_reviewed
+               FROM case_actions
+               WHERE actor=$1
+           ),
+           active_dates AS (
+               SELECT DISTINCT (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS active_day
+               FROM case_actions
+               WHERE actor=$1
+           )
+           SELECT u.display_name, u.role, reviewed.cases_reviewed,
+                  count(active_dates.active_day)::int AS active_days,
+                  coalesce(
+                      array_agg(active_dates.active_day ORDER BY active_dates.active_day DESC)
+                          FILTER (WHERE active_dates.active_day IS NOT NULL),
+                      ARRAY[]::date[]
+                  ) AS activity_days
+           FROM users u
+           CROSS JOIN reviewed
+           LEFT JOIN active_dates ON true
+           WHERE u.username=$1 AND u.active=true
+           GROUP BY u.display_name, u.role, reviewed.cases_reviewed""",
+        user.username)
+    if row is None:
+        raise HTTPException(404, "Không tìm thấy hồ sơ tài khoản")
+
+    activity_days = row["activity_days"] or []
+    return {
+        "username": user.username,
+        "display_name": row["display_name"] or user.username,
+        "role": row["role"],
+        "cases_reviewed": row["cases_reviewed"],
+        "active_days": row["active_days"],
+        "active_day_streak": active_day_streak(
+            activity_days, datetime.now(timezone(timedelta(hours=7))).date()
+        ),
+        "badges": profile_badges(row["cases_reviewed"]),
+    }
 
 
 @router.post("/auth/register", status_code=201)

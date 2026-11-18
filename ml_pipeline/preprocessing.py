@@ -68,9 +68,9 @@ def compute_historical_features(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def extract_features(frame: pd.DataFrame, target: str = "is_fraud") -> pd.DataFrame:
-    validate_schema(frame, target)
     result = frame.copy()
     result.columns = [str(column).strip() for column in result.columns]
+    validate_schema(result, target)
     datetime_column = next(
         (column for column in DATETIME_CANDIDATES if column in result.columns), None
     )
@@ -124,6 +124,23 @@ def chronological_split(
         ordered.iloc[train_end:validation_end].copy(),
         ordered.iloc[validation_end:].copy(),
     )
+
+
+def chronological_train_validation_split(
+    frame: pd.DataFrame, validation_ratio: float = 0.15
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a source that already has its own hold-out test file.
+
+    Every row is kept: the oldest ``1 - validation_ratio`` rows become train and
+    the most recent rows become validation, matching the preprocessing notebook.
+    """
+    if not 0 < validation_ratio < 1:
+        raise ValueError("validation_ratio must be between 0 and 1")
+    ordered = frame.sort_values("_sort_time", na_position="last").reset_index(drop=True)
+    train_end = int(len(ordered) * (1 - validation_ratio))
+    if min(train_end, len(ordered) - train_end) < 1:
+        raise ValueError("Input data is too small for the requested validation ratio")
+    return ordered.iloc[:train_end].copy(), ordered.iloc[train_end:].copy()
 
 
 def drop_internal_columns(frame: pd.DataFrame, target: str = "is_fraud") -> pd.DataFrame:

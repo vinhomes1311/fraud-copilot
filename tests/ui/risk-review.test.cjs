@@ -131,6 +131,41 @@ test('brief shows generated explanations with supporting facts and escapes gener
   assert.doesNotMatch(html, /<img|EV-AMOUNT|Internal playbook instructions/);
 });
 
+test('demo reset asks for confirmation and restarts replay through the reset endpoint', async () => {
+  const app = readFileSync(resolve(root, 'static/app.js'), 'utf8');
+  const functionText = app.slice(app.indexOf('async function resetDemoData('), app.indexOf('\nasync function syncSimulatorState('));
+  const button = { disabled: false };
+  const calls = [];
+  const messages = [];
+  const state = { page: 4, lastSimulatorViewRefresh: 0 };
+  const run = vm.runInNewContext(`${functionText}; resetDemoData`, {
+    window: { confirm: () => true },
+    state,
+    $: (selector) => {
+      assert.equal(selector, '#reset-demo-data');
+      return button;
+    },
+    api: async (path, options) => {
+      calls.push({ path, options });
+      return { deleted_transactions: 3, deleted_cases: 2, offset: 0, running: true };
+    },
+    applySimulatorState: (result) => calls.push({ applied: result }),
+    loadCurrentView: () => calls.push({ refreshed: true }),
+    showToast: (message) => messages.push(message),
+    Date,
+  });
+
+  await run();
+
+  assert.equal(button.disabled, false);
+  assert.deepEqual(calls.map((call) => call.path || (call.refreshed ? 'refresh' : 'apply')), [
+    '/demo/reset', 'apply', 'refresh',
+  ]);
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(state.page, 0);
+  assert.equal(messages[0], 'Deleted 3 demo transactions and 2 cases; replay restarted');
+});
+
 test('case drawer integrates the new sections and copies the full ID without changing server data', async () => {
   const elements = new Map();
   function element(selector) {
