@@ -10,7 +10,7 @@ import scoring_worker.processor as scoring
 
 
 @pytest.mark.parametrize('probability,level', [
-    (0.1, RiskLevel.LOW), (0.5, RiskLevel.MEDIUM), (0.9, RiskLevel.HIGH)])
+    (0.001, RiskLevel.LOW), (0.1, RiskLevel.MEDIUM), (0.9, RiskLevel.HIGH)])
 @pytest.mark.asyncio
 async def test_scored_risks_create_review_cases_and_only_non_low_publish_brief_events(
         monkeypatch, probability, level):
@@ -26,7 +26,7 @@ async def test_scored_risks_create_review_cases_and_only_non_low_publish_brief_e
     events = AsyncMock()
     processor = scoring.ScoringProcessor(db, events)
     processor.thresholds.get = AsyncMock(return_value=ThresholdConfig(
-        version=1, low_max=0.3, high_min=0.7))
+        version=1, low_max=0.006, high_min=0.25))
     monkeypatch.setattr(scoring, 'compute_features', AsyncMock(return_value={'amt': 10}))
     monkeypatch.setattr(scoring, 'predict', lambda features: ScoringOutput(
         raw_model_score=probability, calibrated_prob=probability,

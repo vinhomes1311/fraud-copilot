@@ -174,7 +174,10 @@ Lệnh này chạy toàn bộ workflow:
 ```text
 fraudTrain.csv + fraudTest.csv
         ↓
-feature engineering và chronological split
+feature engineering trên dữ liệu gộp (test thừa hưởng lịch sử thẻ từ train)
+        ↓
+fraudTrain → 85% train cũ nhất + 15% validation gần nhất (split.validation_ratio)
+fraudTest  → test hold-out, giữ nguyên
         ↓
 data/processed/train.csv
 data/processed/validation.csv
@@ -216,6 +219,37 @@ python -m ml_pipeline.evaluate_artifact `
   --test-data data\fraudTest.csv `
   --output reports\ml-model-evaluation.json
 ```
+
+`--history-data` (mặc định `data/fraudTrain.csv`) chỉ dùng để khởi tạo lịch sử
+từng thẻ cho feature rolling, giống lúc train và lúc scoring online; metric chỉ
+tính trên các dòng của `--test-data`. Truyền `--history-data ""` để tắt.
+
+### 6. So sánh XGBoost với các model khác
+
+XGBoost vẫn là model production. Lệnh sau train thêm các model đối chứng trên
+đúng cùng split và quy trình (fit trên train → isotonic calibration và chọn
+threshold F1 trên validation → đánh giá một lần trên test), không ghi đè
+artifact trong `data/models`:
+
+```powershell
+python -m pip install -r requirements-ml.txt   # LightGBM (tùy chọn)
+python -m ml_pipeline.compare_models --config ml_pipeline/config.json
+```
+
+Model có sẵn: `rule_based`, `logistic_regression`, `random_forest`, `lightgbm`,
+`xgboost`, `ensemble_xgboost_lightgbm`. Chọn tập con bằng `--models`, dùng lại
+`data/processed/*.csv` của lần train trước bằng `--use-processed`, hoặc chạy
+thử nhanh bằng `--fast`:
+
+```powershell
+python -m ml_pipeline.compare_models --models xgboost,lightgbm --use-processed
+```
+
+Kết quả nằm ở `reports/model-comparison.json`, `.csv` và `.md` gồm PR-AUC,
+ROC-AUC, Precision/Recall/F1 tại threshold đã chọn, Recall/Precision@Top 1%,
+TP/FP/FN, Brier, thời gian train và độ trễ dự đoán, xếp hạng theo PR-AUC trên
+test kèm chênh lệch so với XGBoost. Nếu chưa cài LightGBM, LightGBM và ensemble
+được đánh dấu `skipped` còn các model khác vẫn chạy.
 
 Sau khi có artifact, scoring worker sẽ dùng file
 `data/models/fraud_xgboost.joblib`. Nếu xóa artifact hoặc chưa train, scoring
@@ -662,7 +696,8 @@ Notebook đã được chuyển thành package `ml_pipeline` với các hàm đ�
 
 - `read_csv_safely` và `validate_schema`: kiểm tra file, cột bắt buộc và timestamp.
 - `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
-- `chronological_split`: chia train/validation/test không làm rò rỉ tương lai.
+- `chronological_split` / `chronological_train_validation_split`: chia train/validation/test theo thời gian, không làm rò rỉ tương lai và không bỏ dòng nào của fraudTrain.
+- `candidates` và `compare_models`: các model đối chứng (rule-based, Logistic Regression, Random Forest, LightGBM, ensemble) và báo cáo so sánh với XGBoost.
 - `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
 
 Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.

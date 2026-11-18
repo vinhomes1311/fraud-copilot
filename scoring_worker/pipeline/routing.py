@@ -7,6 +7,10 @@ from fraud_common.config import get_settings
 from fraud_common.db import Database
 from fraud_common.schemas import RiskLevel, ThresholdConfig
 
+# Khớp seed trong db/init.sql: recommended_triage của model trong
+# data/models/fraud_xgboost.json (thang xác suất đã calibrate).
+DEFAULT_THRESHOLDS = ThresholdConfig(version=0, low_max=0.006, high_min=0.25)
+
 
 def route(prob: float, cfg: ThresholdConfig) -> RiskLevel:
     if prob >= cfg.high_min:
@@ -32,6 +36,6 @@ class ThresholdProvider:
                 self._cfg = ThresholdConfig(version=row["version"], low_max=float(row["low_max"]),
                                             high_min=float(row["high_min"]))
             elif self._cfg is None:
-                self._cfg = ThresholdConfig(version=0, low_max=0.30, high_min=0.70)  # mặc định an toàn
+                self._cfg = DEFAULT_THRESHOLDS
             self._fetched_at = time.monotonic()
         return self._cfg
