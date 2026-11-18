@@ -9,7 +9,7 @@ const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulato
   : DEFAULT_SIMULATOR_TPS;
 const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
-const state = { token: null, user: null, cases: [], classifications: [], selected: null, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
+const state = { token: null, user: null, cases: [], classifications: [], caseRequestId: 0, classificationRequestId: 0, selected: null, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
 let revealObserver = null;
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
@@ -208,6 +208,8 @@ function showLogin() {
   const intro = $("#intro-view");
   intro.classList.add("hidden");
   intro.classList.remove("intro-exiting");
+  const profileDialog = $("#profile-dialog");
+  if (profileDialog.open) profileDialog.close();
   const dashboardVideo = $(".dashboard-background-video");
   if (dashboardVideo) dashboardVideo.pause();
   const login = $("#login-view");
@@ -260,6 +262,71 @@ function renderDecisionBreakdown(rows) {
     }).join("");
     return `<article class="risk-breakdown-card"><h4>${label}</h4><p>Decisions by predicted risk level</p><div class="risk-breakdown-content"><div class="decision-donut" style="background:${gradient}" role="img" aria-label="${label}: ${total} decisions"><span class="decision-donut-center">${total.toLocaleString("en-US")}<small>decisions</small></span></div><ul class="decision-legend">${legend}</ul></div></article>`;
   }).join("");
+}
+function validationIssueLabel(message) {
+  const normalized = String(message || "").toLowerCase();
+  if (normalized.includes("field required") || normalized.includes("missing")) return "Missing value";
+  if (/greater.?than|less.?than|out of range/.test(normalized)) return "Out of range";
+  if (normalized.includes("valid") || normalized.includes("input should")) return "Invalid format";
+  return "Invalid value";
+}
+function renderSignalHealth(data = {}) {
+  const featureNames = {
+    amt: "Transaction Amount",
+    transaction_hour: "Transaction Hour",
+    hour_of_day: "Transaction Hour",
+    category: "Transaction Category",
+    sum_amt_24h: "Spend Total · 24h",
+    avg_amt_7d: "Average Spend · 7 days",
+    trans_count_24h: "Transaction Count · 24h",
+    trans_count_7d: "Transaction Count · 7 days",
+    customer_merchant_distance_km: "Distance to Merchant",
+  };
+  const validationFieldNames = {
+    amt: "Transaction Amount",
+  };
+  const formatter = new Intl.NumberFormat("en-US");
+  const features = data.top_features || [];
+  $("#dashboard-top-features").innerHTML = features.length
+    ? features.map((item, index) => {
+      const impact = Number(item.average_impact);
+      const impactLabel = Number.isFinite(impact)
+        ? impact.toLocaleString("en-US", { maximumFractionDigits: 3 })
+        : "—";
+      const label = featureNames[item.feature] || titleCase(item.feature || "Model feature");
+      return `<article class="signal-feature-card">
+        <span class="signal-rank">${String(index + 1).padStart(2, "0")}</span>
+        <div class="signal-feature-copy"><b>${escapeHtml(label)}</b><small>Average impact · ${impactLabel}</small></div>
+        <span class="signal-feature-count">${formatter.format(Number(item.occurrences) || 0)}<small>occurrences</small></span>
+      </article>`;
+    }).join("")
+    : `<p class="signal-health-empty">No model signals to summarize in the last 24 hours.</p>`;
+
+  const issues = data.validation_issues || [];
+  $("#dashboard-validation-issues").innerHTML = issues.length
+    ? issues.map((item) => `<article class="signal-issue-card">
+        <span class="signal-issue-mark" aria-hidden="true">!</span>
+        <div class="signal-issue-copy"><b>${escapeHtml(validationFieldNames[item.field] || titleCase(item.field || "Data field"))}</b><small>${validationIssueLabel(item.message)}</small></div>
+        <strong>${formatter.format(Number(item.occurrences) || 0)}</strong>
+      </article>`).join("")
+    : `<p class="signal-health-empty">No input validation issues in the last 24 hours.</p>`;
+
+  const deadQueueLabels = {
+    ml_jobs: "Scoring",
+    case_events: "Case updates",
+    llm_jobs: "Brief generation",
+  };
+  const deadQueues = data.dead_letters || [];
+  const deadCount = deadQueues.reduce((total, item) => total + (Number(item.count) || 0), 0);
+  const unscored = Number(data.unscored_last_24h) || 0;
+  $("#dashboard-queue-health").innerHTML = `
+    <div class="signal-queue-total"><div><small>Unscored · last 24h</small><strong>${formatter.format(unscored)}</strong></div>
+      <span class="${deadCount ? "queue-attention" : "queue-healthy"}">${deadCount ? `${formatter.format(deadCount)} jobs need attention` : "Queues clear"}</span>
+    </div>
+    <div class="signal-queue-breakdown">${deadQueues.map((item) => {
+      const label = deadQueueLabels[item.queue] || titleCase(item.queue);
+      return `<div><span>${escapeHtml(label)}</span><b>${formatter.format(Number(item.count) || 0)}</b></div>`;
+    }).join("")}</div>`;
 }
 function renderSimulatorChart() {
   const host = $("#dashboard-simulator-chart");
@@ -462,6 +529,7 @@ function renderDashboard(data) {
   navCount.classList.toggle("hidden", reviewCount === 0);
   renderSimulatorChart();
   renderDecisionBreakdown(data.decision_breakdown || []);
+  renderSignalHealth(data.signal_health || {});
   void loadMlOperations();
 
   const cases = data.recent_cases || [];
@@ -493,6 +561,7 @@ async function loadDashboard() {
   } catch (error) {
     if (state.view === "dashboard") {
       $("#dashboard-decision-breakdown").innerHTML = `<p class="dashboard-empty">Unable to load overview data: ${escapeHtml(error.message)}</p>`;
+      $("#dashboard-signal-health").innerHTML = `<p class="dashboard-empty">Unable to load pipeline insights: ${escapeHtml(error.message)}</p>`;
       showToast(error.message);
     }
   } finally {
@@ -514,7 +583,7 @@ function renderCases() {
     const probability = Number(item.calibrated_prob || 0) * 100;
     const date = item.created_at ? new Date(item.created_at).toLocaleDateString("vi-VN") : "—";
     return `<tr data-case-id="${escapeHtml(item.case_id)}"><td><b class="case-id">#${escapeHtml(item.run_number ?? item.case_id)}</b><div class="txn">${escapeHtml(item.txn_id)}</div></td><td><span class="risk risk-${riskClass(item.risk_level)}">${escapeHtml(titleCase(item.risk_level))}</span></td><td><span class="confidence">${formatProbability(item.calibrated_prob)}</span><span class="confidence-bar"><i style="width:${probability}%"></i></span><small class="score-caption">calibrated probability</small></td><td><span class="status status-${riskClass(item.status)}">${escapeHtml(statusLabel(item.status))}</span></td><td>${date}</td><td>${renderEvidence(item)}</td></tr>`;
-  }).join("") : `<tr><td colspan="6" class="empty">Không có case phù hợp với bộ lọc.</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">No cases match these filters.</td></tr>`;
   document.querySelectorAll("[data-case-id]").forEach((row) => row.addEventListener("click", () => openDetail(row.dataset.caseId)));
   const pageCount = Math.max(1, Math.ceil(state.total / state.pageSize));
   $("#page-number").textContent = `${state.page + 1} / ${pageCount}`;
@@ -522,13 +591,39 @@ function renderCases() {
   $("#next-page").disabled = state.page + 1 >= pageCount;
 }
 
+function dateInputBoundary(value, nextDay = false) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (nextDay) date.setDate(date.getDate() + 1);
+  return date.toISOString();
+}
+
 async function loadCases() {
+  const requestId = ++state.caseRequestId;
+  const requestView = state.view;
   try {
     const offset = state.page * state.pageSize;
+    const params = new URLSearchParams({
+      limit: String(state.pageSize),
+      offset: String(offset),
+      sort: $("#sort-filter").value,
+    });
+    const filters = {
+      risk_level: $("#risk-filter").value,
+      status: $("#status-filter").value,
+      score_band: $("#score-filter").value,
+      received_from: dateInputBoundary($("#received-from-filter").value),
+      received_before: dateInputBoundary($("#received-to-filter").value, true),
+      evidence_status: $("#evidence-filter").value,
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
     const path = state.view === "analytics"
-      ? `/cases/analytics/transactions?limit=${state.pageSize}&offset=${offset}`
-      : `/cases?limit=${state.pageSize}&offset=${offset}`;
+      ? `/cases/analytics/transactions?${params}`
+      : `/cases?${params}`;
     const result = await api(path);
+    if (requestId !== state.caseRequestId || requestView !== state.view) return;
     state.cases = result.items || [];
     state.total = Number(result.total || 0);
     const navCount = $("#review-nav-count");
@@ -539,7 +634,11 @@ async function loadCases() {
     $("#medium-count").textContent = result.medium_count ?? 0;
     renderDecisionSummary(result.decision_summary || {});
     renderCases();
-  } catch (error) { $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Không tải được dữ liệu: ${escapeHtml(error.message)}</td></tr>`; showToast(error.message); }
+  } catch (error) {
+    if (requestId !== state.caseRequestId || requestView !== state.view) return;
+    $("#cases-body").innerHTML = `<tr><td colspan="6" class="empty">Could not load cases: ${escapeHtml(error.message)}</td></tr>`;
+    showToast(error.message);
+  }
 }
 function renderClassifications() {
   const rows = state.classifications;
@@ -570,21 +669,34 @@ function renderClassifications() {
   $("#classification-next").disabled = state.page + 1 >= pageCount;
 }
 async function loadClassifications() {
+  const requestId = ++state.classificationRequestId;
   const params = new URLSearchParams({
     limit: String(state.pageSize),
     offset: String(state.page * state.pageSize),
+    sort: $("#classification-sort-filter").value,
   });
   const decision = $("#classification-filter").value;
   const search = $("#classification-search").value.trim();
+  const filters = {
+    status: $("#classification-status-filter").value,
+    stream: $("#classification-stream-filter").value,
+    merchant_type: $("#classification-merchant-filter").value,
+    score_band: $("#classification-score-filter").value,
+  };
   if (decision) params.set("decision", decision);
   if (search) params.set("search", search);
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
   try {
     const result = await api(`/cases/classifications?${params}`);
+    if (requestId !== state.classificationRequestId || state.view !== "classifications") return;
     state.classifications = result.items || [];
     state.total = Number(result.total || 0);
     renderDecisionSummary(result.decision_summary || {});
     renderClassifications();
   } catch (error) {
+    if (requestId !== state.classificationRequestId || state.view !== "classifications") return;
     $("#classifications-body").innerHTML = `<tr><td colspan="8" class="empty">Could not load manual decisions: ${escapeHtml(error.message)}</td></tr>`;
     showToast(error.message);
   }
@@ -870,6 +982,61 @@ $("#login-form").addEventListener("submit", async (event) => {
   }
 });
 function updateUser() { const name = state.user?.username || "Chuyên viên"; const role = state.user?.role === "risk_lead" ? "Trưởng nhóm rủi ro" : "Chuyên viên phân tích rủi ro"; $("#user-name").textContent = name; $("#user-avatar").textContent = name[0].toUpperCase(); $("#user-role").textContent = role; }
+function renderProfile(profile) {
+  const displayName = profile.display_name || profile.username;
+  const roleLabels = {
+    analyst: "Chuyên viên phân tích rủi ro",
+    risk_lead: "Trưởng nhóm rủi ro",
+    admin: "Quản trị viên",
+  };
+  $("#profile-title").textContent = displayName;
+  $("#profile-username").textContent = `@${profile.username}`;
+  $("#profile-role").textContent = roleLabels[profile.role] || titleCase(profile.role);
+  $("#profile-avatar").textContent = displayName.charAt(0).toUpperCase();
+  $("#profile-cases-reviewed").textContent = Number(profile.cases_reviewed || 0).toLocaleString("vi-VN");
+  $("#profile-active-streak").textContent = Number(profile.active_day_streak || 0).toLocaleString("vi-VN");
+  $("#profile-active-days").textContent = Number(profile.active_days || 0).toLocaleString("vi-VN");
+  $("#profile-badges").innerHTML = profile.badges.map((badge) => {
+    const target = Math.max(1, Number(badge.target) || 1);
+    const progress = Math.max(0, Math.min(target, Number(badge.progress) || 0));
+    const percentage = Math.round(progress / target * 100);
+    const status = badge.earned ? "Đã đạt" : "Đang tích lũy";
+    return `<article class="profile-badge ${badge.earned ? "earned" : "locked"}">
+      <span class="profile-medal" aria-hidden="true">${badge.earned ? "★" : "☆"}</span>
+      <div class="profile-badge-details">
+        <div class="profile-badge-title"><b>${escapeHtml(badge.name)}</b><span>${status}</span></div>
+        <p>${escapeHtml(badge.description)}</p>
+        <div class="profile-progress" role="progressbar" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="${target}" aria-label="${escapeHtml(badge.name)}">
+          <span style="width:${percentage}%"></span>
+        </div>
+        <small>${progress.toLocaleString("vi-VN")} / ${target.toLocaleString("vi-VN")} hồ sơ</small>
+      </div>
+    </article>`;
+  }).join("");
+}
+async function openProfile() {
+  const dialog = $("#profile-dialog");
+  dialog.showModal();
+  $("#profile-badges").innerHTML = `<p class="profile-loading">Đang tải hồ sơ...</p>`;
+  try {
+    renderProfile(await api("/auth/profile"));
+  } catch (error) {
+    $("#profile-badges").innerHTML = `<p class="profile-loading">Không tải được hồ sơ: ${escapeHtml(error.message)}</p>`;
+  }
+}
+$("#account-button").addEventListener("click", openProfile);
+$("#profile-close").addEventListener("click", () => $("#profile-dialog").close());
+$("#profile-dialog").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
+});
+function logout() {
+  localStorage.removeItem("fraud_token");
+  state.token = null;
+  state.user = null;
+  showLogin();
+}
+$("#logout-button").addEventListener("click", logout);
+$("#profile-logout-button").addEventListener("click", logout);
 $("#simulator-tps").value = String(state.simulatorTps);
 $("#simulator-tps").addEventListener("input", () => { state.simulatorTpsInputDirty = true; });
 $("#simulator-tps").addEventListener("change", async () => {
@@ -899,7 +1066,24 @@ $("#simulator-tps").addEventListener("change", async () => {
   }
 });
 $("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
-$("#logout-button").addEventListener("click", () => { localStorage.removeItem("fraud_token"); state.token = null; showLogin(); });
+const resetCasePageAndLoad = () => { state.page = 0; void loadCases(); };
+["risk-filter", "status-filter", "score-filter", "received-from-filter", "received-to-filter", "evidence-filter", "sort-filter"]
+  .forEach((id) => $(`#${id}`).addEventListener("change", resetCasePageAndLoad));
+$("#review-filter-reset").addEventListener("click", () => {
+  ["search-input", "risk-filter", "status-filter", "score-filter", "received-from-filter", "received-to-filter", "evidence-filter"]
+    .forEach((id) => { $(`#${id}`).value = ""; });
+  $("#sort-filter").value = "newest";
+  resetCasePageAndLoad();
+});
+["classification-status-filter", "classification-stream-filter", "classification-merchant-filter", "classification-score-filter", "classification-sort-filter"]
+  .forEach((id) => $(`#${id}`).addEventListener("change", () => { state.page = 0; void loadClassifications(); }));
+$("#classification-filter-reset").addEventListener("click", () => {
+  ["classification-search", "classification-filter", "classification-status-filter", "classification-stream-filter", "classification-merchant-filter", "classification-score-filter"]
+    .forEach((id) => { $(`#${id}`).value = ""; });
+  $("#classification-sort-filter").value = "newest";
+  state.page = 0;
+  void loadClassifications();
+});
 $("#export-button").addEventListener("click", () => { const csv = ["case_id,txn_id,risk_level,confidence,status", ...state.cases.map((item) => `${item.case_id},${item.txn_id},${item.risk_level},${item.calibrated_prob},${item.status}`)].join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "fraud-cases.csv"; link.click(); });
 $("#export-classifications").addEventListener("click", () => {
   const columns = ["case_id", "transaction_id", "merchant", "category", "risk_level", "model_probability", "decision", "status", "reviewer", "role", "note", "amount", "city", "region", "decided_at"];
