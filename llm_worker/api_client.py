@@ -6,9 +6,10 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from copilot.providers import SYSTEM_PROMPT
 from fraud_common.config import get_settings
 from .local_integration import OllamaClient
+from .prompts import BRIEF_SYSTEM_PROMPT
+from .narrative import prompt_payload
 
 
 _429_HINTS = {
@@ -60,6 +61,10 @@ class APIClient(OllamaClient):
         self.token_parameter = os.getenv('LLM_API_TOKEN_PARAMETER', 'max_completion_tokens')
         if self.token_parameter not in ('max_completion_tokens', 'max_tokens'):
             raise ValueError('Invalid LLM_API_TOKEN_PARAMETER')
+        # Compatible endpoints such as Gemini need not implement response storage.
+        self.store_parameter = os.getenv('LLM_API_STORE', 'false').strip()
+        if self.store_parameter not in ('false', 'omit'):
+            raise ValueError('LLM_API_STORE must be false or omit')
         self.max_tokens = int(os.getenv('LLM_API_MAX_COMPLETION_TOKENS', '1024'))
         if self.max_tokens <= 0:
             raise ValueError('LLM_API_MAX_COMPLETION_TOKENS must be positive')
@@ -71,39 +76,34 @@ class APIClient(OllamaClient):
     def model_name(self):
         return self.model
 
-    def selection_schema(self, evidence, selected_chunks):
-        # Preserve the hosted provider's existing evidence-selection contract.
-        schema = super().selection_schema(evidence, selected_chunks)
-        schema['required'] = ['evidence_ids', 'checklist_ids']
-        schema['properties']['evidence_ids'] = {
-            'type': 'array', 'minItems': len(evidence), 'maxItems': len(evidence),
-            'uniqueItems': True, 'items': {'type': 'string', 'enum': list(evidence)}}
-        return schema
-
-    def parse_selection(self, content, evidence):
-        return json.loads(content)
-
     async def chat(self, model, schema, evidence, selected_chunks):
         # Some strict schema implementations do not support uniqueItems or array
         # length constraints. Local validation still enforces all these rules.
         api_schema = copy.deepcopy(schema)
-        for prop in api_schema['properties'].values():
-            for key in ('uniqueItems', 'minItems', 'maxItems'):
-                prop.pop(key, None)
+        def compatible(node):
+            if isinstance(node, dict):
+                for key in ('uniqueItems', 'minItems', 'maxItems'):
+                    node.pop(key, None)
+                for value in node.values():
+                    compatible(value)
+            elif isinstance(node, list):
+                for value in node:
+                    compatible(value)
+        compatible(api_schema)
         fmt = {'type': self.response_format}
         if self.response_format == 'json_schema':
-            fmt['json_schema'] = {'name': 'brief_selection', 'strict': True, 'schema': api_schema}
+            fmt['json_schema'] = {'name': 'explained_case_brief', 'strict': True, 'schema': api_schema}
         payload = {
-            'model': model, 'stream': False, 'store': False, 'response_format': fmt,
+            'model': model, 'stream': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
-                {'role': 'system', 'content': SYSTEM_PROMPT +
-                 '\nReturn a JSON object containing only evidence_ids and checklist_ids. '
-                 'Include every evidence ID exactly once and choose 1 to 3 unique checklist IDs from the playbook.'},
+                {'role': 'system', 'content': BRIEF_SYSTEM_PROMPT},
                 {'role': 'user', 'content': json.dumps(
-                    {'evidence': evidence, 'playbook': selected_chunks}, ensure_ascii=False)},
+                    prompt_payload(evidence, selected_chunks), ensure_ascii=False)},
             ],
         }
+        if self.store_parameter == 'false':
+            payload['store'] = False
         if self.reasoning_effort:
             payload['reasoning_effort'] = self.reasoning_effort
         try:
@@ -137,6 +137,6 @@ class APIClient(OllamaClient):
                 raise ValueError()
         except (ValueError, KeyError, TypeError, AttributeError):
             raise ValueError('Invalid or incomplete LLM API response') from None
-        # Normalize transport fields for the shared extractive generation pipeline.
+        # Normalize transport fields for the shared explained-brief pipeline.
         return {'done': True, 'prompt_eval_count': counts[0], 'eval_count': counts[1],
                 'message': {'content': content}}

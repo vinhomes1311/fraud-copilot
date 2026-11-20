@@ -165,6 +165,8 @@ class ChecklistItem(BaseModel):
     step: int
     action: str
     rule_code: str | None = None
+    rationale: str | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class BriefContent(BaseModel):

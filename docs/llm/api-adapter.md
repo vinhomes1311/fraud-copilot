@@ -21,6 +21,8 @@ LLM_PROVIDER=api
 LLM_API_BASE_URL=https://api.openai.com/v1
 LLM_API_MODEL=gpt-5.4-mini
 LLM_API_KEY=<API key của bạn>
+LLM_API_TOKEN_PARAMETER=max_completion_tokens
+LLM_API_STORE=false
 LLM_RETRIEVER=playbook
 LLM_JOB_TIMEOUT_S=120
 LLM_VISIBILITY_TIMEOUT_S=300
@@ -51,7 +53,11 @@ Worker kiểm tra cấu hình LLM trước khi kết nối DB.
 
 ## Chọn model và tối ưu
 
-Mặc định `gpt-5.4-mini` là điểm bắt đầu cho tác vụ chọn evidence và checklist có
+Khi không đặt URL/model trong môi trường, client mặc định dùng OpenAI
+`gpt-5.4-mini`. File `.env.example` có sẵn ví dụ Gemini; hướng dẫn giữ cả hai
+provider và so sánh nằm trong [benchmark guide](../benchmarks/README.md#giữ-cả-ollama-và-gemini-trong-env).
+
+`gpt-5.4-mini` là điểm bắt đầu cho tác vụ chọn evidence và checklist có
 cấu trúc. Model này hỗ trợ Chat Completions và Structured Outputs theo
 [OpenAI Docs](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
 Đây không phải kết luận về model tốt nhất cho dữ liệu của dự án: cần đo citation,
@@ -68,6 +74,8 @@ tỷ lệ thành công, độ trễ và token trên bộ case đại diện trư
 - Mặc định dùng `json_schema`. Provider chỉ hỗ trợ JSON mode có thể đặt
   `LLM_API_RESPONSE_FORMAT=json_object`; việc kiểm tra ID tại ứng dụng vẫn bắt buộc.
 - Nếu provider yêu cầu tham số cũ, đặt `LLM_API_TOKEN_PARAMETER=max_tokens`.
+- `LLM_API_STORE=false` (mặc định) gửi `store=false`; `omit` bỏ tham số cho
+  endpoint tương thích không hỗ trợ nó. Đây không phải chính sách lưu giữ dữ liệu.
 - `LLM_CONCURRENCY=1` là điểm bắt đầu để hạn chế request đồng thời.
 
 `LLM_RETRIEVER=playbook` đưa toàn bộ KB nhỏ hiện có vào context, không gọi
@@ -77,9 +85,44 @@ embedding/Ollama. Đây chưa phải semantic retrieval cho KB lớn. Có thể 
 ## Hợp đồng dữ liệu và xử lý lỗi
 
 Client gửi evidence đã lọc theo allowlist và các đoạn playbook được phê duyệt.
-LLM chọn ID; ứng dụng xác minh ID, evidence đầy đủ, checklist không trùng và render
-brief từ nguồn đã kiểm tra. Model không tự thay đổi điểm rủi ro hay routing.
-Request đặt `store=false`, không theo redirect và không đưa key vào prompt.
+API và Ollama dùng chung prompt và hợp đồng `explained-brief-v2`: LLM chọn
+1–3 `checklist_ids` duy nhất và sinh `rationales`, mỗi rule có một đoạn giải thích
+tiếng Anh khoảng 40–75 từ, kèm `rule_code`, `evidence_ids` và `text`.
+Backend dựng số liệu; model giải thích ý nghĩa và liên hệ giữa các tín hiệu của case.
+Các so sánh lớn hơn/nhỏ hơn/bằng giữa số tiền và mean/max hợp lệ được backend tính
+trước. Không dùng baseline mặc định làm căn cứ so sánh.
+Quy tắc không áp dụng được loại khỏi prompt và schema trước inference. Trường hợp
+bắt buộc kiểm tra thiếu baseline maximum chỉ cho phép chọn quy tắc data-gap tương ứng.
+Ứng dụng xác minh ID, checklist không trùng và render brief từ nguồn đã kiểm tra.
+Nội dung hiển thị được dựng bằng tiếng Anh từ số liệu case đã projection:
+giờ giao dịch, số giao dịch và mức tiền tham chiếu thực có. Không hiển thị chú
+thích thiếu múi giờ, loại tiền, baseline hoặc xác suất; không thay dữ liệu thiếu bằng 0.
+Các hướng dẫn như “Ghi rõ”, “Bỏ qua”, “Không tự suy luận” trong playbook chỉ phục
+vụ model; không chép `implementation_action` hoặc prompt vào summary/checklist.
+Ví dụ PB-19 hiển thị “Transaction hour: 13.”
+Phía dưới số liệu là phần giải thích do LLM sinh; mục “Supporting case facts”
+cho phép xem các tín hiệu còn lại. Brief cũ không có rationale vẫn đọc được.
+Rationale chỉ được tham chiếu fact có thể hiển thị, không dùng gap/prompt làm
+bằng chứng. Giá trị số trong prose phải dùng placeholder như `{{EV-AMOUNT}}`;
+backend thay bằng giá trị nguồn và từ chối số tự viết, note thiếu dữ liệu, text
+quá ngắn và tham chiếu sai. Đây là kiểm tra cấu trúc/nguồn số liệu, không phải
+bảo đảm tính đúng đắn ngữ nghĩa của mọi nhận định tự do do model sinh.
+Playbook v2.1 là bản dịch tiếng Anh, giữ rule ID và điều kiện áp dụng của v2.0.
+Citation giữ quote nguyên văn của nguồn tiếng Anh, tách khỏi phần trình bày.
+Kết quả benchmark cũ vẫn thuộc phiên bản nguồn/prompt cũ.
+Brief đã lưu trước cập nhật cần được tạo lại để có nội dung mới.
+Citation phải có quote không rỗng khớp nguyên văn nguồn được truy xuất; mỗi rule
+trong checklist cần citation riêng. Model không tự thay đổi điểm rủi ro hay routing.
+Sau khi cập nhật, rebuild/restart `analyst-api` và `llm-worker`. Output chỉ chứa
+checklist ID mà thiếu rationale bị từ chối thay vì âm thầm sinh brief ngắn.
+Mặc định trần output là 1024 token. Nếu `.env` cũ còn
+`OLLAMA_MAX_COMPLETION_TOKENS=128`, đổi thành 1024 khi dùng Ollama.
+Các tham số vận hành chung nằm trong `.env.example`: `LLM_MAX_ATTEMPTS`,
+`BRIEF_TOKEN_BUDGET`, `REGEN_LIMIT_PER_HOUR`, `BREAKER_FAILURE_THRESHOLD`,
+`BREAKER_RESET_S` và timeout/concurrency. Compose truyền cùng cấu hình queue cho
+API và worker; hai override chỉ đổi phần riêng của provider. Giới hạn nội dung
+và điều kiện playbook là hợp đồng trong code, không phải biến môi trường.
+Request mặc định đặt `store=false` (có thể bỏ bằng `LLM_API_STORE=omit`), không theo redirect và không đưa key vào prompt.
 Tham số `store` không thay thế chính sách lưu giữ dữ liệu của nhà cung cấp.
 
 Endpoint phải trả `finish_reason=stop`, nội dung JSON và usage nguyên không âm

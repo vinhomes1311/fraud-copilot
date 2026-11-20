@@ -36,7 +36,11 @@ def applicability(ctx):
         priorities['PB-22'] = 0
     if explained:
         priorities['PB-23'] = 0
-    priorities['PB-26' if ctx['risk_level'] == 'LOW' else 'PB-27'] = 0
+    # With LOW routing and no focal explanation, conservative review is itself
+    # relevant context. Do not let incidental hour/category/count cards crowd it
+    # out of a bounded context. This uses evidence, never benchmark references.
+    routing_rule = 'PB-26' if ctx['risk_level'] == 'LOW' else 'PB-27'
+    priorities[routing_rule] = 2 if ctx['risk_level'] == 'LOW' and not explained else 0
     if any(k.endswith('-GAP') for k in evidence):
         priorities['PB-28'] = 1
     if (explained & set(FEATURE_RULES.values())) - known:

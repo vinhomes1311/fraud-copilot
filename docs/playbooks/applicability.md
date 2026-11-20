@@ -16,6 +16,9 @@ Trước khi giới hạn top 5, lọc rule theo điều kiện:
 - Rule cụ thể cho explanation hợp lệ được ưu tiên, tiếp theo là khoảng trống
   baseline, cuối cùng là ngữ cảnh bổ trợ và nguyên tắc chung. Semantic similarity
   xếp thứ tự trong cùng mức ưu tiên; đây là retrieval kết hợp điều kiện và semantic.
+- Với routing LOW và không có explanation chính, PB-26 được ưu tiên hơn các
+  feature phụ để luôn có ngữ cảnh rà soát thận trọng trong top 5. Không thay đổi
+  routing/score, không đọc nhãn tham chiếu hoặc ID case để quyết định ưu tiên.
 
 Các điều kiện nằm trong llm_worker/retrieval_policy.py, không đọc fixture hoặc
 case ID. LLM vẫn tự chọn checklist; renderer từ chối citation trái điều kiện trước
