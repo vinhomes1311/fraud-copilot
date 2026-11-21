@@ -72,3 +72,27 @@ async def test_retrieval_understands_current_ml_explanation_names():
     with patch('llm_worker.local_integration.request', side_effect=fake):
         assert len(await SemanticRetriever().retrieve(
             ['customer_merchant_distance_km', 'transaction_hour', 'amt_to_avg_7d_ratio'], 'HIGH')) == 5
+
+
+def test_readable_factor_reason_and_scale_reach_llm_evidence():
+    ctx = context()
+    ctx['explanations'] = [{'feature': 'customer_merchant_distance_km', 'value': 40, 'contribution': 1.25,
+                            'label': 'Home-to-merchant distance', 'display_value': '40.0 km',
+                            'reason': "Merchant is 40.0 km from the cardholder's address",
+                            'share_pct': 31.5, 'probability_without': .42}]
+    text = project_evidence(ctx)['EV-FACTOR-0']['text']
+    assert "Merchant is 40.0 km from the cardholder's address" in text
+    assert '31.5% of this transaction' in text
+    assert 'log-odds' in text and 'method and scale not supplied' not in text
+    assert 'does not confirm fraud' in text
+
+
+def test_key_signals_use_reason_and_keep_legacy_format():
+    from llm_worker.fallback import describe_signal, rule_based_brief
+    readable = {'feature': 'amt', 'value': 780.52, 'contribution': 2.1, 'label': 'Transaction amount',
+                'reason': "780.52 is 6.2× this card's average", 'share_pct': 40.0}
+    assert describe_signal(readable) == "Transaction amount: 780.52 is 6.2× this card's average (40% of model evidence)"
+    assert describe_signal({'feature': 'amt', 'value': 1, 'contribution': 0.2}) == 'amt đóng góp 0.20'
+    brief = rule_based_brief({'txn_id': 't1', 'transaction': {'amt': 1}, 'risk_level': 'HIGH',
+                              'explanations': [readable]})
+    assert brief.key_signals == [describe_signal(readable)]

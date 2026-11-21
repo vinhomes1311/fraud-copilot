@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -25,12 +24,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 from xgboost import XGBClassifier
 
+from .calibration import describe_calibrator, fit_calibrator
+
 INTERNAL_COLUMNS = ("_sort_time", "_split_tag")
 DEFAULT_EVALUATION = {
     "threshold_min": 0.05,
     "threshold_max": 0.95,
     "threshold_step": 0.05,
     "top_fraction": 0.01,
+    "calibration_method": "platt",
 }
 DEFAULT_XGBOOST_PARAMS = {
     "objective": "binary:logistic",
@@ -99,7 +101,7 @@ def split_features_target(frame: pd.DataFrame, target: str = "is_fraud") -> tupl
     return features, frame[target].astype(int)
 
 
-def evaluation_settings(evaluation: dict[str, Any] | None = None) -> dict[str, float]:
+def evaluation_settings(evaluation: dict[str, Any] | None = None) -> dict[str, Any]:
     return {**DEFAULT_EVALUATION, **(evaluation or {})}
 
 
@@ -135,10 +137,6 @@ def fit_xgboost(
     return Pipeline([("preprocessor", preprocessor), ("model", estimator)])
 
 
-def fit_calibrator(raw_scores: np.ndarray, y_true: pd.Series) -> IsotonicRegression:
-    return IsotonicRegression(out_of_bounds="clip").fit(raw_scores, y_true)
-
-
 def train_model(
     train_frame: pd.DataFrame,
     validation_frame: pd.DataFrame,
@@ -152,7 +150,7 @@ def train_model(
     x_validation, y_validation = split_features_target(validation_frame, target)
     pipeline = fit_xgboost(x_train, y_train, x_validation, y_validation, **params)
     validation_scores = pipeline.predict_proba(x_validation)[:, 1]
-    calibrator = fit_calibrator(validation_scores, y_validation)
+    calibrator = fit_calibrator(validation_scores, y_validation, settings["calibration_method"])
     calibrated_scores = calibrator.transform(validation_scores)
     threshold = select_threshold(y_validation, calibrated_scores, **_threshold_grid(settings))
     test_metrics = None
@@ -170,6 +168,7 @@ def train_model(
     return {
         "pipeline": pipeline,
         "calibrator": calibrator,
+        "calibration": describe_calibrator(calibrator),
         "threshold": threshold,
         "recommended_triage": recommend_triage_thresholds(
             calibrated_scores, threshold, settings["top_fraction"]
@@ -283,6 +282,7 @@ def save_artifact(artifact: dict[str, Any], path: str | Path, source_files: list
         "metrics": artifact["metrics"],
         "test_metrics": artifact.get("test_metrics"),
         "threshold": artifact["threshold"],
+        "calibration": artifact.get("calibration") or describe_calibrator(artifact["calibrator"]),
         "recommended_triage": artifact.get("recommended_triage"),
         "best_iteration": artifact.get("best_iteration"),
         "feature_columns": artifact["feature_columns"],
@@ -304,7 +304,7 @@ def load_artifact(path: str | Path) -> dict[str, Any]:
     return artifact
 
 
-def _threshold_grid(settings: dict[str, float]) -> dict[str, float]:
+def _threshold_grid(settings: dict[str, Any]) -> dict[str, float]:
     return {key: settings[key] for key in ("threshold_min", "threshold_max", "threshold_step")}
 
 

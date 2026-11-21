@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from fraud_common.config import get_settings
 from fraud_common.schemas import BriefContent, ChecklistItem, Citation
 
+from .fallback import describe_signal
 from .rag import Chunk
 
 PROMPT_VERSION = "extractive-kaggle-sparkov-v7-gap-schema"
@@ -37,7 +38,7 @@ class StubLLMClient:
             summary=(f"Giao dịch {ctx['txn_id']} số tiền {tx.get('amt')} tại {tx.get('merchant')} "
                      f"({tx.get('category')}), mức rủi ro {ctx['risk_level']} "
                      f"(xác suất {ctx['calibrated_prob']:.2f})."),
-            key_signals=[f"{e['feature']} đóng góp {e['contribution']:.2f}" for e in ctx["explanations"]],
+            key_signals=[describe_signal(e) for e in ctx["explanations"]],
             checklist=[ChecklistItem(step=i + 1, action=f"Kiểm tra theo quy tắc {c.rule_code}: {c.text}",
                                      rule_code=c.rule_code) for i, c in enumerate(chunks)],
             citations=[Citation(section_id=c.section_id, rule_code=c.rule_code, quote=c.text[:80])

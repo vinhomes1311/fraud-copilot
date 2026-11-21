@@ -26,7 +26,7 @@ test('missing or invalid probability is not presented as zero; rounding stays ex
   }
   assert.equal(view.probability(0), '0%');
   assert.equal(view.probability(1), '100%');
-  assert.equal(view.probability(0.999999), '≈100%');
+  assert.equal(view.probability(0.999999), '>99.99%');
   assert.equal(view.probability(0.000001), '<0.01%');
 });
 
@@ -94,6 +94,25 @@ test('impact annotations use English labels consistent with the main dashboard',
   assert.match(html, /Highest impact/);
   assert.match(html, /Lower impact/);
   assert.doesNotMatch(html, /Tác động lớn nhất|Tác động tiếp theo/);
+});
+
+test('readable factors show reason, share of evidence and probability without the factor', () => {
+  const item = { ...example, calibrated_prob: 0.93, explanations: [
+    { feature: 'amt', value: 780.52, contribution: 2.1, label: 'Transaction amount', display_value: '780.52',
+      reason: "780.52 is 6.2× this card's average of 125.40", share_pct: 41.3, probability_without: 0.412 },
+    { feature: 'merchant', value: 1, contribution: -0.4, label: 'Merchant', display_value: 'fraud_Kub-Smith',
+      reason: '<b>learned</b> from past transactions', share_pct: 7.9, probability_without: 0.95 },
+  ] };
+  const html = view.renderSignals(item);
+  assert.match(html, /6\.2× this card&#039;s average/);
+  assert.match(html, /41\.3% of model evidence/);
+  assert.match(html, /Without it: 41\.2%/);
+  assert.match(html, /fraud_Kub-Smith/);
+  assert.doesNotMatch(html, /Original value unavailable|<b>learned/);
+  assert.match(html, /&lt;b&gt;learned/);
+  assert.match(html, /Share of model evidence/);
+  assert.doesNotMatch(html, /Highest impact/);
+  assert.match(view.renderTechnicalDetails(item), /41\.3%/);
 });
 
 test('checklist retains rule codes without repeating references or the original summary', () => {
