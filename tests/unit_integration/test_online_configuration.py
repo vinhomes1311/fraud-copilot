@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from benchmarks.mock_llm import explanatory_selection
+
 from llm_worker.smoke_test import check
 
 
@@ -60,11 +62,9 @@ async def test_live_smoke_uses_synthetic_evidence_and_validates_grounding():
 
     def handler(request):
         captured.append(request)
-        evidence = json.loads(request.content)['messages'][1]['content']
-        evidence = json.loads(evidence)['evidence']
         return httpx.Response(200, json={
             'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(
-                {'evidence_ids': list(evidence), 'checklist_ids': ['PB-03']})}}],
+                explanatory_selection(['PB-03']))}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
 
     with patch.dict(os.environ, {'LLM_API_KEY': 'synthetic-key'}, clear=True), \

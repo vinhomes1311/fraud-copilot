@@ -12,7 +12,7 @@ from fraud_common.schemas import BriefContent, ChecklistItem, Citation
 from .fallback import describe_signal
 from .rag import Chunk
 
-PROMPT_VERSION = "extractive-kaggle-sparkov-v7-gap-schema"
+PROMPT_VERSION = "grounded-kaggle-sparkov-v11-explained-brief-en"
 
 
 @dataclass
@@ -33,13 +33,12 @@ class StubLLMClient:
         if random.random() < s.llm_stub_fail_rate:                  # giả lập lỗi để test breaker/fallback
             raise RuntimeError("stub LLM failure")
         tx = ctx["transaction"]
-        signals = [e["feature"] for e in ctx["explanations"]]
         brief = BriefContent(
-            summary=(f"Giao dịch {ctx['txn_id']} số tiền {tx.get('amt')} tại {tx.get('merchant')} "
-                     f"({tx.get('category')}), mức rủi ro {ctx['risk_level']} "
-                     f"(xác suất {ctx['calibrated_prob']:.2f})."),
+            summary=(f"Transaction {ctx['txn_id']}, amount {tx.get('amt')} at {tx.get('merchant')} "
+                     f"({tx.get('category')}), risk level {ctx['risk_level']} "
+                     f"(probability {ctx['calibrated_prob']:.2f})."),
             key_signals=[describe_signal(e) for e in ctx["explanations"]],
-            checklist=[ChecklistItem(step=i + 1, action=f"Kiểm tra theo quy tắc {c.rule_code}: {c.text}",
+            checklist=[ChecklistItem(step=i + 1, action=f"Review under rule {c.rule_code}: {c.text}",
                                      rule_code=c.rule_code) for i, c in enumerate(chunks)],
             citations=[Citation(section_id=c.section_id, rule_code=c.rule_code, quote=c.text[:80])
                        for c in chunks],

@@ -12,7 +12,7 @@ timeout và throughput nhưng không tự tuyên bố đạt SLA production.
 
 | Scope | Luồng được đo | Mục đích |
 |---|---|---|
-| `generation` | Evidence + cùng playbook -> LLM adapter -> kiểm tra/render brief | So sánh Ollama/API với context chung; không đo retrieval |
+| `generation` | Evidence + tối đa 5 rule phù hợp từng case -> LLM adapter -> kiểm tra/render brief | Context được chọn trước và giữ giống nhau cho Ollama/API; không đo retrieval |
 | `rag-llm`, retriever `ollama` | Semantic retrieval -> LLM adapter -> grounding/budget | Đo phần xử lý LLM/RAG theo Cold Path |
 | `rag-llm`, retriever `playbook` | Đọc playbook -> LLM adapter -> grounding/budget | Đo phương án KB nhỏ; không xác nhận semantic retrieval |
 

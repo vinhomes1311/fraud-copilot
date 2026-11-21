@@ -92,7 +92,22 @@ def test_key_signals_use_reason_and_keep_legacy_format():
     readable = {'feature': 'amt', 'value': 780.52, 'contribution': 2.1, 'label': 'Transaction amount',
                 'reason': "780.52 is 6.2× this card's average", 'share_pct': 40.0}
     assert describe_signal(readable) == "Transaction amount: 780.52 is 6.2× this card's average (40% of model evidence)"
-    assert describe_signal({'feature': 'amt', 'value': 1, 'contribution': 0.2}) == 'amt đóng góp 0.20'
+    assert describe_signal({'feature': 'amt', 'value': 1, 'contribution': 0.2}) == 'amt contribution 0.20'
     brief = rule_based_brief({'txn_id': 't1', 'transaction': {'amt': 1}, 'risk_level': 'HIGH',
                               'explanations': [readable]})
     assert brief.key_signals == [describe_signal(readable)]
+
+
+def test_brief_renderer_uses_readable_factor_and_keeps_legacy_text():
+    from llm_worker.brief_renderer import case_facts
+    ctx = context()
+    ctx['explanations'] = [
+        {'feature': 'customer_merchant_distance_km', 'value': 40, 'contribution': 1.25,
+         'display_value': '40.0 km', 'reason': "Merchant is 40.0 km from the cardholder's address",
+         'share_pct': 31.5},
+        {'feature': 'amt', 'value': 100, 'contribution': -0.4},
+    ]
+    facts = case_facts(project_evidence(ctx))
+    assert facts['EV-FACTOR-0'] == ("ML factor: home-to-merchant distance = 40.0 km; "
+                                    "Merchant is 40.0 km from the cardholder's address (31.5% of model evidence).")
+    assert facts['EV-FACTOR-1'] == 'ML factor: transaction amount = 100; contribution -0.4.'
