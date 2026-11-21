@@ -183,9 +183,19 @@ def project_evidence(ctx):
         if feature in unavailable:
             continue  # Do not reintroduce a missing baseline through explanations.
         number(factor['value']); number(factor['contribution'])
-        evidence['EV-FACTOR-' + str(i)] = {
-            'feature': feature, 'value': factor['value'], 'contribution': factor['contribution'],
-            'text': f"{feature} = {factor['value']}; model contribution {factor['contribution']}; method and scale not supplied. This does not confirm fraud."}
+        item = {'feature': feature, 'value': factor['value'], 'contribution': factor['contribution']}
+        if factor.get('reason'):
+            share = factor.get('share_pct')
+            scale = f"{share:g}% of this transaction's total model evidence" if share is not None else 'share not supplied'
+            item.update({key: factor[key] for key in ('label', 'display_value', 'reason', 'share_pct')
+                         if factor.get(key) is not None})
+            item['text'] = (f"{feature} = {factor.get('display_value') or factor['value']}; {factor['reason']}; "
+                            f"TreeSHAP contribution {factor['contribution']:.3f} log-odds ({scale}). "
+                            "This does not confirm fraud.")
+        else:
+            item['text'] = (f"{feature} = {factor['value']}; model contribution {factor['contribution']}; "
+                            "method and scale not supplied. This does not confirm fraud.")
+        evidence['EV-FACTOR-' + str(i)] = item
     evidence['EV-LIMIT'] = {'text': 'Model signals do not confirm fraud. Final decision belongs to the analyst. Checklist actions are team proposals based on playbook principles.'}
     if not has_history:
         evidence['EV-HISTORY-GAP'] = {'text': 'No positive prior-24-hour transaction count supplied; no 24-hour behavioral baseline can be established.'}

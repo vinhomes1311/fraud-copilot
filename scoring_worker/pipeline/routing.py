@@ -9,7 +9,7 @@ from fraud_common.schemas import RiskLevel, ThresholdConfig
 
 # Khớp seed trong db/init.sql: recommended_triage của model trong
 # data/models/fraud_xgboost.json (thang xác suất đã calibrate).
-DEFAULT_THRESHOLDS = ThresholdConfig(version=0, low_max=0.006, high_min=0.25)
+DEFAULT_THRESHOLDS = ThresholdConfig(version=0, low_max=0.0072, high_min=0.30)
 
 
 def route(prob: float, cfg: ThresholdConfig) -> RiskLevel:

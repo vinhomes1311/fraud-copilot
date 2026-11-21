@@ -1,11 +1,11 @@
 {
-  "model_version": "xgb-20261115040456",
+  "model_version": "xgb-20261119142500",
   "source": "data/models/fraud_xgboost.json",
   "metrics": {
-    "pr_auc": 0.9718796285164376,
-    "precision": 0.9380819366852886,
-    "recall": 0.9393939393939394,
-    "f1": 0.9387374796179828
+    "pr_auc": 0.9765935052481753,
+    "precision": 0.9381107491856677,
+    "recall": 0.9398601398601398,
+    "f1": 0.9389846297158826
   },
   "minimums": {
     "pr_auc": 0.9,

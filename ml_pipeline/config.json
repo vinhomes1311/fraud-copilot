@@ -27,6 +27,7 @@
     "threshold_min": 0.05,
     "threshold_max": 0.95,
     "threshold_step": 0.05,
-    "top_fraction": 0.01
+    "top_fraction": 0.01,
+    "calibration_method": "platt"
   }
 }

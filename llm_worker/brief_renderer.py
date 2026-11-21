@@ -57,8 +57,16 @@ def case_facts(evidence):
             if not {'feature', 'value', 'contribution'} <= factor.keys():
                 raise ValueError('Missing verified factor values for case rendering')
             label = FEATURE_LABELS[factor['feature']]
-            facts[key] = (f"ML factor: {label.lower()} = {display_number(factor['value'])}; "
-                          f"contribution {display_number(factor['contribution'])}.")
+            if factor.get('reason'):
+                # Readable factor from ml_pipeline.explain: original value, card-history
+                # comparison and share of the model's evidence.
+                value = factor.get('display_value') or display_number(factor['value'])
+                share = factor.get('share_pct')
+                suffix = f" ({display_number(share)}% of model evidence)" if share is not None else ''
+                facts[key] = f"ML factor: {label.lower()} = {value}; {factor['reason']}{suffix}."
+            else:
+                facts[key] = (f"ML factor: {label.lower()} = {display_number(factor['value'])}; "
+                              f"contribution {display_number(factor['contribution'])}.")
         elif key == 'EV-HISTORY-GAP':
             count = evidence.get('EV-FEATURE-txn_count_24h', {}).get('value')
             if count == 0:

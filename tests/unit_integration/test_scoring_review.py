@@ -26,7 +26,7 @@ async def test_scored_risks_create_review_cases_and_only_non_low_publish_brief_e
     events = AsyncMock()
     processor = scoring.ScoringProcessor(db, events)
     processor.thresholds.get = AsyncMock(return_value=ThresholdConfig(
-        version=1, low_max=0.006, high_min=0.25))
+        version=1, low_max=0.0072, high_min=0.30))
     monkeypatch.setattr(scoring, 'compute_features', AsyncMock(return_value={'amt': 10}))
     monkeypatch.setattr(scoring, 'predict', lambda features: ScoringOutput(
         raw_model_score=probability, calibrated_prob=probability,

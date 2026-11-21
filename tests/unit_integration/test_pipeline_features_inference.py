@@ -7,7 +7,8 @@ import pytest
 
 from fraud_common.schemas import TransactionValidated
 from scoring_worker.pipeline.features import compute_features, haversine_km
-from scoring_worker.pipeline.inference import _explanation_value, predict
+from ml_pipeline.explain import _numeric_value as _explanation_value
+from scoring_worker.pipeline.inference import predict
 
 
 def test_haversine_distance():

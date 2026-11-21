@@ -17,7 +17,7 @@ GOOD = {
     "first": "A", "last": "B", "street": "x", "merchant": "m", "category": "c", "amt": 12.5,
     "lat": 10.0, "long": 20.0, "merch_lat": 10.1, "merch_long": 20.1, "is_fraud": 1,
 }
-CFG = ThresholdConfig(version=1, low_max=0.006, high_min=0.25)
+CFG = ThresholdConfig(version=1, low_max=0.0072, high_min=0.30)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -25,16 +25,16 @@ def test_routing_thresholds():
     """#sym:test_routing_thresholds
     Kiem tra: route theo nguong LOW/MEDIUM/HIGH cua model hien tai.
     @param Khong co tham so.
-    Dung khi: 0.006 la MEDIUM, 0.25 la HIGH va cac moc bien dung.
+    Dung khi: 0.0072 la MEDIUM, 0.30 la HIGH va cac moc bien dung.
     Sai khi: risk level sai tai moc bien.
     """
     assert route(0.0, CFG) == RiskLevel.LOW
     assert route(0.001, CFG) == RiskLevel.LOW
-    assert route(0.0059, CFG) == RiskLevel.LOW
-    assert route(0.006, CFG) == RiskLevel.MEDIUM
+    assert route(0.0071, CFG) == RiskLevel.LOW
+    assert route(0.0072, CFG) == RiskLevel.MEDIUM
     assert route(0.10, CFG) == RiskLevel.MEDIUM
-    assert route(0.2499, CFG) == RiskLevel.MEDIUM
-    assert route(0.25, CFG) == RiskLevel.HIGH
+    assert route(0.2999, CFG) == RiskLevel.MEDIUM
+    assert route(0.30, CFG) == RiskLevel.HIGH
     assert route(0.70, CFG) == RiskLevel.HIGH
     assert route(1.00, CFG) == RiskLevel.HIGH
 
@@ -51,8 +51,15 @@ def test_default_thresholds_match_db_seed_and_model_recommendation():
     insert = re.compile(
         r"INSERT INTO threshold_configs \(low_max, high_min, active, created_by\)\s*"
         r"VALUES \(([\d.]+),\s*([\d.]+),\s*true")
-    for sql_file in ("db/init.sql", "db/migrations/002_model_triage_thresholds.sql"):
-        match = insert.search((ROOT / sql_file).read_text(encoding="utf-8"))
+    threshold_migrations = sorted(
+        path for path in (ROOT / "db/migrations").glob("*.sql")
+        if insert.search(path.read_text(encoding="utf-8"))
+    )
+    assert threshold_migrations, "no threshold migration found"
+    # Fresh databases use init.sql; existing ones end on the newest migration.
+    for sql_path in (ROOT / "db/init.sql", threshold_migrations[-1]):
+        sql_file = sql_path.name
+        match = insert.search(sql_path.read_text(encoding="utf-8"))
         assert match, sql_file
         assert tuple(float(value) for value in match.groups()) == pytest.approx(expected), sql_file
     lineage = json.loads((ROOT / "data/models/fraud_xgboost.json").read_text(encoding="utf-8"))

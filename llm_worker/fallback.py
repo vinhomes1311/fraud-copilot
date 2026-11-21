@@ -6,12 +6,23 @@ from typing import Any
 from fraud_common.schemas import BriefContent, ChecklistItem
 
 
+def describe_signal(explanation: dict[str, Any]) -> str:
+    """Readable key signal; older records without ``reason`` keep the legacy format."""
+    reason = explanation.get("reason")
+    if not reason:
+        return f"{explanation['feature']} contribution {explanation['contribution']:.2f}"
+    label = explanation.get("label") or explanation["feature"]
+    share = explanation.get("share_pct")
+    suffix = f" ({share:g}% of model evidence)" if share is not None else ""
+    return f"{label}: {reason}{suffix}"
+
+
 def rule_based_brief(ctx: dict[str, Any]) -> BriefContent:
     tx = ctx.get("transaction", {})
     return BriefContent(
         summary=(f"Transaction {ctx.get('txn_id')}, amount {tx.get('amt')}, "
                  f"risk level {ctx.get('risk_level')}."),
-        key_signals=[f"{e['feature']} contribution {e['contribution']:.2f}" for e in (ctx.get("explanations") or [])],
+        key_signals=[describe_signal(e) for e in (ctx.get("explanations") or [])],
         checklist=[
             ChecklistItem(step=1, action="Verify the transaction with the cardholder through official channels."),
             ChecklistItem(step=2, action="Review the account's recent transaction history."),

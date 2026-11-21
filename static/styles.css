@@ -963,7 +963,9 @@ tbody tr:hover { background: #fff8f9; }
 .neutral .factor-rank { color: #66616d; background: #f2f0f4; }
 .factor-name { display: block; color: #38313f; font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
 .factor-value { display: block; margin-top: 5px; font-size: 12px; color: #766d7e; line-height: 1.5; overflow-wrap: anywhere; }
-.factor-impact { color: #766d7e; font-size: 10px; line-height: 1.6; padding-top: 2px; }
+.factor-reason { display: block; margin-top: 4px; font-size: 12px; color: #4f4757; line-height: 1.5; overflow-wrap: anywhere; }
+.factor-impact { color: #766d7e; font-size: 10px; line-height: 1.6; padding-top: 2px; text-align: right; }
+.factor-impact small { display: block; font-size: 10px; color: #8c8394; }
 .factor-context { font-size: 11px; color: #766d7e; line-height: 1.7; margin: 12px 0 0; }
 .investigation-checklist { margin: 0; padding-left: 18px; }
 .investigation-checklist li + li { margin-top: 12px; }

@@ -36,3 +36,6 @@ def _validate_config(raw: dict[str, Any], path: Path) -> None:
         raise ValueError("split.validation_ratio must be between 0 and 1")
     if raw["split"]["train_ratio"] + raw["split"]["validation_ratio"] >= 1:
         raise ValueError("train_ratio + validation_ratio must be less than 1")
+    method = raw["evaluation"].get("calibration_method", "platt")
+    if method not in ("platt", "isotonic"):
+        raise ValueError("evaluation.calibration_method must be 'platt' or 'isotonic'")
