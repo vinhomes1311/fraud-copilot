@@ -5,6 +5,8 @@ import asyncio
 import logging
 import math
 import time
+from datetime import datetime
+from typing import Literal
 from uuid import uuid4
 
 import httpx
@@ -12,12 +14,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from fraud_common.config import get_settings
+from fraud_common.queues import QUEUE_CASE_EVENTS, QUEUE_LLM_JOBS, QUEUE_ML_JOBS
 from fraud_common.schemas import AnalystAction, CaseOutcome, CaseStatus, RiskLeadDecision, RiskLevel, Role
 
 from ..audit import write_audit
 from ..auth import User, require_roles
 from ..events import enqueue_brief
 from ..state import state
+
+ScoringStream = Literal["SCORED", "UNSCORED"]
+ScoreBand = Literal["0-25", "25-50", "50-75", "75-100"]
+SortOrder = Literal["newest", "oldest", "highest_score", "lowest_score"]
+EvidenceStatus = Literal["NONE", "PENDING", "RUNNING", "READY", "FAILED", "FAILED_TIMEOUT"]
+SCORE_BAND_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    "0-25": (0.0, 0.25),
+    "25-50": (0.25, 0.5),
+    "50-75": (0.5, 0.75),
+    "75-100": (0.75, None),
+}
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 any_reviewer = require_roles(Role.ANALYST, Role.RISK_LEAD)
@@ -54,6 +68,26 @@ async def _case_summary() -> dict:
                  coalesce(avg(s.latency_ms) FILTER (WHERE s.status = 'SCORED'), 0) AS scoring_latency_ms
           FROM cases c
           JOIN scoring_results s ON s.txn_id = c.txn_id"""
+    )
+    return dict(row)
+
+
+async def _decision_summary() -> dict:
+    row = await state.db.rfetchrow(
+        """SELECT count(*) FILTER (WHERE latest.action = 'OUTCOME_CONFIRMED_FRAUD') AS confirmed_fraud,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_DISMISSED') AS dismissed,
+                  count(*) FILTER (WHERE latest.action = 'OUTCOME_INSUFFICIENT_EVIDENCE') AS insufficient_evidence,
+                  count(*) FILTER (WHERE latest.action = 'ESCALATE') AS escalated,
+                  count(*) FILTER (WHERE latest.action = 'NEEDS_MORE_INFO') AS needs_more_info
+           FROM (
+               SELECT DISTINCT ON (ca.case_id) ca.case_id, ca.action
+               FROM case_actions ca
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
+           ) latest"""
     )
     return dict(row)
 
@@ -97,12 +131,18 @@ async def list_cases(
     user: User = Depends(any_reviewer),
     risk_level: RiskLevel | None = None,
     status: CaseStatus | None = None,
+    stream: ScoringStream | None = None,
+    merchant_type: str | None = None,
+    score_band: ScoreBand | None = None,
+    received_from: datetime | None = None,
+    received_before: datetime | None = None,
+    evidence_status: EvidenceStatus | None = None,
+    sort: SortOrder = "newest",
     limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
-    """Review Queue: newest transactions first. Risk Lead defaults to ESCALATED."""
-    if user.role == Role.RISK_LEAD and status is None:
-        status = CaseStatus.ESCALATED
+    """List review cases with server-side filters and selectable ordering."""
+    score_min, score_max = SCORE_BAND_BOUNDS[score_band] if score_band else (None, None)
     rows = await state.db.rfetch(
         """WITH numbered_cases AS (
                SELECT c.*,
@@ -113,22 +153,52 @@ async def list_cases(
                   s.calibrated_prob, b.status AS brief_status
            FROM numbered_cases c
            JOIN scoring_results s ON s.txn_id = c.txn_id
+           JOIN transactions t ON t.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
-           WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)
-           ORDER BY c.created_at DESC, c.case_id DESC
-           LIMIT $3 OFFSET $4""",
-        risk_level, status, limit, offset)
+           WHERE ($1::text IS NULL OR c.risk_level = $1)
+             AND ($2::text IS NULL OR c.status = $2)
+             AND ($3::text IS NULL OR ($3 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($3 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($4::text IS NULL OR t.payload_masked->>'category' = $4)
+             AND ($5::double precision IS NULL OR s.calibrated_prob >= $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob < $6)
+             AND ($7::timestamptz IS NULL OR c.created_at >= $7::timestamptz)
+             AND ($8::timestamptz IS NULL OR c.created_at < $8::timestamptz)
+             AND ($9::text IS NULL OR ($9 = 'NONE' AND b.case_id IS NULL) OR b.status = $9)
+           ORDER BY CASE WHEN $10 = 'newest' THEN c.created_at END DESC,
+                    CASE WHEN $10 = 'oldest' THEN c.created_at END ASC,
+                    CASE WHEN $10 = 'highest_score' THEN s.calibrated_prob END DESC NULLS LAST,
+                    CASE WHEN $10 = 'lowest_score' THEN s.calibrated_prob END ASC NULLS LAST,
+                    c.created_at DESC, c.case_id DESC
+           LIMIT $11 OFFSET $12""",
+        risk_level, status, stream, merchant_type, score_min, score_max,
+        received_from, received_before, evidence_status, sort, limit, offset)
     total = await state.db.rfetchval(
         """SELECT count(*)
            FROM cases c
-           WHERE ($1::text IS NULL OR c.risk_level = $1) AND ($2::text IS NULL OR c.status = $2)""",
-        risk_level, status)
+           JOIN scoring_results s ON s.txn_id = c.txn_id
+           JOIN transactions t ON t.txn_id = c.txn_id
+           LEFT JOIN case_briefs b ON b.case_id = c.case_id
+           WHERE ($1::text IS NULL OR c.risk_level = $1)
+             AND ($2::text IS NULL OR c.status = $2)
+             AND ($3::text IS NULL OR ($3 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($3 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($4::text IS NULL OR t.payload_masked->>'category' = $4)
+             AND ($5::double precision IS NULL OR s.calibrated_prob >= $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob < $6)
+             AND ($7::timestamptz IS NULL OR c.created_at >= $7::timestamptz)
+             AND ($8::timestamptz IS NULL OR c.created_at < $8::timestamptz)
+             AND ($9::text IS NULL OR ($9 = 'NONE' AND b.case_id IS NULL) OR b.status = $9)""",
+        risk_level, status, stream, merchant_type, score_min, score_max,
+        received_from, received_before, evidence_status)
     summary = await _case_summary()
+    decision_summary = await _decision_summary()
     return {
         "items": [dict(r) for r in rows],
         "limit": limit,
         "offset": offset,
         "total": total,
+        "decision_summary": decision_summary,
         **summary,
     }
 
@@ -136,9 +206,19 @@ async def list_cases(
 @router.get("/analytics/transactions")
 async def list_analytics_transactions(
     user: User = Depends(any_reviewer),
+    risk_level: RiskLevel | None = None,
+    status: CaseStatus | None = None,
+    stream: ScoringStream | None = None,
+    merchant_type: str | None = None,
+    score_band: ScoreBand | None = None,
+    received_from: datetime | None = None,
+    received_before: datetime | None = None,
+    evidence_status: EvidenceStatus | None = None,
+    sort: SortOrder = "newest",
     limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
+    score_min, score_max = SCORE_BAND_BOUNDS[score_band] if score_band else (None, None)
     rows = await state.db.rfetch(
         """WITH numbered_cases AS (
                SELECT c.*,
@@ -149,9 +229,20 @@ async def list_analytics_transactions(
                   s.calibrated_prob, s.model_version, b.status AS brief_status
            FROM numbered_cases c
            JOIN scoring_results s ON s.txn_id = c.txn_id
+           JOIN transactions t ON t.txn_id = c.txn_id
            LEFT JOIN case_briefs b ON b.case_id = c.case_id
-        WHERE c.risk_level IN ('HIGH', 'MEDIUM')
-          AND NOT EXISTS (
+           WHERE (($1::text IS NULL AND c.risk_level IN ('HIGH', 'MEDIUM'))
+                  OR ($1::text IS NOT NULL AND c.risk_level = $1))
+             AND ($2::text IS NULL OR c.status = $2)
+             AND ($3::text IS NULL OR ($3 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($3 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($4::text IS NULL OR t.payload_masked->>'category' = $4)
+             AND ($5::double precision IS NULL OR s.calibrated_prob >= $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob < $6)
+             AND ($7::timestamptz IS NULL OR c.created_at >= $7::timestamptz)
+             AND ($8::timestamptz IS NULL OR c.created_at < $8::timestamptz)
+             AND ($9::text IS NULL OR ($9 = 'NONE' AND b.case_id IS NULL) OR b.status = $9)
+             AND NOT EXISTS (
               SELECT 1
               FROM case_actions ca
               WHERE ca.case_id = c.case_id
@@ -161,13 +252,31 @@ async def list_analytics_transactions(
                     'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
                 )
           )
-        ORDER BY s.calibrated_prob DESC, c.created_at
-           LIMIT $1 OFFSET $2""",
-        limit, offset)
+           ORDER BY CASE WHEN $10 = 'newest' THEN c.created_at END DESC,
+                    CASE WHEN $10 = 'oldest' THEN c.created_at END ASC,
+                    CASE WHEN $10 = 'highest_score' THEN s.calibrated_prob END DESC NULLS LAST,
+                    CASE WHEN $10 = 'lowest_score' THEN s.calibrated_prob END ASC NULLS LAST,
+                    c.created_at DESC, c.case_id DESC
+           LIMIT $11 OFFSET $12""",
+        risk_level, status, stream, merchant_type, score_min, score_max,
+        received_from, received_before, evidence_status, sort, limit, offset)
     total = await state.db.rfetchval(
         """SELECT count(*)
            FROM cases c
-           WHERE c.risk_level IN ('HIGH', 'MEDIUM')
+           JOIN scoring_results s ON s.txn_id = c.txn_id
+           JOIN transactions t ON t.txn_id = c.txn_id
+           LEFT JOIN case_briefs b ON b.case_id = c.case_id
+           WHERE (($1::text IS NULL AND c.risk_level IN ('HIGH', 'MEDIUM'))
+                  OR ($1::text IS NOT NULL AND c.risk_level = $1))
+             AND ($2::text IS NULL OR c.status = $2)
+             AND ($3::text IS NULL OR ($3 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($3 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($4::text IS NULL OR t.payload_masked->>'category' = $4)
+             AND ($5::double precision IS NULL OR s.calibrated_prob >= $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob < $6)
+             AND ($7::timestamptz IS NULL OR c.created_at >= $7::timestamptz)
+             AND ($8::timestamptz IS NULL OR c.created_at < $8::timestamptz)
+             AND ($9::text IS NULL OR ($9 = 'NONE' AND b.case_id IS NULL) OR b.status = $9)
              AND NOT EXISTS (
                  SELECT 1
                  FROM case_actions ca
@@ -177,27 +286,11 @@ async def list_analytics_transactions(
                        'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
                        'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
                    )
-             )""")
+             )""",
+        risk_level, status, stream, merchant_type, score_min, score_max,
+        received_from, received_before, evidence_status)
     summary = await _case_summary()
-    decision_summary = await state.db.rfetchrow(
-        """SELECT count(*) FILTER (WHERE latest.action = 'OUTCOME_CONFIRMED_FRAUD') AS confirmed_fraud,
-                  count(*) FILTER (WHERE latest.action = 'OUTCOME_DISMISSED') AS dismissed,
-                  count(*) FILTER (WHERE latest.action = 'OUTCOME_INSUFFICIENT_EVIDENCE') AS insufficient_evidence,
-                  count(*) FILTER (WHERE latest.action = 'ESCALATE') AS escalated,
-                  count(*) FILTER (WHERE latest.action = 'NEEDS_MORE_INFO') AS needs_more_info
-           FROM cases c
-           JOIN LATERAL (
-               SELECT ca.action
-               FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE', 'NEEDS_MORE_INFO'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true"""
-    )
+    decision_summary = await _decision_summary()
     decision_breakdown = await state.db.rfetch(
         """SELECT c.risk_level, latest.action, count(*) AS decision_count
            FROM cases c
@@ -255,6 +348,9 @@ async def get_dashboard_analytics(
                         AND c.risk_level = 'MEDIUM' AND c.created_at >= now() - interval '60 minutes'
                   ) AS medium_open_last_hour,
                   count(*) FILTER (WHERE s.status <> 'SCORED') AS unscored_total,
+                  count(*) FILTER (
+                      WHERE s.status <> 'SCORED' AND s.scored_at >= now() - interval '24 hours'
+                  ) AS unscored_last_24h,
                   coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.latency_ms)
                       FILTER (WHERE s.status = 'SCORED' AND s.latency_ms IS NOT NULL
                                 AND s.scored_at >= now() - interval '60 minutes'), 0) AS latency_p95_ms,
@@ -291,10 +387,60 @@ async def get_dashboard_analytics(
            ORDER BY s.calibrated_prob DESC NULLS LAST, c.created_at DESC
            LIMIT 6"""
     )
+    top_features = await state.db.rfetch(
+        """SELECT item.data->>'feature' AS feature,
+                  count(*)::int AS occurrences,
+                  coalesce(avg(abs((item.data->>'contribution')::double precision)), 0)::double precision
+                      AS average_impact
+           FROM scoring_results s
+           CROSS JOIN LATERAL jsonb_array_elements(
+               CASE WHEN jsonb_typeof(s.explanations) = 'array'
+                    THEN s.explanations ELSE '[]'::jsonb END
+           ) AS item(data)
+           WHERE s.status = 'SCORED'
+             AND s.scored_at >= now() - interval '24 hours'
+             AND item.data->>'feature' IS NOT NULL
+             AND item.data->>'feature' <> 'model_probability'
+             AND item.data->>'contribution' IS NOT NULL
+           GROUP BY item.data->>'feature'
+           ORDER BY occurrences DESC, average_impact DESC
+           LIMIT 5"""
+    )
+    validation_issues = await state.db.rfetch(
+        """SELECT item.issue->>'field' AS field, item.issue->>'msg' AS message,
+                  count(*)::int AS occurrences
+           FROM scoring_results s
+           CROSS JOIN LATERAL jsonb_array_elements(
+               CASE WHEN jsonb_typeof(s.validation_errors) = 'array'
+                    THEN s.validation_errors ELSE '[]'::jsonb END
+           ) AS item(issue)
+           WHERE s.status <> 'SCORED'
+             AND s.scored_at >= now() - interval '24 hours'
+             AND item.issue->>'field' IS NOT NULL
+           GROUP BY item.issue->>'field', item.issue->>'msg'
+           ORDER BY occurrences DESC, field
+           LIMIT 5"""
+    )
+    dead_queue_names = (QUEUE_ML_JOBS, QUEUE_CASE_EVENTS, QUEUE_LLM_JOBS)
+    if state.redis is None:
+        raise HTTPException(status_code=503, detail="Redis is unavailable")
+    dead_counts = await asyncio.gather(
+        *(state.redis.llen(f"{queue}:dead") for queue in dead_queue_names)
+    )
     return {
         "summary": dict(summary),
         "decision_breakdown": [dict(row) for row in decision_breakdown],
         "recent_cases": [dict(row) for row in recent_cases],
+        "signal_health": {
+            "window_hours": 24,
+            "top_features": [dict(row) for row in top_features],
+            "validation_issues": [dict(row) for row in validation_issues],
+            "unscored_last_24h": summary["unscored_last_24h"],
+            "dead_letters": [
+                {"queue": queue, "count": count}
+                for queue, count in zip(dead_queue_names, dead_counts)
+            ],
+        },
     }
 
 
@@ -388,10 +534,16 @@ async def list_classifications(
         pattern="^(CONFIRMED_FRAUD|DISMISSED|INSUFFICIENT_EVIDENCE|ESCALATE|NEEDS_MORE_INFO|CONFIRM_SIMULATED)$",
     ),
     search: str | None = Query(None, max_length=200),
+    status: CaseStatus | None = None,
+    stream: ScoringStream | None = None,
+    merchant_type: str | None = None,
+    score_band: ScoreBand | None = None,
+    sort: SortOrder = "newest",
     limit: int = Query(50, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
     """List the latest human classification or handoff action for each case."""
+    score_min, score_max = SCORE_BAND_BOUNDS[score_band] if score_band else (None, None)
     action_filter = f"OUTCOME_{decision}" if decision in {
         "CONFIRMED_FRAUD", "DISMISSED", "INSUFFICIENT_EVIDENCE"
     } else decision
@@ -400,6 +552,16 @@ async def list_classifications(
                SELECT c.*,
                       row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number
                FROM cases c
+           ), latest_actions AS (
+               SELECT DISTINCT ON (ca.case_id)
+                      ca.case_id, ca.action, ca.actor, ca.role, ca.note, ca.created_at
+               FROM case_actions ca
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                   'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
            )
            SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
                   s.calibrated_prob, latest.action, latest.actor, latest.role,
@@ -410,18 +572,7 @@ async def list_classifications(
                   t.payload_masked->>'city' AS city,
                   t.payload_masked->>'state' AS region
            FROM numbered_cases c
-           JOIN LATERAL (
-               SELECT ca.action, ca.actor, ca.role, ca.note, ca.created_at
-               FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
-                     'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true
+           JOIN latest_actions latest ON latest.case_id = c.case_id
            JOIN transactions t ON t.txn_id = c.txn_id
            JOIN scoring_results s ON s.txn_id = c.txn_id
            WHERE ($1::text IS NULL OR latest.action = $1)
@@ -429,32 +580,57 @@ async def list_classifications(
                  ' ', c.case_id::text, c.txn_id, latest.actor,
                  t.payload_masked->>'merchant', t.payload_masked->>'category'
              ))) > 0)
-           ORDER BY latest.created_at DESC, c.case_id DESC
-           LIMIT $3 OFFSET $4""",
-        action_filter, search.strip() if search and search.strip() else None, limit, offset)
+             AND ($3::text IS NULL OR c.status = $3)
+             AND ($4::text IS NULL OR ($4 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($4 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($5::text IS NULL OR t.payload_masked->>'category' = $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob >= $6)
+             AND ($7::double precision IS NULL OR s.calibrated_prob < $7)
+           ORDER BY CASE WHEN $8 = 'newest' THEN latest.created_at END DESC,
+                    CASE WHEN $8 = 'oldest' THEN latest.created_at END ASC,
+                    CASE WHEN $8 = 'highest_score' THEN s.calibrated_prob END DESC NULLS LAST,
+                    CASE WHEN $8 = 'lowest_score' THEN s.calibrated_prob END ASC NULLS LAST,
+                    latest.created_at DESC, c.case_id DESC
+           LIMIT $9 OFFSET $10""",
+        action_filter, search.strip() if search and search.strip() else None,
+        status, stream, merchant_type, score_min, score_max, sort, limit, offset)
     total = await state.db.rfetchval(
-        """SELECT count(*)
-           FROM cases c
-           JOIN LATERAL (
-               SELECT ca.action, ca.actor
+        """WITH latest_actions AS (
+               SELECT DISTINCT ON (ca.case_id) ca.case_id, ca.action, ca.actor
                FROM case_actions ca
-               WHERE ca.case_id = c.case_id
-                 AND ca.action IN (
-                     'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
-                     'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
-                     'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
-                 )
-               ORDER BY ca.created_at DESC, ca.id DESC
-               LIMIT 1
-           ) latest ON true
+               WHERE ca.action IN (
+                   'OUTCOME_CONFIRMED_FRAUD', 'OUTCOME_DISMISSED',
+                   'OUTCOME_INSUFFICIENT_EVIDENCE', 'ESCALATE',
+                   'NEEDS_MORE_INFO', 'CONFIRM_SIMULATED'
+               )
+               ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC
+           )
+           SELECT count(*)
+           FROM latest_actions latest
+           JOIN cases c ON c.case_id = latest.case_id
            JOIN transactions t ON t.txn_id = c.txn_id
+           JOIN scoring_results s ON s.txn_id = c.txn_id
            WHERE ($1::text IS NULL OR latest.action = $1)
              AND ($2::text IS NULL OR position(lower($2) in lower(concat_ws(
                  ' ', c.case_id::text, c.txn_id, latest.actor,
                  t.payload_masked->>'merchant', t.payload_masked->>'category'
-             ))) > 0)""",
-        action_filter, search.strip() if search and search.strip() else None)
-    return {"items": [dict(row) for row in rows], "limit": limit, "offset": offset, "total": total}
+             ))) > 0)
+             AND ($3::text IS NULL OR c.status = $3)
+             AND ($4::text IS NULL OR ($4 = 'SCORED' AND s.status = 'SCORED')
+                  OR ($4 = 'UNSCORED' AND s.status <> 'SCORED'))
+             AND ($5::text IS NULL OR t.payload_masked->>'category' = $5)
+             AND ($6::double precision IS NULL OR s.calibrated_prob >= $6)
+             AND ($7::double precision IS NULL OR s.calibrated_prob < $7)""",
+        action_filter, search.strip() if search and search.strip() else None,
+        status, stream, merchant_type, score_min, score_max)
+    decision_summary = await _decision_summary()
+    return {
+        "items": [dict(row) for row in rows],
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "decision_summary": decision_summary,
+    }
 
 
 @router.get("/{case_id}")

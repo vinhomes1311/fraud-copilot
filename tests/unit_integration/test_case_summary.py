@@ -1,4 +1,5 @@
 import inspect
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -13,7 +14,7 @@ from analyst_api.routes.cases import (
     list_classifications,
 )
 from analyst_api.state import state
-from fraud_common.schemas import Role
+from fraud_common.schemas import CaseStatus, RiskLevel, Role
 
 
 class FakeDatabase:
@@ -65,6 +66,9 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
     try:
         review = await list_cases(user=user, limit=1, offset=0)
         analytics = await list_analytics_transactions(user=user, limit=1, offset=0)
+        classifications = await list_classifications(
+            user=user, decision=None, search=None, limit=1, offset=0
+        )
     finally:
         state.db = previous_db
 
@@ -74,8 +78,9 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
     }
     assert review["open_count"] == 35356
     assert review["medium_count"] == 287
+    assert review["decision_summary"] == analytics["decision_summary"] == classifications["decision_summary"]
     review_query = database.queries[0][1]
-    assert "ORDER BY c.created_at DESC, c.case_id DESC" in review_query
+    assert "CASE WHEN $10 = 'newest' THEN c.created_at END DESC" in review_query
     assert "row_number() OVER (ORDER BY c.created_at, c.case_id) AS run_number" in review_query
     assert analytics["decision_summary"] == {
         "confirmed_fraud": 4,
@@ -84,7 +89,7 @@ async def test_review_and_analytics_return_consistent_dashboard_metrics():
         "escalated": 1,
         "needs_more_info": 5,
     }
-    assert "ORDER BY ca.created_at DESC, ca.id DESC" in database.decision_query
+    assert "ORDER BY ca.case_id, ca.created_at DESC, ca.id DESC" in database.decision_query
     open_count_filter = database.summary_query.split(") AS open_count")[0]
     assert "risk_level" not in open_count_filter
 
@@ -148,11 +153,134 @@ async def test_analytics_returns_latest_decisions_grouped_by_model_risk():
     assert "latest.action" in query
     assert "ORDER BY ca.created_at DESC, ca.id DESC" in query
     assert "GROUP BY c.risk_level, latest.action" in query
-    assert "c.risk_level IN ('HIGH', 'MEDIUM', 'LOW')" in query
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_scored_metrics_and_ml_decision_breakdown():
+async def test_review_queue_keeps_all_cases_for_risk_lead_when_status_is_unfiltered():
+    database = FakeDatabase()
+    previous_db = state.db
+    state.db = database
+    try:
+        await list_cases(user=User("lead1", Role.RISK_LEAD), limit=10, offset=0)
+    finally:
+        state.db = previous_db
+
+    _, query, args = database.queries[0]
+    assert args[1] is None
+    assert "($2::text IS NULL OR c.status = $2)" in query
+
+
+@pytest.mark.asyncio
+async def test_table_filters_reach_review_analytics_and_decision_history_queries():
+    database = FakeDatabase()
+    previous_db = state.db
+    state.db = database
+    user = User("analyst1", Role.ANALYST)
+    filters = {
+        "status": CaseStatus.OPEN,
+        "stream": "UNSCORED",
+        "merchant_type": "grocery_pos",
+        "score_band": "75-100",
+        "sort": "oldest",
+    }
+    try:
+        await list_cases(
+            user=user, risk_level=RiskLevel.HIGH, limit=10, offset=0, **filters
+        )
+        await list_analytics_transactions(
+            user=user, risk_level=RiskLevel.HIGH, limit=10, offset=0, **filters
+        )
+        await list_classifications(
+            user=user, decision=None, search=None, limit=10, offset=0, **filters
+        )
+    finally:
+        state.db = previous_db
+
+    filter_queries = [
+        (sql, args)
+        for kind, sql, args in database.queries
+        if kind == "fetch" and "numbered_cases" in sql
+    ]
+    total_queries = [
+        (sql, args)
+        for kind, sql, args in database.queries
+        if kind == "fetchval"
+    ]
+    assert len(filter_queries) == 3
+    assert len(total_queries) == 3
+    assert filter_queries[0][1] == (
+        RiskLevel.HIGH, CaseStatus.OPEN, "UNSCORED", "grocery_pos",
+        0.75, None, None, None, None, "oldest", 10, 0,
+    )
+    assert filter_queries[1][1] == filter_queries[0][1]
+    assert filter_queries[2][1] == (
+        None, None, CaseStatus.OPEN, "UNSCORED", "grocery_pos",
+        0.75, None, "oldest", 10, 0,
+    )
+    assert all("s.calibrated_prob >= " in sql for sql, _ in filter_queries)
+    assert all("payload_masked->>'category'" in sql for sql, _ in filter_queries)
+    assert all("s.status" in sql and "c.status" in sql for sql, _ in filter_queries)
+    assert all(
+        "CASE WHEN $10 = 'newest'" in sql or "CASE WHEN $8 = 'newest'" in sql
+        for sql, _ in filter_queries
+    )
+    assert total_queries[0][1] == total_queries[1][1] == (
+        RiskLevel.HIGH, CaseStatus.OPEN, "UNSCORED", "grocery_pos",
+        0.75, None, None, None, None
+    )
+    assert total_queries[2][1] == (
+        None, None, CaseStatus.OPEN, "UNSCORED", "grocery_pos", 0.75, None
+    )
+
+
+@pytest.mark.asyncio
+async def test_received_and_evidence_filters_reach_review_and_analytics_queries():
+    database = FakeDatabase()
+    previous_db = state.db
+    state.db = database
+    filters = {
+        "user": User("analyst1", Role.ANALYST),
+        "risk_level": RiskLevel.HIGH,
+        "status": CaseStatus.OPEN,
+        "score_band": "75-100",
+        "received_from": datetime(2026, 11, 1, tzinfo=timezone.utc),
+        "received_before": datetime(2026, 11, 18, tzinfo=timezone.utc),
+        "evidence_status": "READY",
+        "sort": "oldest",
+        "limit": 10,
+        "offset": 0,
+    }
+    try:
+        await list_cases(**filters)
+        await list_analytics_transactions(**filters)
+    finally:
+        state.db = previous_db
+
+    row_queries = [
+        (sql, args)
+        for kind, sql, args in database.queries
+        if kind == "fetch" and "numbered_cases" in sql
+    ]
+    total_queries = [
+        (sql, args) for kind, sql, args in database.queries if kind == "fetchval"
+    ]
+    expected_filters = (
+        RiskLevel.HIGH, CaseStatus.OPEN, None, None, 0.75, None,
+        datetime(2026, 11, 1, tzinfo=timezone.utc),
+        datetime(2026, 11, 18, tzinfo=timezone.utc), "READY",
+    )
+    assert len(row_queries) == len(total_queries) == 2
+    assert row_queries[0][1] == row_queries[1][1] == (*expected_filters, "oldest", 10, 0)
+    assert total_queries[0][1] == total_queries[1][1] == expected_filters
+    for sql, _ in row_queries + total_queries:
+        assert "c.created_at >= $7::timestamptz" in sql
+        assert "c.created_at < $8::timestamptz" in sql
+        assert "b.status = $9" in sql
+        assert "b.case_id IS NULL" in sql
+
+
+@pytest.mark.asyncio
+async def test_dashboard_returns_metrics_decisions_and_signal_health():
     class DashboardDatabase(FakeDatabase):
         async def rfetchrow(self, sql, *args):
             self.queries.append(("fetchrow", sql, args))
@@ -166,6 +294,7 @@ async def test_dashboard_returns_scored_metrics_and_ml_decision_breakdown():
                 "medium_open": 7,
                 "medium_open_last_hour": 2,
                 "unscored_total": 4,
+                "unscored_last_24h": 2,
                 "latency_p95_ms": 120.5,
                 "average_probability": 0.12,
             }
@@ -174,21 +303,38 @@ async def test_dashboard_returns_scored_metrics_and_ml_decision_breakdown():
             self.queries.append(("fetch", sql, args))
             if "GROUP BY c.risk_level, latest.action" in sql:
                 return [{"risk_level": "HIGH", "action": "OUTCOME_CONFIRMED_FRAUD", "decision_count": 3}]
+            if "average_impact" in sql:
+                return [{"feature": "amt", "occurrences": 7, "average_impact": 0.42}]
+            if "validation_errors" in sql:
+                return [{"field": "amt", "message": "Input should be a valid number", "occurrences": 2}]
             return [{"case_id": 1, "risk_level": "HIGH", "calibrated_prob": 0.9}]
+
+    class DashboardRedis:
+        async def llen(self, key):
+            return {"ml_jobs:dead": 1, "case_events:dead": 2, "llm_jobs:dead": 3}[key]
 
     database = DashboardDatabase()
     previous_db = state.db
+    previous_redis = state.redis
     state.db = database
+    state.redis = DashboardRedis()
     try:
         result = await get_dashboard_analytics(user=User("analyst1", Role.ANALYST))
     finally:
         state.db = previous_db
+        state.redis = previous_redis
 
     assert result["summary"]["total_scored"] == 100
     assert result["summary"]["latency_p95_ms"] == 120.5
     assert result["decision_breakdown"][0]["decision_count"] == 3
     assert result["recent_cases"][0]["case_id"] == 1
-    assert len(database.queries) == 3
+    assert result["signal_health"]["top_features"] == [
+        {"feature": "amt", "occurrences": 7, "average_impact": 0.42}
+    ]
+    assert result["signal_health"]["validation_issues"][0]["field"] == "amt"
+    assert result["signal_health"]["unscored_last_24h"] == 2
+    assert [item["count"] for item in result["signal_health"]["dead_letters"]] == [1, 2, 3]
+    assert len(database.queries) == 5
     decision_query = next(sql for kind, sql, _ in database.queries if kind == "fetch" and "decision_count" in sql)
     assert "ORDER BY ca.created_at DESC, ca.id DESC" in decision_query
     assert "s.scored_at >= now() - interval '60 minutes'" in database.summary_query

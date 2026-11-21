@@ -287,8 +287,8 @@ async def test_simulator_runner_does_not_take_lock_while_stopped(monkeypatch):
 async def test_simulator_reports_open_cases_created_per_second_and_caches_sample():
     fake_redis = FakeRedis()
     history = [
-        {"timestamp": 1_800_000_000, "value": 0.2},
-        {"timestamp": 1_800_000_005, "value": 0.0},
+        {"timestamp": 1_800_000_000, "value": 0.2, "low": 0.1, "medium": 0.05, "high": 0.05},
+        {"timestamp": 1_800_000_005, "value": 0.0, "low": 0.0, "medium": 0.0, "high": 0.0},
     ]
     database = FakeCaseRateDatabase(recent_case_count=18, rate_history=history)
     previous = (state.redis, state.db)
@@ -312,5 +312,10 @@ async def test_simulator_reports_open_cases_created_per_second_and_caches_sample
     assert rate_args == (demo.OPEN_CASE_RATE_WINDOW_SECONDS,)
     history_query, history_args = database.queries[1]
     assert "date_bin('5 seconds', created_at" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'LOW')" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'MEDIUM')" in history_query
+    assert "count(*) FILTER (WHERE risk_level = 'HIGH')" in history_query
     assert "generate_series(" in history_query
+    assert "date_bin('5 seconds', now(), 'epoch'::timestamptz) - interval '5 seconds'" in history_query
+    assert "created_at < date_bin('5 seconds', now(), 'epoch'::timestamptz)" in history_query
     assert history_args == (demo.SIMULATOR_CHART_WINDOW_SECONDS,)

@@ -353,28 +353,41 @@ async def _read_simulator_state() -> dict[str, int | float | bool | str | list[d
             """WITH buckets AS (
                    SELECT generate_series(
                        date_bin('5 seconds', now() - ($1 * interval '1 second'), 'epoch'::timestamptz),
-                       date_bin('5 seconds', now(), 'epoch'::timestamptz),
+                       date_bin('5 seconds', now(), 'epoch'::timestamptz) - interval '5 seconds',
                        interval '5 seconds'
                    ) AS bucket_start
                ), recent_cases AS (
                    SELECT date_bin('5 seconds', created_at, 'epoch'::timestamptz) AS bucket_start,
-                          count(*) AS case_count
+                          count(*) FILTER (WHERE risk_level = 'LOW') AS low_count,
+                          count(*) FILTER (WHERE risk_level = 'MEDIUM') AS medium_count,
+                          count(*) FILTER (WHERE risk_level = 'HIGH') AS high_count
                    FROM cases
                    WHERE created_at >= now() - (($1 + 5) * interval '1 second')
-                     AND created_at <= now()
+                     AND created_at < date_bin('5 seconds', now(), 'epoch'::timestamptz)
                      AND status IN ('OPEN', 'IN_REVIEW', 'NEEDS_MORE_INFO', 'ESCALATED', 'RETURNED')
                      AND risk_level IN ('LOW', 'MEDIUM', 'HIGH')
                    GROUP BY bucket_start
                )
                SELECT extract(epoch FROM buckets.bucket_start) AS timestamp,
-                      coalesce(recent_cases.case_count, 0)::double precision / 5 AS value
+                      coalesce(recent_cases.low_count, 0)::double precision / 5 AS low,
+                      coalesce(recent_cases.medium_count, 0)::double precision / 5 AS medium,
+                      coalesce(recent_cases.high_count, 0)::double precision / 5 AS high,
+                      (coalesce(recent_cases.low_count, 0)
+                       + coalesce(recent_cases.medium_count, 0)
+                       + coalesce(recent_cases.high_count, 0))::double precision / 5 AS value
                FROM buckets
                LEFT JOIN recent_cases USING (bucket_start)
                ORDER BY buckets.bucket_start""",
             SIMULATOR_CHART_WINDOW_SECONDS,
         )
         open_case_rate_history = [
-            {"timestamp": float(row["timestamp"]), "value": float(row["value"])}
+            {
+                "timestamp": float(row["timestamp"]),
+                "value": float(row["value"]),
+                "low": float(row["low"]),
+                "medium": float(row["medium"]),
+                "high": float(row["high"]),
+            }
             for row in history_rows
         ]
         await state.redis.hset(

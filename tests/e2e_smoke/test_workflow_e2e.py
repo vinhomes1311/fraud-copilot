@@ -229,7 +229,8 @@ async def test_entire_workflow(monkeypatch, provider):
                     response = await http.post(f'/api/v1/cases/{high_case}/actions',
                         headers=headers['analyst'], json={'action': 'ESCALATE', 'note': 'Synthetic review'})
                     assert response.status_code == 200, response.text
-                    lead_queue = await http.get('/api/v1/cases', headers=headers['lead'])
+                    lead_queue = await http.get(
+                        '/api/v1/cases?status=ESCALATED', headers=headers['lead'])
                     assert [row['case_id'] for row in lead_queue.json()['items']] == [high_case]
                     response = await http.post(f'/api/v1/cases/{high_case}/resolve',
                         headers=headers['lead'], json={'decision': 'CLOSE', 'note': 'Synthetic close'})
