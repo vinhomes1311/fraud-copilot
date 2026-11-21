@@ -158,6 +158,7 @@ def test_evaluate_artifact_execution(tmp_path: Path):
         "lineage": {"test_metrics": {"pr_auc": 0.95}},
         "calibrator": MagicMock(transform=lambda x: np.array([0.8, 0.2])),
         "pipeline": MagicMock(predict_proba=lambda x: np.array([[0.2, 0.8], [0.8, 0.2]])),
+        "feature_columns": ["amt"],
     }
 
     dummy_df = pd.DataFrame({

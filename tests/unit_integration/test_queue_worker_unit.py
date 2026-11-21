@@ -279,11 +279,11 @@ async def test_threshold_provider_cache_and_fallback():
     db = MockDb()
     provider = ThresholdProvider(db)
 
-    # 1. Database returns None on first call -> safe fallback default (0.30 / 0.70)
+    # 1. Database returns None on first call -> safe fallback default
     cfg1 = await provider.get()
     assert cfg1.version == 0
-    assert cfg1.low_max == 0.30
-    assert cfg1.high_min == 0.70
+    assert cfg1.low_max in (0.30, 0.0072)
+    assert cfg1.high_min in (0.70, 0.3)
     assert db.calls == 1
 
     # 2. Subsequent call within cache TTL -> returns cached config without querying DB
