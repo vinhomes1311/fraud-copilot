@@ -939,7 +939,168 @@ tbody tr:hover { background: #fff8f9; }
 }
 
 /* Evidence-first risk review */
-.detail-panel { width: min(600px, 100%); }
+.case-review-open { overflow: hidden; }
+.detail-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: 0;
+  border: 0;
+  background: #f7f6fb;
+  box-shadow: none;
+  transform: translateX(100%);
+  overflow-y: auto;
+  transition: transform .28s ease;
+}
+.detail-panel.open { transform: translateX(0); }
+.detail-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 32px;
+  border-bottom: 1px solid #e7e3eb;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(14px);
+}
+.detail-back-button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #dfdae5;
+  border-radius: 9px;
+  background: #fff;
+  color: #625a68;
+  font-weight: 700;
+}
+.detail-back-button:hover { border-color: #aaa1b6; background: #faf9fc; }
+.detail-page-title { text-align: center; }
+.detail-page-title h2 { margin-top: 4px; font: 700 21px "Space Grotesk", sans-serif; }
+.detail-page-hint { justify-self: end; max-width: 210px; color: #817988; font-size: 11px; text-align: right; line-height: 1.5; }
+.detail-page-content {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 28px 32px 44px;
+  display: block;
+}
+.case-review-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(460px, 1.22fr);
+  gap: 22px;
+  align-items: start;
+}
+.case-review-left,
+.case-review-right {
+  min-width: 0;
+}
+.case-review-right {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 108px;
+}
+.case-evidence-card {
+  border: 1px solid #e7e3eb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(70, 62, 86, .055);
+  overflow: hidden;
+}
+.case-evidence-card > .risk-overview {
+  margin: 0;
+  padding: 24px;
+  background: linear-gradient(135deg, #fff 0%, #faf9ff 100%);
+  border-bottom: 1px solid #ebe7ef;
+}
+.case-evidence-card > .detail-section,
+.case-evidence-card > .model-details,
+.case-evidence-card > .transaction-details {
+  margin: 0 24px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.risk-signals-card {
+  padding: 22px 24px 20px;
+}
+.risk-signals-card .risk-explanation {
+  padding: 0;
+  border: 0;
+}
+.risk-signals-card .risk-explanation h4 {
+  margin-bottom: 14px;
+  color: #514c59;
+  font-size: 13px;
+}
+.decision-card .decision-section {
+  margin: 0;
+  padding: 22px 24px 24px;
+  border: 0;
+  background: #fff;
+}
+.decision-card .decision-history-section {
+  margin: 0 24px;
+  border-bottom: 0;
+}
+.decision-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.decision-actions button {
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 11px;
+}
+.decision-section textarea {
+  min-height: 88px;
+  font-size: 12px;
+}
+@media (min-width: 901px) {
+  .detail-page-content > .risk-explanation { margin-bottom: 28px; }
+  .detail-page-content > .decision-section { margin-top: 28px; }
+}
+@media (max-width: 900px) {
+  .detail-page-header {
+    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr);
+    min-height: 76px;
+    padding: 12px 18px;
+  }
+  .detail-page-title { text-align: right; }
+  .detail-page-hint { display: none; }
+  .detail-page-content {
+    padding: 20px 18px 36px;
+  }
+  .case-review-grid { grid-template-columns: 1fr; }
+  .case-review-right { position: static; }
+  .decision-actions { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .detail-page-header {
+    grid-template-columns: 1fr auto;
+  }
+  .detail-page-title { max-width: 150px; }
+  .detail-page-title h2 { font-size: 17px; }
+  .detail-back-button { font-size: 11px; }
+  .detail-page-content { padding: 14px 12px 28px; }
+  .case-evidence-card { border-radius: 12px; }
+  .risk-signals-card { padding: 18px 16px; }
+  .case-evidence-card > .risk-overview,
+  .decision-card .decision-section { padding: 18px 16px; }
+  .case-evidence-card > .detail-section,
+  .case-evidence-card > .model-details,
+  .case-evidence-card > .transaction-details { margin-left: 16px; margin-right: 16px; }
+  .decision-actions { grid-template-columns: 1fr; }
+}
 .risk-overview { padding: 24px 0 22px; border-bottom: 1px solid var(--line); }
 .risk-overview-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .review-workflow { font-size: 12px; color: #65616a; }
@@ -990,7 +1151,7 @@ tbody tr:hover { background: #fff8f9; }
 .model-details dd { margin: 0; overflow-wrap: anywhere; color: #514659; }
 .transaction-details .data-grid { margin-top: 16px; }
 @media (max-width: 480px) {
-  .detail-panel { padding: 22px 18px; }
+  .detail-panel { padding: 0; }
   .transaction-amount { font-size: 34px; }
   .risk-factor { grid-template-columns: 26px minmax(0, 1fr); gap: 7px 10px; }
   .factor-impact { grid-column: 2; padding: 0; }

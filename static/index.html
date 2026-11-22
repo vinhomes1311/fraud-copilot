@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#e9e5e0" />
     <title>Fraud Copilot | Risk operations</title>
-    <link rel="stylesheet" href="/static/styles.css?v=account-logout-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=case-review-polished-2" />
   </head>
   <body>
     <div id="toast" class="toast" role="status"></div>
@@ -255,12 +255,15 @@
         </button>
       </div>
     </dialog>
-    <aside id="detail-panel" class="detail-panel">
-      <div class="detail-header"><div><p class="eyebrow">CASE DETAIL</p><h2 id="detail-title">Case —</h2></div><button id="close-detail" class="close-button">×</button></div>
-      <div id="detail-content"></div>
+    <aside id="detail-panel" class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title" tabindex="-1">
+      <header class="detail-page-header">
+        <button id="close-detail" class="detail-back-button" type="button"><span aria-hidden="true">←</span> Back to queue</button>
+        <div class="detail-page-title"><p class="eyebrow">CASE REVIEW</p><h2 id="detail-title">Case —</h2></div>
+        <p class="detail-page-hint">Review the evidence and record your decision</p>
+      </header>
+      <div id="detail-content" class="detail-page-content"></div>
     </aside>
-    <div id="panel-backdrop" class="panel-backdrop"></div>
     <script src="/static/risk-review.js?v=readable-risk-english-5"></script>
-    <script src="/static/app.js?v=account-logout-1"></script>
+    <script src="/static/app.js?v=case-review-polished-2"></script>
   </body>
 </html>
