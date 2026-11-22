@@ -199,7 +199,8 @@ def project_evidence(ctx):
     evidence['EV-LIMIT'] = {'text': 'Model signals do not confirm fraud. Final decision belongs to the analyst. Checklist actions are team proposals based on playbook principles.'}
     if not has_history:
         evidence['EV-HISTORY-GAP'] = {'text': (
-            'Prior-24-hour transaction count is recorded as zero: no earlier transactions in this window. The count is NOT missing; an empty window supplies no behavioral comparison baseline.'
+            'Prior-24-hour transaction count is recorded as zero, so no earlier transactions were recorded '
+            'in this window and no 24-hour behavioral baseline can be established.'
             if count == 0 else
             'Prior-24-hour transaction count is absent: no positive count supplied and no 24-hour behavioral baseline can be established. Do not infer zero recorded activity.')}
     elif not has_baseline:
