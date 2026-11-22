@@ -300,3 +300,28 @@ async def test_simulator_sets_and_clears_ml_faults():
     assert seen[0][:2] == ("PUT", replay.FAULT_PATH)
     assert json.loads(seen[0][2]) == {"ml_failure_rate": 0.5, "ml_latency_ms": 100}
     assert seen[1][:2] == ("DELETE", replay.FAULT_PATH)
+
+
+@pytest.mark.asyncio
+async def test_run_accepts_namespace_without_new_options(tmp_path, monkeypatch):
+    """Regression: the E2E smoke test calls run() with only the original options."""
+    from argparse import Namespace
+
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(202, json={"status": "QUEUED"})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(replay.httpx, "AsyncClient",
+                        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs))
+    csv_path = tmp_path / "transaction.csv"
+    csv_path.write_text("trans_num,trans_date_trans_time,amt,is_fraud\ne2e-1,2024-01-01 10:00:00,25.5,0\n",
+                        encoding="utf-8")
+    await replay.run(Namespace(url="http://gateway", csv=str(csv_path), tps=1000, limit=1,
+                               fault_rate=0.0, concurrency=1, labels=str(tmp_path / "labels.csv")))
+    assert [(r.method, r.url.path) for r in seen] == [("POST", "/api/v1/transactions")]  # no fault calls
+    assert seen[0].headers["X-Data-Version"].startswith("transaction.csv@sha256:")
+    assert "is_fraud" not in json.loads(seen[0].content)
+    assert (tmp_path / "labels.csv").read_text(encoding="utf-8").splitlines() == ["txn_id,is_fraud", "e2e-1,0"]

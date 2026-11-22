@@ -79,7 +79,23 @@ SYNTHETIC_DATA_VERSION = "synthetic@seed42-v1"
 FAULT_PATH = "/api/v1/admin/fault-injection"
 
 
+# Options added after run() was first called programmatically (e.g. the E2E
+# smoke test builds its own Namespace); missing ones fall back to these.
+OPTIONAL_DEFAULTS = {
+    "data_version": None,
+    "ml_fault_rate": 0.0,
+    "ml_latency_ms": 0.0,
+    "ml_fault_drain_s": 5.0,
+    "keep_ml_faults": False,
+}
+
+
+def with_defaults(args: argparse.Namespace) -> argparse.Namespace:
+    return argparse.Namespace(**{**OPTIONAL_DEFAULTS, **vars(args)})
+
+
 def data_version_for(args: argparse.Namespace) -> str:
+    args = with_defaults(args)
     if args.data_version:
         return normalize_data_version(args.data_version) or SYNTHETIC_DATA_VERSION
     return file_data_version(args.csv) if args.csv else SYNTHETIC_DATA_VERSION
@@ -113,6 +129,7 @@ def inject_fault(row: dict) -> dict:
 
 
 async def run(args: argparse.Namespace) -> None:
+    args = with_defaults(args)
     rows = load_csv(args.csv, args.limit) if args.csv else synth_rows(args.limit or 500)
     labels_path = Path(args.labels)
     labels_path.parent.mkdir(parents=True, exist_ok=True)
