@@ -181,3 +181,4 @@ class BriefContent(BaseModel):
     checklist: list[ChecklistItem]
     citations: list[Citation]
     source: Literal["llm", "rule_based"] = "llm"
+    rationale_origin: Literal["llm", "renderer"] = "llm"

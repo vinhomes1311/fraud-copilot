@@ -45,6 +45,24 @@ junit*.xml
 # Local documentation: test catalogs, run notes and working drafts
 /local-docs/
 
+# Local Haiku evaluation tools, fixtures and experimental tests
+/benchmarks/build_groundedness_suite.py
+/benchmarks/groundedness.py
+/benchmarks/groundedness_review.py
+/benchmarks/model_quality.py
+/benchmarks/fixtures/groundedness_*.json
+/benchmarks/fixtures/haiku_*.json
+/docs/benchmarks/groundedness-procedure.md
+/docs/benchmarks/llm-groundedness-*.md
+/docs/benchmarks/llm-quality-*.md
+/docs/llm/host-claude.md
+/docs/llm/semantic-checks.md
+/llm_worker/semantic_checks.py
+/tests/unit_integration/test_grounded_selection.py
+/tests/unit_integration/test_groundedness_evaluation.py
+/tests/unit_integration/test_model_quality.py
+/tests/unit_integration/test_semantic_checks.py
+
 # Runtime and operating system artifacts
 *.log
 .DS_Store

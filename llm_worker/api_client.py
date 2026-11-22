@@ -10,6 +10,7 @@ from fraud_common.config import get_settings
 from .local_integration import OllamaClient
 from .prompts import BRIEF_SYSTEM_PROMPT
 from .narrative import prompt_payload
+from . import grounded_selection
 
 
 _429_HINTS = {
@@ -72,9 +73,42 @@ class APIClient(OllamaClient):
         self.reasoning_effort = os.getenv('LLM_API_REASONING_EFFORT', '').strip()
         if self.reasoning_effort not in ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'):
             raise ValueError('Invalid LLM_API_REASONING_EFFORT')
+        # Anthropic's compatibility endpoint ignores reasoning_effort. Haiku
+        # 5.5 accepts this explicit extension to disable default adaptive thinking.
+        self.thinking = os.getenv('LLM_API_THINKING', '').strip()
+        if self.thinking not in ('', 'disabled'):
+            raise ValueError('LLM_API_THINKING must be empty or disabled')
+        self.brief_mode = os.getenv('LLM_API_BRIEF_MODE', 'explained').strip()
+        if self.brief_mode not in ('explained', 'grounded_selection'):
+            raise ValueError('Invalid LLM_API_BRIEF_MODE')
+        if self.brief_mode == 'grounded_selection' and self.response_format != 'json_schema':
+            raise ValueError('Grounded selection requires json_schema response format')
+
+    def selection_schema(self, evidence, selected_chunks):
+        if self.brief_mode == 'grounded_selection':
+            return grounded_selection.selection_schema(selected_chunks)
+        return super().selection_schema(evidence, selected_chunks)
+
+    def resolve_selection(self, content, schema, evidence, required):
+        if self.brief_mode == 'grounded_selection':
+            return grounded_selection.parse_option(content, schema), None
+        return super().resolve_selection(content, schema, evidence, required)
+
+    def format_rationales(self, raw, rules, evidence):
+        if self.brief_mode == 'grounded_selection':
+            return grounded_selection.render_rationales(evidence, rules), 'renderer'
+        return super().format_rationales(raw, rules, evidence)
+
+    def prompt(self, schema, evidence, chunks):
+        if self.brief_mode == 'grounded_selection':
+            return grounded_selection.SYSTEM_PROMPT, grounded_selection.selection_payload(evidence, chunks, schema)
+        return BRIEF_SYSTEM_PROMPT, prompt_payload(evidence, chunks)
 
     def model_name(self):
         return self.model
+
+    def _record_response(self, data):
+        """Optional benchmark observation hook; production clients persist nothing."""
 
     async def chat(self, model, schema, evidence, selected_chunks):
         # Some strict schema implementations do not support uniqueItems or array
@@ -93,19 +127,21 @@ class APIClient(OllamaClient):
         fmt = {'type': self.response_format}
         if self.response_format == 'json_schema':
             fmt['json_schema'] = {'name': 'explained_case_brief', 'strict': True, 'schema': api_schema}
+        system, context = self.prompt(schema, evidence, selected_chunks)
         payload = {
             'model': model, 'stream': False, 'response_format': fmt,
             self.token_parameter: self.max_tokens,
             'messages': [
-                {'role': 'system', 'content': BRIEF_SYSTEM_PROMPT},
-                {'role': 'user', 'content': json.dumps(
-                    prompt_payload(evidence, selected_chunks), ensure_ascii=False)},
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)},
             ],
         }
         if self.store_parameter == 'false':
             payload['store'] = False
         if self.reasoning_effort:
             payload['reasoning_effort'] = self.reasoning_effort
+        if self.thinking:
+            payload['thinking'] = {'type': self.thinking}
         try:
             async with httpx.AsyncClient(timeout=get_settings().llm_job_timeout_s,
                                          follow_redirects=False) as client:
@@ -120,6 +156,7 @@ class APIClient(OllamaClient):
             raise _http_error(response) from None
         try:
             data = response.json()
+            self._record_response(data)
             choices = data['choices']
             if not isinstance(choices, list) or len(choices) != 1:
                 raise ValueError()
