@@ -1,239 +1,239 @@
 {
   "document_id": "common-fraud-investigation-playbook",
-  "version": "2.0-detailed-ml-playbook",
+  "version": "2.1-detailed-ml-playbook-en",
   "source_status": "team_dataset_adaptation_expanded",
-  "source_note": "Playbook nội bộ do nhóm đề xuất cho dữ liệu mô phỏng Kaggle/Sparkov; mở rộng theo contract scoring_worker hiện tại. Không phải chính sách ngân hàng hay hướng dẫn đã được thẩm định. Giữ PB-01..PB-05 làm nguyên tắc nền và tương thích citation; các mục chi tiết bổ sung điều kiện sử dụng, giới hạn suy luận và bước analyst kiểm tra. Dataset: https://www.kaggle.com/datasets/kartik2112/fraud-detection",
+  "source_note": "Internal team-proposed playbook for the simulated Kaggle/Sparkov dataset, expanded for the current scoring_worker contract. It is not a bank policy or validated guidance. PB-01..PB-05 retain their foundational principles and citation IDs; detailed entries add usage conditions, inference limits and analyst review steps. English translation of version 2.0; rule IDs and review conditions are preserved. Dataset: https://www.kaggle.com/datasets/kartik2112/fraud-detection",
   "chunks": [
     {
       "id": "PB-01",
       "section_id": "S1",
       "rule_code": "PB-01",
-      "text": "Kiểm tra giao dịch bất thường. Với Kaggle/Sparkov, xem amt, category, hour_of_day và dist_home_merchant_km nếu được cung cấp. Khoảng cách nhà–merchant không phải vị trí thiết bị hoặc quãng đường di chuyển của chủ thẻ; số tiền, danh mục và giờ riêng lẻ không xác nhận gian lận.",
-      "implementation_action": "Đối chiếu số tiền và tín hiệu đã cung cấp. Chỉ so sánh amt với avg_amt_24h hoặc amt_vs_avg_ratio khi có lịch sử hợp lệ; không tự đặt ngưỡng tiền, khoảng cách hay giờ để kết luận gian lận.",
+      "text": "Review unusual transactions. For Kaggle/Sparkov, consider amt, category, hour_of_day and dist_home_merchant_km when supplied. Home-to-merchant distance is not device location or the distance traveled by the cardholder; amount, category and hour alone do not confirm fraud.",
+      "implementation_action": "Compare the supplied amount and signals. Compare amt with avg_amt_24h or amt_vs_avg_ratio only when valid history exists; do not invent amount, distance or hour thresholds to conclude fraud.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-02",
       "section_id": "S2",
       "rule_code": "PB-02",
-      "text": "Phân biệt tín hiệu nghi ngờ và bằng chứng xác nhận gian lận. Raw score và đóng góp đặc trưng không mặc nhiên là xác suất hoặc quan hệ nhân quả. is_fraud là nhãn đánh giá của dữ liệu mô phỏng, không phải đầu vào cho RAG/LLM và không được dùng để viết nhận định.",
-      "implementation_action": "Phân biệt raw score, xác suất hiệu chỉnh do ML cung cấp và giải thích model. Ghi nhận đây là tín hiệu cần xem xét; không suy ra gian lận, hành vi tấn công hoặc nguyên nhân chỉ từ score hay một đặc trưng.",
+      "text": "Distinguish suspicious signals from evidence confirming fraud. Raw scores and feature contributions are not automatically probabilities or causal relationships. is_fraud is an evaluation label for the simulated dataset, not an input to RAG/LLM, and must not be used to write assessments.",
+      "implementation_action": "Distinguish the raw score, the calibrated probability supplied by ML and model explanations. Record signals for review; do not infer fraud, an attack or its cause from a score or a single feature.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-03",
       "section_id": "S3",
       "rule_code": "PB-03",
-      "text": "Kiểm tra thông tin giao dịch và lịch sử liên quan. txn_count_24h và avg_amt_24h là đặc trưng dẫn xuất theo tài khoản, chỉ từ giao dịch trước thời điểm hiện tại trong cửa sổ 24 giờ. avg_amt_24h là trung bình, không phải trung vị. Không dùng giao dịch tương lai hoặc nhãn is_fraud làm lịch sử suy luận.",
-      "implementation_action": "Dùng lịch sử đã cung cấp để đối chiếu số lượng và trung bình số tiền. Nếu không có bản ghi trước đó hoặc không có trung bình dương, ghi nhận thiếu cơ sở so sánh; không diễn giải giá trị điền mặc định là hành vi bình thường.",
+      "text": "Review transaction details and relevant history. txn_count_24h and avg_amt_24h are account-level features derived only from transactions before the current transaction within a 24-hour window. avg_amt_24h is a mean, not a median. Do not use future transactions or the is_fraud label as history for inference.",
+      "implementation_action": "Use the supplied history to compare counts and average amounts. If there are no prior records or no positive average, record the missing comparison baseline; do not interpret default values as normal behavior.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-04",
       "section_id": "S4",
       "rule_code": "PB-04",
-      "text": "Nguyên tắc chuyển cấp và ghi nhận quyết định. Với giao dịch mô phỏng Kaggle/Sparkov, LLM hỗ trợ chuyên viên và giữ nguyên kết quả ML/routing; HIGH không tự động chứng minh gian lận hay bắt buộc chuyển cấp. Dataset không cung cấp chính sách phong tỏa hoặc quy trình xác minh khách hàng.",
-      "implementation_action": "Ghi nhận tín hiệu, nguồn playbook và thông tin còn thiếu để chuyên viên quyết định theo chính sách nhóm. Không tự phong tỏa thẻ, liên hệ khách hàng, thay đổi routing hoặc đặt ngưỡng chuyển cấp mới.",
+      "text": "Escalation and decision recording principles. For simulated Kaggle/Sparkov transactions, the LLM supports analysts and preserves ML results and routing; HIGH does not automatically prove fraud or require escalation. The dataset supplies no card-blocking policy or customer verification procedure.",
+      "implementation_action": "Record signals, playbook sources and missing information for analysts to decide under team policy. Do not block cards, contact customers, change routing or invent escalation thresholds.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-05",
       "section_id": "S5",
       "rule_code": "PB-05",
-      "text": "Những trường hợp không đủ bằng chứng để kết luận. Dataset là dữ liệu mô phỏng; không cung cấp bằng chứng xác minh khách hàng, IP, thiết bị, OTP hay chargeback. Tọa độ nhà và merchant không đủ để kết luận impossible travel hoặc thẻ bị sao chép. Múi giờ và loại tiền không được tự giả định khi context chưa cung cấp.",
-      "implementation_action": "Nêu rõ lịch sử, mức giao dịch tham chiếu hoặc xác minh còn thiếu. Không tự tạo lịch sử merchant, vị trí người dùng, phương thức thanh toán hay bằng chứng xác nhận. Chưa kết luận khi chưa đủ bằng chứng; quyết định cuối cùng thuộc chuyên viên.",
+      "text": "Insufficient evidence for a conclusion. The dataset is simulated and supplies no customer verification, IP, device, OTP or chargeback evidence. Home and merchant coordinates cannot establish impossible travel or card cloning. Do not assume a timezone or currency absent from context.",
+      "implementation_action": "Identify missing history, reference transaction amounts or verification. Do not fabricate merchant history, user location, payment methods or confirmation evidence. Withhold conclusions when evidence is insufficient; the final decision belongs to the analyst.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-06",
       "section_id": "S6",
       "rule_code": "PB-06",
-      "text": "Không có giao dịch trước đó trong 24 giờ. Tín hiệu liên quan: txn_count_24h trans_count_24h. Điều kiện và ý nghĩa: Áp dụng khi count 24h bằng 0 hoặc chưa cung cấp. Không có lịch sử 24h không chứng minh khách hàng mới và không phủ định lịch sử 7 ngày. Hướng kiểm tra: Ghi rõ thiếu baseline 24h; bỏ qua avg_amt_24h và amt_vs_avg_ratio điền mặc định. Nếu có lịch sử 7 ngày, trình bày riêng với đúng cửa sổ.",
-      "implementation_action": "Ghi rõ thiếu baseline 24h; bỏ qua avg_amt_24h và amt_vs_avg_ratio điền mặc định. Nếu có lịch sử 7 ngày, trình bày riêng với đúng cửa sổ.",
+      "text": "No prior transactions in 24 hours. Related signals: txn_count_24h trans_count_24h. Conditions and meaning: Applies when the 24-hour count is zero or absent. Missing 24-hour history does not prove a new customer or negate 7-day history. Review guidance: Record the missing 24-hour baseline; ignore default-filled avg_amt_24h and amt_vs_avg_ratio. If 7-day history exists, present it separately with the correct window.",
+      "implementation_action": "Record the missing 24-hour baseline; ignore default-filled avg_amt_24h and amt_vs_avg_ratio. If 7-day history exists, present it separately with the correct window.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-07",
       "section_id": "S7",
       "rule_code": "PB-07",
-      "text": "Có số lượng nhưng thiếu trung bình 24 giờ. Tín hiệu liên quan: txn_count_24h avg_amt_24h. Điều kiện và ý nghĩa: Áp dụng khi count 24h dương nhưng avg_amt_24h thiếu hoặc không dương. Không lấy avg_amt_7d thay thế. Hướng kiểm tra: Ghi nhận số giao dịch đã biết và trung bình 24h còn thiếu. Yêu cầu đối chiếu nguồn thống kê; chưa kết luận số tiền bất thường từ ratio mặc định.",
-      "implementation_action": "Ghi nhận số giao dịch đã biết và trung bình 24h còn thiếu. Yêu cầu đối chiếu nguồn thống kê; chưa kết luận số tiền bất thường từ ratio mặc định.",
+      "text": "Count available but 24-hour average missing. Related signals: txn_count_24h avg_amt_24h. Conditions and meaning: Applies when the 24-hour count is positive but avg_amt_24h is missing or nonpositive. Do not substitute avg_amt_7d. Review guidance: Record the known transaction count and missing 24-hour average. Request a check of the statistics source; do not conclude an unusual amount from a default ratio.",
+      "implementation_action": "Record the known transaction count and missing 24-hour average. Request a check of the statistics source; do not conclude an unusual amount from a default ratio.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-08",
       "section_id": "S8",
       "rule_code": "PB-08",
-      "text": "So sánh số tiền với lịch sử 24 giờ. Tín hiệu liên quan: amt avg_amt_24h amt_vs_avg_ratio. Điều kiện và ý nghĩa: Cần count 24h dương và mean 24h dương. avg_amt_24h là trung bình, không phải trung vị. Ratio không phải xác suất gian lận. Hướng kiểm tra: Đối chiếu amt, mean và ratio được cung cấp, ghi đúng cửa sổ. Kết hợp tín hiệu khác; không tự đặt ngưỡng cảnh báo hoặc xác nhận fraud.",
-      "implementation_action": "Đối chiếu amt, mean và ratio được cung cấp, ghi đúng cửa sổ. Kết hợp tín hiệu khác; không tự đặt ngưỡng cảnh báo hoặc xác nhận fraud.",
+      "text": "Compare the amount with 24-hour history. Related signals: amt avg_amt_24h amt_vs_avg_ratio. Conditions and meaning: Requires a positive 24-hour count and mean. avg_amt_24h is a mean, not a median. The ratio is not a fraud probability. Review guidance: Compare the supplied amt, mean and ratio with the correct window. Combine other signals; do not invent alert thresholds or confirm fraud.",
+      "implementation_action": "Compare the supplied amt, mean and ratio with the correct window. Combine other signals; do not invent alert thresholds or confirm fraud.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-09",
       "section_id": "S9",
       "rule_code": "PB-09",
-      "text": "Tần suất giao dịch trong một giờ. Tín hiệu liên quan: trans_count_1h. Điều kiện và ý nghĩa: Chỉ dùng khi có count 1h. Một số đếm riêng lẻ chưa chứng minh tăng đột biến nếu thiếu baseline tần suất và quy tắc nghiệp vụ. Hướng kiểm tra: Ghi số lượng trong 1h; đối chiếu count 24h và lịch sử được cung cấp. Đề nghị analyst xác minh các giao dịch liên quan, không gọi đây là velocity attack đã xác nhận.",
-      "implementation_action": "Ghi số lượng trong 1h; đối chiếu count 24h và lịch sử được cung cấp. Đề nghị analyst xác minh các giao dịch liên quan, không gọi đây là velocity attack đã xác nhận.",
+      "text": "Transaction frequency within one hour. Related signals: trans_count_1h. Conditions and meaning: Use only when the 1-hour count is available. A count alone does not establish a spike without a frequency baseline and business rules. Review guidance: Record the 1-hour count; compare the 24-hour count and supplied history. Suggest analyst verification of related transactions, without calling it a confirmed velocity attack.",
+      "implementation_action": "Record the 1-hour count; compare the 24-hour count and supplied history. Suggest analyst verification of related transactions, without calling it a confirmed velocity attack.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-10",
       "section_id": "S10",
       "rule_code": "PB-10",
-      "text": "Tần suất giao dịch trong 24 giờ. Tín hiệu liên quan: txn_count_24h trans_count_24h. Điều kiện và ý nghĩa: Chỉ diễn giải số đếm là giao dịch trước thời điểm hiện tại. Không có baseline tần suất thì không tự gắn nhãn nhiều hoặc bất thường. Hướng kiểm tra: Đối chiếu count 24h với dữ liệu cửa sổ khác nếu có. Ghi rõ đây là count chứ không phải tỷ lệ tăng; không lấy count 7 ngày chia 7 làm baseline chính thức.",
-      "implementation_action": "Đối chiếu count 24h với dữ liệu cửa sổ khác nếu có. Ghi rõ đây là count chứ không phải tỷ lệ tăng; không lấy count 7 ngày chia 7 làm baseline chính thức.",
+      "text": "Transaction frequency within 24 hours. Related signals: txn_count_24h trans_count_24h. Conditions and meaning: Interpret the count only as transactions before the current transaction. Without a frequency baseline, do not label it high or unusual. Review guidance: Compare the 24-hour count with other supplied windows. Identify it as a count, not a growth rate; do not divide the 7-day count by 7 to create an official baseline.",
+      "implementation_action": "Compare the 24-hour count with other supplied windows. Identify it as a count, not a growth rate; do not divide the 7-day count by 7 to create an official baseline.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-11",
       "section_id": "S11",
       "rule_code": "PB-11",
-      "text": "Lịch sử giao dịch bảy ngày. Tín hiệu liên quan: trans_count_7d. Điều kiện và ý nghĩa: Count 7d dương chứng minh có lịch sử trong cửa sổ này, kể cả count 24h bằng 0. Không coi count nhỏ là bằng chứng fraud. Hướng kiểm tra: Ghi tách count 24h và 7d. Đánh dấu mẫu lịch sử còn hạn chế khi analyst đánh giá độ đại diện, không bịa các mốc thời gian giao dịch cụ thể.",
-      "implementation_action": "Ghi tách count 24h và 7d. Đánh dấu mẫu lịch sử còn hạn chế khi analyst đánh giá độ đại diện, không bịa các mốc thời gian giao dịch cụ thể.",
+      "text": "Seven-day transaction history. Related signals: trans_count_7d. Conditions and meaning: A positive 7-day count establishes history in this window even when the 24-hour count is zero. A small count is not evidence of fraud. Review guidance: Record 24-hour and 7-day counts separately. Note limited historical samples when analysts assess representativeness; do not fabricate individual transaction timestamps.",
+      "implementation_action": "Record 24-hour and 7-day counts separately. Note limited historical samples when analysts assess representativeness; do not fabricate individual transaction timestamps.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-12",
       "section_id": "S12",
       "rule_code": "PB-12",
-      "text": "Thiếu lịch sử bảy ngày. Tín hiệu liên quan: trans_count_7d avg_amt_7d. Điều kiện và ý nghĩa: Count 7d bằng 0 hoặc thiếu không cung cấp cơ sở đánh giá mean/max/std 7d. Giá trị 0 có thể là fallback tính toán. Hướng kiểm tra: Ghi thiếu baseline 7d. Bỏ qua các ratio từ mean/max mặc định; ưu tiên yêu cầu thông tin thay vì kết luận bất thường từ ratio lớn.",
-      "implementation_action": "Ghi thiếu baseline 7d. Bỏ qua các ratio từ mean/max mặc định; ưu tiên yêu cầu thông tin thay vì kết luận bất thường từ ratio lớn.",
+      "text": "Missing seven-day history. Related signals: trans_count_7d avg_amt_7d. Conditions and meaning: A zero or missing 7-day count supplies no basis for assessing the 7-day mean, maximum or standard deviation. Zero may be a computational fallback. Review guidance: Record the missing 7-day baseline. Ignore ratios derived from default means or maxima; prioritize requesting information over concluding an anomaly from a large ratio.",
+      "implementation_action": "Record the missing 7-day baseline. Ignore ratios derived from default means or maxima; prioritize requesting information over concluding an anomaly from a large ratio.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-13",
       "section_id": "S13",
       "rule_code": "PB-13",
-      "text": "Trung bình số tiền bảy ngày. Tín hiệu liên quan: avg_amt_7d trans_count_7d. Điều kiện và ý nghĩa: Cần count 7d và mean 7d dương. Không diễn giải trung bình 7d thành 24h, trung vị hay hạn mức giao dịch. Hướng kiểm tra: Đối chiếu amt và mean 7d với tên cửa sổ rõ ràng. Ghi nhận thiếu mean nếu count dương nhưng mean không hợp lệ; không tự suy ra phân bố giao dịch.",
-      "implementation_action": "Đối chiếu amt và mean 7d với tên cửa sổ rõ ràng. Ghi nhận thiếu mean nếu count dương nhưng mean không hợp lệ; không tự suy ra phân bố giao dịch.",
+      "text": "Seven-day average transaction amount. Related signals: avg_amt_7d trans_count_7d. Conditions and meaning: Requires a positive 7-day count and mean. Do not reinterpret the 7-day mean as a 24-hour mean, median or transaction limit. Review guidance: Compare amt and the 7-day mean with an explicit window label. Record a missing mean if the count is positive but the mean is invalid; do not infer the transaction distribution.",
+      "implementation_action": "Compare amt and the 7-day mean with an explicit window label. Record a missing mean if the count is positive but the mean is invalid; do not infer the transaction distribution.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-14",
       "section_id": "S14",
       "rule_code": "PB-14",
-      "text": "Tỷ lệ số tiền trên trung bình bảy ngày. Tín hiệu liên quan: amt_to_avg_7d_ratio avg_amt_7d. Điều kiện và ý nghĩa: Trong pipeline hiện tại ratio = amt / (avg_amt_7d + 1). Chỉ dùng với count và mean 7d dương; đây là tỷ lệ làm trơn, không phải amt / mean thuần túy. Hướng kiểm tra: Trình bày ratio theo đúng công thức mẫu số +1. So sánh cùng amt và mean; không gọi ratio là xác suất hoặc áp dụng ngưỡng tự đặt.",
-      "implementation_action": "Trình bày ratio theo đúng công thức mẫu số +1. So sánh cùng amt và mean; không gọi ratio là xác suất hoặc áp dụng ngưỡng tự đặt.",
+      "text": "Amount-to-seven-day-average ratio. Related signals: amt_to_avg_7d_ratio avg_amt_7d. Conditions and meaning: In the current pipeline, ratio = amt / (avg_amt_7d + 1). Use only with a positive 7-day count and mean; this is a smoothed ratio, not a plain amt / mean. Review guidance: Present the ratio using the denominator +1 formula. Compare it alongside amt and the mean; do not call it a probability or apply invented thresholds.",
+      "implementation_action": "Present the ratio using the denominator +1 formula. Compare it alongside amt and the mean; do not call it a probability or apply invented thresholds.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-15",
       "section_id": "S15",
       "rule_code": "PB-15",
-      "text": "Tỷ lệ số tiền trên mức lớn nhất bảy ngày. Tín hiệu liên quan: amt_to_max_7d_ratio max_amt_7d. Điều kiện và ý nghĩa: Trong pipeline hiện tại ratio = amt / (max_amt_7d + 1). Cần count và max 7d dương. Maximum chỉ phản ánh cửa sổ quan sát. Hướng kiểm tra: Đối chiếu amt, max 7d và ratio làm trơn; không gọi maximum là hạn mức được phép. Không khẳng định giao dịch lớn nhất từ trước tới nay.",
-      "implementation_action": "Đối chiếu amt, max 7d và ratio làm trơn; không gọi maximum là hạn mức được phép. Không khẳng định giao dịch lớn nhất từ trước tới nay.",
+      "text": "Amount-to-seven-day-maximum ratio. Related signals: amt_to_max_7d_ratio max_amt_7d. Conditions and meaning: In the current pipeline, ratio = amt / (max_amt_7d + 1). Requires a positive 7-day count and maximum. The maximum reflects only the observed window. Review guidance: Compare amt, the 7-day maximum and the smoothed ratio; do not call the maximum an authorized limit. Do not claim an all-time largest transaction.",
+      "implementation_action": "Compare amt, the 7-day maximum and the smoothed ratio; do not call the maximum an authorized limit. Do not claim an all-time largest transaction.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-16",
       "section_id": "S16",
       "rule_code": "PB-16",
-      "text": "Độ phân tán lịch sử bảy ngày. Tín hiệu liên quan: std_amt_7d trans_count_7d. Điều kiện và ý nghĩa: Sample standard deviation cần ít nhất hai quan sát. Std bằng 0 có thể do các giá trị trùng nhau hoặc fallback, không chứng minh ổn định. Hướng kiểm tra: Ghi số mẫu và std nếu hợp lệ. Không tính z-score khi std bằng 0, không suy ra phân phối chuẩn hoặc ngưỡng fraud từ một thống kê.",
-      "implementation_action": "Ghi số mẫu và std nếu hợp lệ. Không tính z-score khi std bằng 0, không suy ra phân phối chuẩn hoặc ngưỡng fraud từ một thống kê.",
+      "text": "Dispersion in seven-day history. Related signals: std_amt_7d trans_count_7d. Conditions and meaning: Sample standard deviation requires at least two observations. Zero standard deviation may reflect identical values or a fallback; it does not prove stability. Review guidance: Record the sample count and standard deviation when valid. Do not calculate a z-score with zero standard deviation or infer a normal distribution or fraud threshold from one statistic.",
+      "implementation_action": "Record the sample count and standard deviation when valid. Do not calculate a z-score with zero standard deviation or infer a normal distribution or fraud threshold from one statistic.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-17",
       "section_id": "S17",
       "rule_code": "PB-17",
-      "text": "Tổng số tiền trong 24 giờ. Tín hiệu liên quan: sum_amt_24h trans_count_24h. Điều kiện và ý nghĩa: sum_amt_24h là tổng tiền của các giao dịch trước đó, không phải số lượng hoặc trung bình. Không so tổng 24h trực tiếp với mean 7d để kết luận tăng đột biến. Hướng kiểm tra: Ghi tổng tiền và count 24h nếu được cung cấp; phân biệt tổng với giá trị giao dịch hiện tại. Không giả định loại tiền hoặc cộng dữ liệu từ các cửa sổ chồng lấn.",
-      "implementation_action": "Ghi tổng tiền và count 24h nếu được cung cấp; phân biệt tổng với giá trị giao dịch hiện tại. Không giả định loại tiền hoặc cộng dữ liệu từ các cửa sổ chồng lấn.",
+      "text": "Total amount within 24 hours. Related signals: sum_amt_24h trans_count_24h. Conditions and meaning: sum_amt_24h is the sum of prior transaction amounts, not a count or average. Do not compare the 24-hour total directly with the 7-day mean to conclude a spike. Review guidance: Record the 24-hour total and count when supplied; distinguish the total from the current transaction amount. Do not assume currency or add data from overlapping windows.",
+      "implementation_action": "Record the 24-hour total and count when supplied; distinguish the total from the current transaction amount. Do not assume currency or add data from overlapping windows.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-18",
       "section_id": "S18",
       "rule_code": "PB-18",
-      "text": "Khoảng cách nhà và merchant. Tín hiệu liên quan: customer_merchant_distance_km dist_home_merchant_km. Điều kiện và ý nghĩa: Khoảng cách được tính từ tọa độ nhà và merchant. Không có vị trí thiết bị, lộ trình, thời gian di chuyển hay sự hiện diện thực tế của chủ thẻ. Hướng kiểm tra: Đối chiếu khoảng cách đã cung cấp và ghi giới hạn nguồn. Không kết luận impossible travel, sao chép thẻ hay vị trí hiện tại của khách hàng.",
-      "implementation_action": "Đối chiếu khoảng cách đã cung cấp và ghi giới hạn nguồn. Không kết luận impossible travel, sao chép thẻ hay vị trí hiện tại của khách hàng.",
+      "text": "Home-to-merchant distance. Related signals: customer_merchant_distance_km dist_home_merchant_km. Conditions and meaning: Distance is calculated from home and merchant coordinates. There is no device location, route, travel time or evidence of the cardholder being present. Review guidance: Review the supplied distance and record source limitations. Do not conclude impossible travel, card cloning or the current location of the customer.",
+      "implementation_action": "Review the supplied distance and record source limitations. Do not conclude impossible travel, card cloning or the current location of the customer.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-19",
       "section_id": "S19",
       "rule_code": "PB-19",
-      "text": "Giờ giao dịch được ghi nhận. Tín hiệu liên quan: transaction_hour hour_of_day. Điều kiện và ý nghĩa: Giờ thuộc timestamp đầu vào; context không đảm bảo múi giờ hoặc thói quen sinh hoạt của khách hàng. Giờ muộn riêng lẻ không xác nhận fraud. Hướng kiểm tra: Ghi giờ được cung cấp và tình trạng thiếu múi giờ/baseline thói quen. Đề nghị analyst kiểm tra ngữ cảnh nếu cần, không tự xác định giờ làm việc.",
-      "implementation_action": "Ghi giờ được cung cấp và tình trạng thiếu múi giờ/baseline thói quen. Đề nghị analyst kiểm tra ngữ cảnh nếu cần, không tự xác định giờ làm việc.",
+      "text": "Recorded transaction hour. Related signals: transaction_hour hour_of_day. Conditions and meaning: The hour comes from the input timestamp; context does not establish a timezone or customer habits. A late hour alone does not confirm fraud. Review guidance: Record the supplied hour and any missing timezone or behavioral baseline. Suggest analyst review of context if needed; do not invent business hours.",
+      "implementation_action": "Record the supplied hour and any missing timezone or behavioral baseline. Suggest analyst review of context if needed; do not invent business hours.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-20",
       "section_id": "S20",
       "rule_code": "PB-20",
-      "text": "Danh mục merchant. Tín hiệu liên quan: category. Điều kiện và ý nghĩa: Chỉ dùng danh mục thuộc allowlist. Không có danh mục không đồng nghĩa merchant đáng ngờ. Danh mục không chứng minh phương thức thanh toán hoặc hành vi mua hàng. Hướng kiểm tra: Mô tả danh mục được cung cấp như ngữ cảnh bổ trợ; không suy ra website, món hàng, merchant cụ thể hay mức rủi ro ngành tự đặt.",
-      "implementation_action": "Mô tả danh mục được cung cấp như ngữ cảnh bổ trợ; không suy ra website, món hàng, merchant cụ thể hay mức rủi ro ngành tự đặt.",
+      "text": "Merchant category. Related signals: category. Conditions and meaning: Use only allowlisted categories. An absent category does not imply a suspicious merchant. Category does not establish payment method or purchasing behavior. Review guidance: Describe the supplied category as supporting context; do not infer a website, purchased item, specific merchant or invented industry risk level.",
+      "implementation_action": "Describe the supplied category as supporting context; do not infer a website, purchased item, specific merchant or invented industry risk level.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-21",
       "section_id": "S21",
       "rule_code": "PB-21",
-      "text": "Diễn giải raw score. Tín hiệu liên quan: raw_model_score. Điều kiện và ý nghĩa: Raw score phải được phân biệt với calibrated_prob. Không giả định raw score nằm trong [0,1] hoặc có đơn vị phần trăm. Hướng kiểm tra: Ghi tên score và giá trị đúng như ML cung cấp. Nếu thiếu calibrated_prob, ghi thiếu xác suất hiệu chỉnh thay vì đổi raw score thành phần trăm.",
-      "implementation_action": "Ghi tên score và giá trị đúng như ML cung cấp. Nếu thiếu calibrated_prob, ghi thiếu xác suất hiệu chỉnh thay vì đổi raw score thành phần trăm.",
+      "text": "Interpret the raw score. Related signals: raw_model_score. Conditions and meaning: Distinguish the raw score from calibrated_prob. Do not assume that the raw score is in [0,1] or expressed as a percentage. Review guidance: Record the score name and value exactly as supplied by ML. If calibrated_prob is missing, record the missing calibrated probability instead of converting the raw score into a percentage.",
+      "implementation_action": "Record the score name and value exactly as supplied by ML. If calibrated_prob is missing, record the missing calibrated probability instead of converting the raw score into a percentage.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-22",
       "section_id": "S22",
       "rule_code": "PB-22",
-      "text": "Xác suất hiệu chỉnh. Tín hiệu liên quan: calibrated_prob. Điều kiện và ý nghĩa: Xác suất do ML cung cấp là tín hiệu model, không phải bằng chứng kết luận. Giá trị hợp lệ nằm trong [0,1]; LLM không tự hiệu chỉnh lại. Hướng kiểm tra: Dẫn đúng xác suất và risk routing. Nếu score và cảm nhận của analyst khác nhau, ghi nhận để kiểm tra model/threshold; không tự thay score.",
-      "implementation_action": "Dẫn đúng xác suất và risk routing. Nếu score và cảm nhận của analyst khác nhau, ghi nhận để kiểm tra model/threshold; không tự thay score.",
+      "text": "Calibrated probability. Related signals: calibrated_prob. Conditions and meaning: The probability supplied by ML is a model signal, not conclusive evidence. Valid values are in [0,1]; the LLM must not recalibrate it. Review guidance: Cite the correct probability and risk routing. If the score differs from analyst judgment, record it for model/threshold review; do not change the score.",
+      "implementation_action": "Cite the correct probability and risk routing. If the score differs from analyst judgment, record it for model/threshold review; do not change the score.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-23",
       "section_id": "S23",
       "rule_code": "PB-23",
-      "text": "Giải thích đóng góp đặc trưng. Tín hiệu liên quan: contribution explanations. Điều kiện và ý nghĩa: Một contribution không chứng minh quan hệ nhân quả. Khi method và scale chưa có trong context, không gọi contribution là SHAP, phần trăm hay xác suất. Hướng kiểm tra: Ghi tên feature, value và contribution đã được cung cấp cùng giới hạn phương pháp. Không suy ra raw score bằng cách cộng các contribution thiếu bias hoặc thiếu feature.",
-      "implementation_action": "Ghi tên feature, value và contribution đã được cung cấp cùng giới hạn phương pháp. Không suy ra raw score bằng cách cộng các contribution thiếu bias hoặc thiếu feature.",
+      "text": "Explain feature contributions. Related signals: contribution explanations. Conditions and meaning: A contribution does not establish causation. When the method and scale are absent from context, do not call a contribution SHAP, a percentage or a probability. Review guidance: Record the supplied feature name, value and contribution with methodological limitations. Do not reconstruct a raw score by adding contributions without the bias or all features.",
+      "implementation_action": "Record the supplied feature name, value and contribution with methodological limitations. Do not reconstruct a raw score by adding contributions without the bias or all features.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-24",
       "section_id": "S24",
       "rule_code": "PB-24",
-      "text": "Đối chiếu cửa sổ lịch sử. Tín hiệu liên quan: trans_count_24h trans_count_7d avg_amt_7d avg_amt_24h. Điều kiện và ý nghĩa: Các cửa sổ 1h, 24h và 7d chồng lấn. Không cộng các count để có tổng giao dịch duy nhất. Một cửa sổ trống không có nghĩa mọi lịch sử đều trống. Hướng kiểm tra: Ghi rõ cửa sổ cho từng thống kê. Giữ phần lịch sử đã biết và nêu riêng khoảng trống, không dùng baseline cửa sổ này thay baseline cửa sổ khác.",
-      "implementation_action": "Ghi rõ cửa sổ cho từng thống kê. Giữ phần lịch sử đã biết và nêu riêng khoảng trống, không dùng baseline cửa sổ này thay baseline cửa sổ khác.",
+      "text": "Compare historical windows. Related signals: trans_count_24h trans_count_7d avg_amt_7d avg_amt_24h. Conditions and meaning: The 1-hour, 24-hour and 7-day windows overlap. Do not add their counts to obtain a unique transaction total. An empty window does not imply that all history is empty. Review guidance: Label the window for each statistic. Preserve known history and identify gaps separately; do not replace one window baseline with another.",
+      "implementation_action": "Label the window for each statistic. Preserve known history and identify gaps separately; do not replace one window baseline with another.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-25",
       "section_id": "S25",
       "rule_code": "PB-25",
-      "text": "Kết hợp nhiều tín hiệu. Tín hiệu liên quan: amt amt_to_avg_7d_ratio customer_merchant_distance_km. Điều kiện và ý nghĩa: Nhiều tín hiệu liên quan có thể cùng xuất phát từ một giao dịch hoặc một feature. Không coi chúng là bằng chứng độc lập và không cộng score/ratio tùy ý. Hướng kiểm tra: Chọn tối đa ba bước kiểm tra bổ sung nhau: xác minh baseline, đối chiếu tín hiệu chính và ghi thông tin thiếu. Tránh nhiều checklist lặp lại cùng một hành động.",
-      "implementation_action": "Chọn tối đa ba bước kiểm tra bổ sung nhau: xác minh baseline, đối chiếu tín hiệu chính và ghi thông tin thiếu. Tránh nhiều checklist lặp lại cùng một hành động.",
+      "text": "Combine multiple signals. Related signals: amt amt_to_avg_7d_ratio customer_merchant_distance_km. Conditions and meaning: Related signals may originate from the same transaction or feature. Do not treat them as independent evidence or arbitrarily add scores and ratios. Review guidance: Select at most three complementary review steps: verify baselines, compare primary signals and record missing information. Avoid checklist items repeating the same action.",
+      "implementation_action": "Select at most three complementary review steps: verify baselines, compare primary signals and record missing information. Avoid checklist items repeating the same action.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-26",
       "section_id": "S26",
       "rule_code": "PB-26",
-      "text": "Xử lý case có routing LOW. Tín hiệu liên quan: risk_level LOW. Điều kiện và ý nghĩa: LOW là routing của hệ thống, không phải đảm bảo giao dịch hợp lệ. Chỉ tạo brief khi workflow yêu cầu; không tự chuyển routing vì model ngôn ngữ đánh giá khác. Hướng kiểm tra: Ghi nhận dữ liệu đã có và thông tin cần kiểm tra nếu analyst mở case thủ công. Không đề xuất chuyển cấp chỉ vì có một giờ hoặc khoảng cách riêng lẻ.",
-      "implementation_action": "Ghi nhận dữ liệu đã có và thông tin cần kiểm tra nếu analyst mở case thủ công. Không đề xuất chuyển cấp chỉ vì có một giờ hoặc khoảng cách riêng lẻ.",
+      "text": "Handle cases with LOW routing. Related signals: risk_level LOW. Conditions and meaning: LOW is system routing, not a guarantee of a legitimate transaction. Generate a brief only when the workflow requests it; do not change routing because the language model disagrees. Review guidance: Record available data and information to check if an analyst opens a case manually. Do not suggest escalation solely because of one hour or distance signal.",
+      "implementation_action": "Record available data and information to check if an analyst opens a case manually. Do not suggest escalation solely because of one hour or distance signal.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-27",
       "section_id": "S27",
       "rule_code": "PB-27",
-      "text": "Hỗ trợ analyst với routing HIGH. Tín hiệu liên quan: risk_level HIGH. Điều kiện và ý nghĩa: HIGH ưu tiên xem xét trong workflow nhưng không chứng minh fraud và không tự cho phép khóa thẻ. Không có chính sách chuyển cấp cụ thể trong dataset. Hướng kiểm tra: Tóm tắt các tín hiệu đã kiểm chứng và thông tin còn thiếu để analyst quyết định. Chỉ đề xuất xem xét theo quy trình nhóm, không phát lệnh phong tỏa hoặc kết luận có tội.",
-      "implementation_action": "Tóm tắt các tín hiệu đã kiểm chứng và thông tin còn thiếu để analyst quyết định. Chỉ đề xuất xem xét theo quy trình nhóm, không phát lệnh phong tỏa hoặc kết luận có tội.",
+      "text": "Support analysts with HIGH routing. Related signals: risk_level HIGH. Conditions and meaning: HIGH prioritizes workflow review but does not prove fraud or authorize card blocking. The dataset supplies no specific escalation policy. Review guidance: Summarize verified signals and missing information for analyst decisions. Suggest review under team procedures only; do not issue blocking orders or declare guilt.",
+      "implementation_action": "Summarize verified signals and missing information for analyst decisions. Suggest review under team procedures only; do not issue blocking orders or declare guilt.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-28",
       "section_id": "S28",
       "rule_code": "PB-28",
-      "text": "Giới hạn dữ liệu và yêu cầu bổ sung. Tín hiệu liên quan: missing unknown unavailable. Điều kiện và ý nghĩa: Context có thể thiếu lịch sử, timezone, currency, thông tin xác minh hay phương pháp explanation. Không chuyển giá trị thiếu thành 0 hoặc bình thường. Hướng kiểm tra: Nêu cụ thể trường hoặc bằng chứng cần bổ sung và lý do nó ảnh hưởng đánh giá. Chỉ đề xuất yêu cầu thông tin; không viết rằng đã liên hệ khách hàng hay đã xác minh.",
-      "implementation_action": "Nêu cụ thể trường hoặc bằng chứng cần bổ sung và lý do nó ảnh hưởng đánh giá. Chỉ đề xuất yêu cầu thông tin; không viết rằng đã liên hệ khách hàng hay đã xác minh.",
+      "text": "Data limitations and requests for additional information. Related signals: missing unknown unavailable. Conditions and meaning: Context may lack history, timezone, currency, verification information or an explanation method. Do not convert missing values to zero or normal behavior. Review guidance: Identify the specific fields or evidence needed and why they affect assessment. Only suggest requesting information; do not claim that a customer was contacted or verification completed.",
+      "implementation_action": "Identify the specific fields or evidence needed and why they affect assessment. Only suggest requesting information; do not claim that a customer was contacted or verification completed.",
       "action_origin": "team_proposal"
     },
     {
       "id": "PB-29",
       "section_id": "S29",
       "rule_code": "PB-29",
-      "text": "Ghi nhận nguồn và quyết định. Tín hiệu liên quan: citation checklist analyst. Điều kiện và ý nghĩa: Checklist là đề xuất của nhóm cho dataset mô phỏng. Citation phải trỏ tới đoạn playbook được truy xuất và không phải bằng chứng khách hàng gian lận. Hướng kiểm tra: Ghi nhận evidence đã dùng, khoảng trống dữ liệu và rule tham chiếu. Quyết định cuối cùng do analyst thực hiện và lưu theo workflow, LLM không tự tạo kết quả điều tra.",
-      "implementation_action": "Ghi nhận evidence đã dùng, khoảng trống dữ liệu và rule tham chiếu. Quyết định cuối cùng do analyst thực hiện và lưu theo workflow, LLM không tự tạo kết quả điều tra.",
+      "text": "Record sources and decisions. Related signals: citation checklist analyst. Conditions and meaning: The checklist is a team proposal for a simulated dataset. Citations must reference retrieved playbook passages and are not evidence that a customer committed fraud. Review guidance: Record the evidence used, data gaps and referenced rules. The analyst makes and records the final decision through the workflow; the LLM must not fabricate investigation results.",
+      "implementation_action": "Record the evidence used, data gaps and referenced rules. The analyst makes and records the final decision through the workflow; the LLM must not fabricate investigation results.",
       "action_origin": "team_proposal"
     }
   ]

@@ -1,3 +1,4 @@
+from benchmarks.mock_llm import explanatory_selection
 import copy
 import json
 import os
@@ -33,7 +34,7 @@ async def test_model_must_include_required_gap_without_output_repair(ids,valid):
         assert payload['format']['properties']['checklist_ids']['maxItems']==1
         entries=json.loads(payload['messages'][1]['content'])['playbook']
         assert next(c for c in entries if c['id']=='PB-28')['selection_role']=='mandatory_gap'
-        return {'done':True,'prompt_eval_count':100,'eval_count':15,'message':{'content':json.dumps({'checklist_ids':ids})}}
+        return {'done':True,'prompt_eval_count':100,'eval_count':15,'message':{'content':json.dumps(explanatory_selection(ids))}}
     with patch.dict(os.environ,{'OLLAMA_MODEL':'test'}),patch('llm_worker.local_integration.request',side_effect=fake):
         if valid:
             result=await OllamaClient().generate(ctx,chunks)

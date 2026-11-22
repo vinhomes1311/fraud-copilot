@@ -8,7 +8,7 @@ Usage::
 Every model goes through the exact procedure used for the served artifact:
 
 1. fit on the train split (validation only for early stopping),
-2. fit an isotonic calibrator on validation scores,
+2. fit the configured calibrator (Platt by default) on validation scores,
 3. pick the F1-optimal threshold on calibrated validation scores,
 4. report hold-out test metrics once, at that threshold.
 
@@ -37,11 +37,11 @@ from .candidates import (
     CandidateUnavailable,
     FitContext,
 )
+from .calibration import fit_calibrator
 from .config import PipelineConfig, load_config
 from .model import (
     evaluate_model,
     evaluation_settings,
-    fit_calibrator,
     select_threshold,
     split_features_target,
 )
@@ -125,8 +125,8 @@ def compare_models(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "primary_model": PRIMARY_MODEL,
         "procedure": (
-            "fit on train; isotonic calibration and F1 threshold on validation; "
-            "metrics on hold-out test"
+            f"fit on train; {settings['calibration_method']} calibration and F1 threshold "
+            "on validation; metrics on hold-out test"
         ),
         "evaluation": settings,
         "data": {
@@ -150,9 +150,9 @@ def _score(
     test_scores: np.ndarray,
     y_validation: pd.Series,
     y_test: pd.Series,
-    settings: dict[str, float],
+    settings: dict[str, Any],
 ) -> dict[str, Any]:
-    calibrator = fit_calibrator(validation_scores, y_validation)
+    calibrator = fit_calibrator(validation_scores, y_validation, settings["calibration_method"])
     calibrated_validation = calibrator.transform(validation_scores)
     calibrated_test = calibrator.transform(test_scores)
     threshold = select_threshold(

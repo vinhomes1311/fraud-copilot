@@ -41,7 +41,6 @@ class BriefProcessor:
             return  # Superseded generation or completed duplicate delivery.
 
         ctx = await self._load_context(p.case_id)
-        signals = [e["feature"] for e in (ctx.get("explanations") or [])]
 
         with STAGE_SECONDS.labels("rag").time():
             chunks = await asyncio.wait_for(

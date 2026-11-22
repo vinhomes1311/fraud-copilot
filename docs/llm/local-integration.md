@@ -8,13 +8,33 @@ to local semantic retrieval.
 
 Source snapshot: vinhomes1311/fraud-copilot main at 38274b9f1a61d60acccf01ce7dd09d1aa1105e78.
 
-The Ollama adapter uses the local approved five-principle playbook and local
+The Ollama adapter uses the local approved 29-rule playbook and local
 selection validator. It keeps the shared JobEnvelope, integer case IDs, database,
 retry, fallback and BriefContent contracts. It never recalculates scoring/routing.
 No synthetic UUID, explanation method, contribution scale or historical median is invented.
 Only allowlisted numeric features enter the model; arbitrary masked payload fields
 and identifiers are excluded. Unknown explanation features are omitted until reviewed.
-The summary is extractive; checklist actions are identified as team proposals.
+The model selects rule IDs and writes short English explanations for each selected
+rule in the same request (`explained-brief-v2`). Each explanation names supporting
+evidence IDs and relates actual observations to the selected playbook principle.
+The summary and checklist facts are rendered from
+allowlisted case facts in English. Missing-data notes about timezone, currency,
+baselines and unavailable probabilities are omitted from the displayed body;
+unavailable values are never replaced with zeros or invented baselines.
+Model-facing playbook instructions remain
+in the prompt/source metadata and are not copied into analyst-facing prose.
+API and Ollama share the explained-brief prompt and selection contract.
+The backend supplies verified amount-versus-mean/maximum comparisons, validates
+source links, rejects numeric literals in explanations (except historical window
+labels), and resolves numeric placeholders from verified evidence. These checks
+do not certify the semantic truth of all generated prose. The analyst retains
+the decision. Source instructions and missing-data notes stay out of explanations.
+The web shows each explanation beneath its supporting facts and preserves rule IDs.
+The default Ollama completion cap is now 1024; update an older `.env` cap of 128
+before generating longer briefs. Previously stored briefs need regeneration.
+Inapplicable playbook entries are removed before inference, including when a
+retriever returns context-free results. Citation quotes must match retrieved
+source text, and each checklist rule must have a corresponding citation.
 
 ## Run
 

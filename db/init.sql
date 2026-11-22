@@ -33,8 +33,8 @@ CREATE TABLE threshold_configs (
   CHECK (low_max > 0 AND low_max <= high_min AND high_min < 1)
 );
 CREATE UNIQUE INDEX one_active_threshold ON threshold_configs (active) WHERE active;
--- Seed = recommended_triage of model xgb-20261115040456 (data/models/fraud_xgboost.json).
-INSERT INTO threshold_configs (low_max, high_min, active, created_by) VALUES (0.0060, 0.2500, true, 'seed');
+-- Seed = recommended_triage of model xgb-20261119142500 (data/models/fraud_xgboost.json).
+INSERT INTO threshold_configs (low_max, high_min, active, created_by) VALUES (0.0072, 0.3000, true, 'seed');
 
 CREATE TABLE transactions (
   txn_id          TEXT PRIMARY KEY,

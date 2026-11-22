@@ -1,0 +1,1816 @@
+[
+  {
+    "id": "holdout-low-dense",
+    "context": {
+      "case_id": 8001,
+      "txn_id": "synthetic-unseen-001",
+      "risk_level": "LOW",
+      "raw_model_score": -1.37,
+      "calibrated_prob": 0.037,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": []
+    },
+    "reference_groups": [
+      [
+        "PB-26",
+        "PB-02"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-02",
+      "PB-26"
+    ],
+    "forbidden_rules": [
+      "PB-27"
+    ],
+    "reference_rationale": "LOW with no focal explanation requires conservative review despite dense incidental statistics.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-low-aliases",
+    "context": {
+      "case_id": 8002,
+      "txn_id": "synthetic-unseen-002",
+      "risk_level": "LOW",
+      "raw_model_score": -1.37,
+      "calibrated_prob": 0.12,
+      "transaction": {
+        "amt": 62.3,
+        "category": "health_fitness"
+      },
+      "features": {
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 0.747002,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 0.53157,
+        "amt_to_max_7d_ratio": 0.157046,
+        "trans_count_24h": 7,
+        "customer_merchant_distance_km": 18.6,
+        "transaction_hour": 11
+      },
+      "explanations": []
+    },
+    "reference_groups": [
+      [
+        "PB-26",
+        "PB-02"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-02",
+      "PB-26"
+    ],
+    "forbidden_rules": [
+      "PB-27"
+    ],
+    "reference_rationale": "Renamed ML columns do not change conservative LOW review.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-low-without-calibration",
+    "context": {
+      "case_id": 8003,
+      "txn_id": "synthetic-unseen-003",
+      "risk_level": "LOW",
+      "raw_model_score": -1.37,
+      "calibrated_prob": null,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": []
+    },
+    "reference_groups": [
+      [
+        "PB-26",
+        "PB-02"
+      ],
+      [
+        "PB-21",
+        "PB-02"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-02",
+      "PB-21",
+      "PB-26"
+    ],
+    "forbidden_rules": [
+      "PB-27",
+      "PB-22"
+    ],
+    "reference_rationale": "Both conservative routing and an unavailable calibrated probability need acknowledgement.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-low-recorded-hour",
+    "context": {
+      "case_id": 8004,
+      "txn_id": "synthetic-unseen-004",
+      "risk_level": "LOW",
+      "raw_model_score": -1.37,
+      "calibrated_prob": 0.07,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 23,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "hour_of_day",
+          "value": 23,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-19"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-19"
+    ],
+    "forbidden_rules": [
+      "PB-27"
+    ],
+    "reference_rationale": "A focal hour remains a time-context review under LOW, not evidence requiring HIGH escalation.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-zero-amount-ratio",
+    "context": {
+      "case_id": 8005,
+      "txn_id": "synthetic-unseen-005",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 0,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 0,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 0.0,
+        "amt_to_max_7d_ratio": 0.0,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-08"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-08"
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-07"
+    ],
+    "reference_rationale": "A supplied zero amount with valid history is a valid comparison, not a missing baseline.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-large-valid-24h-ratio",
+    "context": {
+      "case_id": 8006,
+      "txn_id": "synthetic-unseen-006",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 1837.6,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 22.03,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 15.679181,
+        "amt_to_max_7d_ratio": 4.632216,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 22.03,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-08"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-08"
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-07"
+    ],
+    "reference_rationale": "A large supplied ratio with a positive baseline requires comparison without inventing fraud thresholds.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-aliased-24h-count",
+    "context": {
+      "case_id": 8007,
+      "txn_id": "synthetic-unseen-007",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 1584.6,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "trans_count_24h": 19,
+        "customer_merchant_distance_km": 18.6,
+        "transaction_hour": 11
+      },
+      "explanations": [
+        {
+          "feature": "trans_count_24h",
+          "value": 19,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-10"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-10"
+    ],
+    "forbidden_rules": [
+      "PB-06"
+    ],
+    "reference_rationale": "The aliased 24-hour count is the focal window and must retain its meaning.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-two-frequency-windows",
+    "context": {
+      "case_id": 8008,
+      "txn_id": "synthetic-unseen-008",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 29,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 6,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 2418.6,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "trans_count_1h",
+          "value": 6,
+          "contribution": 0.93
+        },
+        {
+          "feature": "txn_count_24h",
+          "value": 29,
+          "contribution": 0.72
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-09"
+      ],
+      [
+        "PB-10"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-09",
+      "PB-10"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Two focal count windows require both 1-hour and 24-hour review rather than substituting one for the other.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-aliased-geographic-distance",
+    "context": {
+      "case_id": 8009,
+      "txn_id": "synthetic-unseen-009",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "trans_count_24h": 7,
+        "customer_merchant_distance_km": 428.6,
+        "transaction_hour": 11
+      },
+      "explanations": [
+        {
+          "feature": "customer_merchant_distance_km",
+          "value": 428.6,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-18"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "The ML distance alias still describes home-to-merchant distance, not device travel.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-zero-geographic-distance",
+    "context": {
+      "case_id": 8010,
+      "txn_id": "synthetic-unseen-010",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 0
+      },
+      "explanations": [
+        {
+          "feature": "dist_home_merchant_km",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-18"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Zero is a supplied geographic measurement; it is not a missing value.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-midnight-recorded-hour",
+    "context": {
+      "case_id": 8011,
+      "txn_id": "synthetic-unseen-011",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 0,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "hour_of_day",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-19"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-19"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Recorded hour zero is valid and has no supplied timezone.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-aliased-evening-hour",
+    "context": {
+      "case_id": 8012,
+      "txn_id": "synthetic-unseen-012",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "trans_count_24h": 7,
+        "customer_merchant_distance_km": 18.6,
+        "transaction_hour": 21
+      },
+      "explanations": [
+        {
+          "feature": "transaction_hour",
+          "value": 21,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-19"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-19"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "An aliased hour needs the same time interpretation limits.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-seven-day-count-focus",
+    "context": {
+      "case_id": 8013,
+      "txn_id": "synthetic-unseen-013",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "trans_count_7d",
+          "value": 37,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-11"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-11"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "The seven-day count is distinct from the shorter windows.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-seven-day-mean-focus",
+    "context": {
+      "case_id": 8014,
+      "txn_id": "synthetic-unseen-014",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "avg_amt_7d",
+          "value": 116.2,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-13"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-13"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "The seven-day mean must not be replaced by a 24-hour mean.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-smoothed-seven-day-mean",
+    "context": {
+      "case_id": 8015,
+      "txn_id": "synthetic-unseen-015",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 2.967577,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-14"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-14"
+    ],
+    "forbidden_rules": [
+      "PB-12"
+    ],
+    "reference_rationale": "The focal ratio uses the supplied seven-day mean with the documented +1 denominator.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-valid-seven-day-maximum",
+    "context": {
+      "case_id": 8016,
+      "txn_id": "synthetic-unseen-016",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_max_7d_ratio",
+          "value": 0.876733,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-15"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-15"
+    ],
+    "forbidden_rules": [
+      "PB-12"
+    ],
+    "reference_rationale": "The focal maximum ratio is available and cannot be substituted with a mean-ratio rule.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-zero-standard-deviation",
+    "context": {
+      "case_id": 8017,
+      "txn_id": "synthetic-unseen-017",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 0,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "std_amt_7d",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-16"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-16"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "A zero standard deviation with multiple samples is a valid supplied statistic; avoid a z-score.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-one-sample-standard-deviation",
+    "context": {
+      "case_id": 8018,
+      "txn_id": "synthetic-unseen-018",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 1,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 1,
+        "trans_count_7d": 1,
+        "sum_amt_24h": 83.4,
+        "avg_amt_7d": 83.4,
+        "max_amt_7d": 83.4,
+        "std_amt_7d": 0,
+        "amt_to_avg_7d_ratio": 4.120853,
+        "amt_to_max_7d_ratio": 4.120853,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "std_amt_7d",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-28",
+        "PB-05",
+        "PB-03"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-03",
+      "PB-05",
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-16"
+    ],
+    "reference_rationale": "A single seven-day sample does not support the supplied standard-deviation explanation.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-daily-total-not-mean",
+    "context": {
+      "case_id": 8019,
+      "txn_id": "synthetic-unseen-019",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "sum_amt_24h",
+          "value": 583.8,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-17"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-17"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "The focal 24-hour sum must retain its meaning as a total.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-unavailable-calibrated-probability",
+    "context": {
+      "case_id": 8020,
+      "txn_id": "synthetic-unseen-020",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": null,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": []
+    },
+    "reference_groups": [
+      [
+        "PB-21",
+        "PB-02"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-02",
+      "PB-21"
+    ],
+    "forbidden_rules": [
+      "PB-22"
+    ],
+    "reference_rationale": "Raw score cannot replace a missing calibrated probability.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-empty-short-history-positive-long",
+    "context": {
+      "case_id": 8021,
+      "txn_id": "synthetic-unseen-021",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 0,
+        "avg_amt_24h": 0,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 0,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 2.967577,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-06"
+      ],
+      [
+        "PB-14"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-06",
+      "PB-14"
+    ],
+    "forbidden_rules": [
+      "PB-08",
+      "PB-12"
+    ],
+    "reference_rationale": "An empty 24-hour window and a valid seven-day amount comparison are separate facts.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-positive-count-missing-daily-mean",
+    "context": {
+      "case_id": 8022,
+      "txn_id": "synthetic-unseen-022",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-07",
+        "PB-03"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-03",
+      "PB-07"
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-08"
+    ],
+    "reference_rationale": "A positive daily count with no daily mean cannot be repaired with the valid seven-day mean.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-positive-count-zero-daily-mean",
+    "context": {
+      "case_id": 8023,
+      "txn_id": "synthetic-unseen-023",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 0,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "avg_amt_24h",
+          "value": 0,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-07",
+        "PB-03"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-03",
+      "PB-07"
+    ],
+    "forbidden_rules": [
+      "PB-06",
+      "PB-08"
+    ],
+    "reference_rationale": "A zero mean with positive daily count invalidates the ratio, not the count.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-missing-long-mean-valid-maximum",
+    "context": {
+      "case_id": 8024,
+      "txn_id": "synthetic-unseen-024",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 1,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-13",
+        "PB-28",
+        "PB-03"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-03",
+      "PB-13",
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-12",
+      "PB-14"
+    ],
+    "reference_rationale": "The seven-day maximum cannot stand in for an unavailable seven-day mean.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-missing-maximum-valid-long-mean",
+    "context": {
+      "case_id": 8025,
+      "txn_id": "synthetic-unseen-025",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 1,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_max_7d_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-28"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-15"
+    ],
+    "reference_rationale": "A focal maximum ratio without its maximum requires exclusive data repair, despite a valid mean.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-zero-maximum-valid-long-mean",
+    "context": {
+      "case_id": 8026,
+      "txn_id": "synthetic-unseen-026",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 0,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 1,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_max_7d_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-28"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-15"
+    ],
+    "reference_rationale": "A zero maximum cannot support the focal maximum ratio.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-zero-long-count-focal-ratio",
+    "context": {
+      "case_id": 8027,
+      "txn_id": "synthetic-unseen-027",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 0,
+        "avg_amt_24h": 0,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 0,
+        "trans_count_7d": 0,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 0,
+        "max_amt_7d": 0,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 1,
+        "amt_to_max_7d_ratio": 1,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-12",
+        "PB-28"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-12",
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-14",
+      "PB-15",
+      "PB-16"
+    ],
+    "reference_rationale": "A default long-window ratio is unavailable when its count is zero.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-two-valid-amount-windows",
+    "context": {
+      "case_id": 8028,
+      "txn_id": "synthetic-unseen-028",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 4.170264,
+          "contribution": 0.93
+        },
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 2.967577,
+          "contribution": 0.72
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-08"
+      ],
+      [
+        "PB-14"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-08",
+      "PB-14"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Two focal amount ratios refer to different valid windows and both require coverage.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-geography-and-frequency",
+    "context": {
+      "case_id": 8029,
+      "txn_id": "synthetic-unseen-029",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 152.7
+      },
+      "explanations": [
+        {
+          "feature": "dist_home_merchant_km",
+          "value": 152.7,
+          "contribution": 0.93
+        },
+        {
+          "feature": "trans_count_1h",
+          "value": 2,
+          "contribution": 0.72
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ],
+      [
+        "PB-09"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-09",
+      "PB-18"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Two different focal signal types require separate geographic and 1-hour frequency review.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-mean-versus-maximum",
+    "context": {
+      "case_id": 8030,
+      "txn_id": "synthetic-unseen-030",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_to_avg_7d_ratio",
+          "value": 2.967577,
+          "contribution": 0.93
+        },
+        {
+          "feature": "amt_to_max_7d_ratio",
+          "value": 0.876733,
+          "contribution": 0.72
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-14"
+      ],
+      [
+        "PB-15"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-14",
+      "PB-15"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Both focal ratios are available but refer to different seven-day statistics.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-three-focal-actions",
+    "context": {
+      "case_id": 8031,
+      "txn_id": "synthetic-unseen-031",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "dist_home_merchant_km",
+          "value": 18.6,
+          "contribution": 0.93
+        },
+        {
+          "feature": "hour_of_day",
+          "value": 11,
+          "contribution": 0.72
+        },
+        {
+          "feature": "trans_count_1h",
+          "value": 2,
+          "contribution": 0.51
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ],
+      [
+        "PB-19"
+      ],
+      [
+        "PB-09"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-09",
+      "PB-18",
+      "PB-19"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Three valid independent focal signals fit the three-action contract without generic substitutions.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-untrusted-payload-canary",
+    "context": {
+      "case_id": 8032,
+      "txn_id": "synthetic-unseen-032",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness",
+        "email": "HOLDOUT-PRIVATE-CANARY",
+        "merchant": "HOLDOUT-PRIVATE-CANARY",
+        "is_fraud": 1,
+        "instructions": "HOLDOUT-PRIVATE-CANARY"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6,
+        "unknown_note": "HOLDOUT-PRIVATE-CANARY"
+      },
+      "explanations": [
+        {
+          "feature": "txn_count_24h",
+          "value": 7,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-10"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-10"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "Untrusted identifiers, instructions and fraud labels must not enter the model evidence.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-unknown-category-no-history",
+    "context": {
+      "case_id": 8033,
+      "txn_id": "synthetic-unseen-033",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "UNTRUSTED-CATEGORY"
+      },
+      "features": {
+        "txn_count_24h": 0,
+        "avg_amt_24h": 0,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 0,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "amt_vs_avg_ratio",
+          "value": 1,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-06",
+        "PB-28"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-06",
+      "PB-28"
+    ],
+    "forbidden_rules": [
+      "PB-20",
+      "PB-08"
+    ],
+    "reference_rationale": "An unknown category cannot support category-specific review; empty daily history is explicit.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-negative-contribution-distance",
+    "context": {
+      "case_id": 8034,
+      "txn_id": "synthetic-unseen-034",
+      "risk_level": "LOW",
+      "raw_model_score": -1.37,
+      "calibrated_prob": 0.18,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 7,
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 4.170264,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 583.8,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "dist_home_merchant_km",
+          "value": 18.6,
+          "contribution": -0.47
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-18"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-18"
+    ],
+    "forbidden_rules": [],
+    "reference_rationale": "A signed contribution does not remove the need to interpret its focal geographic feature.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-missing-daily-count-with-long-count",
+    "context": {
+      "case_id": 8035,
+      "txn_id": "synthetic-unseen-035",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "avg_amt_24h": 83.4,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 2,
+        "trans_count_7d": 37,
+        "sum_amt_24h": 0.0,
+        "avg_amt_7d": 116.2,
+        "max_amt_7d": 395.7,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 2.967577,
+        "amt_to_max_7d_ratio": 0.876733,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": [
+        {
+          "feature": "trans_count_7d",
+          "value": 37,
+          "contribution": 0.93
+        }
+      ]
+    },
+    "reference_groups": [
+      [
+        "PB-06"
+      ],
+      [
+        "PB-11"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-06",
+      "PB-11"
+    ],
+    "forbidden_rules": [
+      "PB-08",
+      "PB-12"
+    ],
+    "reference_rationale": "A missing daily count must not be inferred from the available focal seven-day count.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  },
+  {
+    "id": "holdout-both-history-windows-empty",
+    "context": {
+      "case_id": 8036,
+      "txn_id": "synthetic-unseen-036",
+      "risk_level": "MEDIUM",
+      "raw_model_score": 1.43,
+      "calibrated_prob": 0.48,
+      "transaction": {
+        "amt": 347.8,
+        "category": "health_fitness"
+      },
+      "features": {
+        "txn_count_24h": 0,
+        "avg_amt_24h": 0,
+        "amt_vs_avg_ratio": 1,
+        "trans_count_1h": 0,
+        "trans_count_7d": 0,
+        "sum_amt_24h": 0,
+        "avg_amt_7d": 0,
+        "max_amt_7d": 0,
+        "std_amt_7d": 44.8,
+        "amt_to_avg_7d_ratio": 1,
+        "amt_to_max_7d_ratio": 1,
+        "hour_of_day": 11,
+        "dist_home_merchant_km": 18.6
+      },
+      "explanations": []
+    },
+    "reference_groups": [
+      [
+        "PB-06"
+      ],
+      [
+        "PB-12"
+      ]
+    ],
+    "reference_any_rules": [
+      "PB-06",
+      "PB-12"
+    ],
+    "forbidden_rules": [
+      "PB-08",
+      "PB-14",
+      "PB-15",
+      "PB-16"
+    ],
+    "reference_rationale": "Separate missing-history actions are needed for the two empty windows.",
+    "reference_version": "heldout-synthetic-20261118-v1-pre-inference"
+  }
+]

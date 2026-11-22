@@ -1,3 +1,4 @@
+from benchmarks.mock_llm import explanatory_selection
 import copy
 import json
 import os
@@ -18,14 +19,14 @@ class KagglePlaybookTests(unittest.IsolatedAsyncioTestCase):
 
     def test_playbook_provenance_and_stable_citations(self):
         kb = load(KB_PATH)
-        self.assertEqual(kb['version'], '2.0-detailed-ml-playbook')
+        self.assertEqual(kb['version'], '2.1-detailed-ml-playbook-en')
         self.assertEqual([c['id'] for c in kb['chunks'][:5]], [f'PB-0{i}' for i in range(1, 6)])
         self.assertIn('team_dataset_adaptation', kb['source_status'])
         self.assertIn('https://www.kaggle.com/datasets/kartik2112/fraud-detection', kb['source_note'])
         for chunk in kb['chunks']:
             self.assertEqual(chunk['action_origin'], 'team_proposal')
         text = ' '.join(c['text'] for c in kb['chunks'])
-        for term in ['is_fraud', 'avg_amt_24h', 'dist_home_merchant_km', 'mô phỏng', 'thiết bị']:
+        for term in ['is_fraud', 'avg_amt_24h', 'dist_home_merchant_km', 'simulated', 'device']:
             self.assertIn(term, text)
 
     def test_category_is_bounded_and_raw_labels_identifiers_are_excluded(self):
@@ -84,16 +85,16 @@ class KagglePlaybookTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_kaggle_fixtures_render_grounded_playbook_actions(self):
         chunks = await ApprovedPlaybookRetriever().retrieve([], 'MEDIUM')
-        kb = load(KB_PATH)
-        action = next(c['implementation_action'] for c in kb['chunks'] if c['id'] == 'PB-03')
         reply = {'done': True, 'prompt_eval_count': 100, 'eval_count': 10,
-                 'message': {'content': '{"checklist_ids":["PB-03"]}'}}
+                 'message': {'content': json.dumps(explanatory_selection(['PB-03']))}}
         for case in self.cases:
             with self.subTest(case=case['id']), patch.dict(os.environ, {'OLLAMA_MODEL': 'test'}), \
                  patch('llm_worker.local_integration.request', return_value=reply):
                 before = copy.deepcopy(case['context'])
                 result = await OllamaClient().generate(case['context'], chunks)
                 self.assertEqual(case['context'], before)
-                self.assertEqual(result.brief.checklist[0].action, action)
-                self.assertEqual(result.brief.summary, ' '.join(e['text'] for e in project_evidence(before).values()))
+                self.assertNotIn('Dùng lịch sử đã cung cấp', result.brief.checklist[0].action)
+                self.assertIn('24 hours', result.brief.checklist[0].action)
+                self.assertIn('Transaction amount:', result.brief.summary)
+                self.assertNotIn('provided feature', result.brief.summary)
                 check_grounding(result.brief, chunks)

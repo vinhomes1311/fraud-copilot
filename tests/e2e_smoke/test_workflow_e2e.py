@@ -26,6 +26,7 @@ import scoring_worker.pipeline.pii as pii_module
 import scoring_worker.pipeline.routing as routing_module
 import scoring_worker.processor as scoring_module
 from analyst_api.state import state
+from benchmarks.mock_llm import explanatory_selection
 from fraud_common.db import Database, _init_conn
 from fraud_common.queues import ReliableQueue
 from fraud_common.schemas import Explanation, ScoringOutput
@@ -88,7 +89,7 @@ async def test_entire_workflow(monkeypatch, provider):
     # is checked separately, so the E2E must not depend on a local joblib file.
     def fake_predict(features):
         amount = float(features['amt'])
-        # Seed thresholds from db/init.sql: LOW < 0.006 <= MEDIUM < 0.25 <= HIGH.
+        # Seed thresholds from db/init.sql: LOW < 0.0072 <= MEDIUM < 0.30 <= HIGH.
         probability = 0.001 if amount < 100 else 0.1 if amount < 1400 else 0.9
         return ScoringOutput(
             raw_model_score=probability,
@@ -112,13 +113,11 @@ async def test_entire_workflow(monkeypatch, provider):
         if fail_llm:
             raise httpx.ReadTimeout('synthetic timeout')
         payload = json.loads(request.content)
-        request_data = json.loads(payload['messages'][1]['content'])
-        evidence = request_data['evidence']
         allowed_rules = payload['response_format']['json_schema']['schema']['properties'][
             'checklist_ids']['items']['enum']
         # Mirror a compliant model: choose an ID allowed by this request's actual
         # retrieved playbook and any mandatory-gap schema constraint.
-        selection = {'evidence_ids': list(evidence), 'checklist_ids': [allowed_rules[0]]}
+        selection = explanatory_selection([allowed_rules[0]])
         return httpx.Response(200, json={
             'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(selection)}}],
             'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}})
@@ -215,6 +214,9 @@ async def test_entire_workflow(monkeypatch, provider):
                         assert case['brief_status'] == 'READY', case
                         assert case['brief']['citations'] and case['brief']['checklist']
                         assert case['brief']['source'] == 'llm'
+                        if provider == 'api':
+                            assert all(item['rationale'] and item['evidence_ids']
+                                       for item in case['brief']['checklist'])
                         assert 'cc_num' not in case['transaction'] and 'is_fraud' not in case['transaction']
                         assert 'PRIVATE' not in json.dumps(case['transaction'])
 

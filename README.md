@@ -227,7 +227,7 @@ tính trên các dòng của `--test-data`. Truyền `--history-data ""` để t
 ### 6. So sánh XGBoost với các model khác
 
 XGBoost vẫn là model production. Lệnh sau train thêm các model đối chứng trên
-đúng cùng split và quy trình (fit trên train → isotonic calibration và chọn
+đúng cùng split và quy trình (fit trên train → calibration (Platt) và chọn
 threshold F1 trên validation → đánh giá một lần trên test), không ghi đè
 artifact trong `data/models`:
 
@@ -698,7 +698,9 @@ Notebook đã được chuyển thành package `ml_pipeline` với các hàm đ�
 - `extract_features` và `compute_historical_features`: tạo feature theo thứ tự thời gian, chỉ dùng lịch sử quá khứ.
 - `chronological_split` / `chronological_train_validation_split`: chia train/validation/test theo thời gian, không làm rò rỉ tương lai và không bỏ dòng nào của fraudTrain.
 - `candidates` và `compare_models`: các model đối chứng (rule-based, Logistic Regression, Random Forest, LightGBM, ensemble) và báo cáo so sánh với XGBoost.
-- `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất bằng Isotonic Regression, chọn threshold trên validation và lưu lineage.
+- `train_model`, `evaluate_model`, `save_artifact`: huấn luyện XGBoost, calibrate xác suất, chọn threshold trên validation và lưu lineage.
+- `calibration`: mặc định Platt scaling trên log-odds (`evaluation.calibration_method: "platt"`). Isotonic tạo hàm bậc thang nên nhiều giao dịch dùng chung một xác suất, có cả 0% và 100% đúng tuyệt đối; Platt cho đường cong trơn, không ra 0/1 và có Brier/log-loss tốt hơn trên test. Vẫn chọn được `"isotonic"`, nhưng khi đổi phương pháp phải cập nhật ngưỡng theo `recommended_triage` (seed `db/init.sql`, migration mới, `DEFAULT_THRESHOLDS`).
+- `explain`: chuyển TreeSHAP thành yếu tố dễ đọc cho analyst/LLM: tên, giá trị gốc, câu so sánh với lịch sử của chính thẻ, % trên tổng tín hiệu của model và xác suất ước tính nếu bỏ yếu tố đó.
 
 Cấu hình nằm tại [ml_pipeline/config.json](ml_pipeline/config.json), không hard-code trong code. Có thể override bằng `ML_CONFIG_PATH`.
 

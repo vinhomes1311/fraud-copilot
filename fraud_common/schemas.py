@@ -138,7 +138,13 @@ class TransactionValidated(BaseModel):
 class Explanation(BaseModel):
     feature: str
     value: float
-    contribution: float               # SHAP-like, dương = tăng rủi ro
+    contribution: float               # SHAP log-odds, dương = tăng rủi ro
+    # Trường đọc được cho analyst/LLM; để trống với các bản ghi cũ.
+    label: str | None = None          # tên dễ hiểu của feature
+    display_value: str | None = None  # giá trị gốc đã định dạng (merchant, giờ, số tiền...)
+    reason: str | None = None         # một câu mô tả, so với lịch sử của chính thẻ
+    share_pct: float | None = None    # % trên tổng |contribution| của giao dịch
+    probability_without: float | None = None  # xác suất (đã calibrate) nếu bỏ yếu tố này
 
 
 class ScoringOutput(BaseModel):
@@ -165,6 +171,8 @@ class ChecklistItem(BaseModel):
     step: int
     action: str
     rule_code: str | None = None
+    rationale: str | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class BriefContent(BaseModel):

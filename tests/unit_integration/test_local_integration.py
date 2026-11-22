@@ -1,3 +1,4 @@
+from benchmarks.mock_llm import explanatory_selection
 import copy
 import json
 import os
@@ -67,18 +68,19 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         async def fake(path,payload):
             data=json.loads(payload['messages'][1]['content'])
             self.assertNotIn('SECRET',json.dumps(payload))
-            self.assertEqual(payload['format']['required'], ['checklist_ids'])
-            self.assertEqual(set(payload['format']['properties']), {'checklist_ids'})
+            self.assertEqual(payload['format']['required'], ['checklist_ids', 'rationales'])
+            self.assertEqual(set(payload['format']['properties']), {'checklist_ids', 'rationales'})
             return {'done':True,'prompt_eval_count':100,'eval_count':20,
-                    'message':{'content':json.dumps({'checklist_ids':['PB-02']})}}
+                    'message':{'content':json.dumps(explanatory_selection(['PB-02']))}}
         with patch.dict(os.environ,{'OLLAMA_MODEL':'test'}), patch('llm_worker.local_integration.request',side_effect=fake):
             result=await OllamaClient().generate(self.ctx,self.chunks)
         self.assertEqual(self.ctx,before)
         self.assertEqual(result.tokens_used,120)
         self.assertEqual(result.brief.citations[0].rule_code,'PB-02')
         self.assertEqual(len(result.brief.checklist),1)
-        for item in project_evidence(self.ctx).values():
-            self.assertIn(item['text'], result.brief.summary)
+        self.assertIn('Transaction amount:', result.brief.summary)
+        self.assertIn('ML risk routing:', result.brief.summary)
+        self.assertNotIn('Final decision belongs', result.brief.summary)
     async def test_timeout_propagates(self):
         """#sym:test_timeout_propagates
         Kiem tra: timeout Ollama truyen len caller.
@@ -115,15 +117,18 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         from benchmarks.compare_llm import load_cases
         from llm_worker.grounding import check_grounding
         reply = {'done': True, 'prompt_eval_count': 100, 'eval_count': 10,
-                 'message': {'content': '{"checklist_ids":["PB-03"]}'}}
+                 'message': {'content': json.dumps(explanatory_selection(['PB-03']))}}
         for case in load_cases():
             with self.subTest(case=case['id']), patch.dict(os.environ, {'OLLAMA_MODEL': 'test'}), \
                  patch('llm_worker.local_integration.request', return_value=reply):
                 before = copy.deepcopy(case['context'])
                 result = await OllamaClient().generate(case['context'], self.chunks)
                 self.assertEqual(case['context'], before)
-                expected = ' '.join(item['text'] for item in project_evidence(before).values())
-                self.assertEqual(result.brief.summary, expected)
+                evidence = project_evidence(before)
+                self.assertIn('Transaction amount:', result.brief.summary)
+                self.assertEqual(len(result.brief.key_signals), sum(
+                    key.startswith(('EV-FEATURE-', 'EV-FACTOR-')) for key in evidence))
+                self.assertNotIn('provided feature', result.brief.summary)
                 check_grounding(result.brief, self.chunks)
                 self.assertEqual(result.tokens_used, 110)
 
@@ -142,11 +147,27 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await OllamaClient().generate(self.ctx, self.chunks)
 
     async def test_local_truncation_and_malformed_json_remain_failures(self):
-        for reason, content in [('length', '{"checklist_ids":["PB-03"]}'), ('stop', '{')]:
+        for reason, content in [('length', json.dumps(explanatory_selection(['PB-03']))), ('stop', '{')]:
             reply = {'done': True, 'done_reason': reason, 'prompt_eval_count': 100, 'eval_count': 10,
                      'message': {'content': content}}
             with self.subTest(reason=reason), patch.dict(os.environ, {'OLLAMA_MODEL': 'test'}), \
                  patch('llm_worker.local_integration.request', return_value=reply), self.assertRaises(ValueError):
                 await OllamaClient().generate(self.ctx, self.chunks)
+
+    async def test_inapplicable_rules_excluded_from_prompt_and_schema(self):
+        async def fake(path, payload):
+            playbook = json.loads(payload['messages'][1]['content'])['playbook']
+            allowed = payload['format']['properties']['checklist_ids']['items']['enum']
+            self.assertEqual(allowed, [c['id'] for c in playbook])
+            self.assertIn('PB-06', allowed)  # Missing 24-hour history.
+            self.assertNotIn('PB-08', allowed)  # No valid mean ratio.
+            self.assertNotIn('PB-15', allowed)  # No maximum ratio.
+            self.assertNotIn('PB-26', allowed)  # Low-risk rule for a HIGH case.
+            return {'done': True, 'prompt_eval_count': 100, 'eval_count': 10,
+                    'message': {'content': json.dumps(explanatory_selection(['PB-06']))}}
+        with patch.dict(os.environ, {'OLLAMA_MODEL': 'test'}), \
+             patch('llm_worker.local_integration.request', side_effect=fake):
+            await OllamaClient().generate(self.ctx, self.chunks)
+
 
 if __name__=='__main__': unittest.main()

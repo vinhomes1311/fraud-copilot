@@ -29,7 +29,7 @@ window.RiskReview = (() => {
     const prob = numeric(value);
     if (prob === null || prob < 0 || prob > 1) return "Not available";
     if (prob > 0 && prob < 0.00005) return "<0.01%";
-    if (prob < 1 && prob >= 0.99995) return "≈100%";
+    if (prob < 1 && prob >= 0.99995) return ">99.99%";
     return `${number(prob * 100)}%`;
   }
 
@@ -50,6 +50,23 @@ window.RiskReview = (() => {
     if (signal.feature === "is_weekend") return Number(raw) === 1 ? "Yes" : "No";
     if (signal.feature === "transaction_dayofweek") return ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][Number(raw)] || "Original value unavailable";
     return number(raw);
+  }
+
+  function signalLabel(signal) {
+    return signal.label || featureNames[signal.feature] || signal.feature;
+  }
+
+  function signalValue(item, signal) {
+    return typeof signal.display_value === "string" && signal.display_value ? signal.display_value
+      : featureValue(item, signal);
+  }
+
+  function impactText(signal, groupName, index) {
+    const share = numeric(signal.share_pct);
+    if (share === null) return groupName === "neutral" ? "No change" : index === 0 ? "Highest impact" : "Lower impact";
+    const without = numeric(signal.probability_without);
+    const shareText = `${number(share, 1)}% of model evidence`;
+    return without === null ? shareText : `${shareText}<small>Without it: ${probability(without)}</small>`;
   }
 
   function signalsFor(item) {
@@ -87,19 +104,22 @@ window.RiskReview = (() => {
       if (!rows.length) return "";
       return `<section class="risk-factor-group"><h4>${group.title}</h4><ul class="risk-factors">${rows.map((signal, index) =>
         `<li class="risk-factor ${group.name}"><span class="factor-rank" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span>
-        <div><span class="factor-name" title="${escape(signal.feature)}">${escape(featureNames[signal.feature] || signal.feature)}</span>
-        <span class="factor-value">${escape(featureValue(item, signal))}</span></div>
-        <span class="factor-impact">${group.name === "neutral" ? "No change" : index === 0 ? "Highest impact" : "Lower impact"}</span></li>`
+        <div><span class="factor-name" title="${escape(signal.feature)}">${escape(signalLabel(signal))}</span>
+        <span class="factor-value">${escape(signalValue(item, signal))}</span>
+        ${signal.reason ? `<span class="factor-reason">${escape(signal.reason)}</span>` : ""}</div>
+        <span class="factor-impact">${impactText(signal, group.name, index)}</span></li>`
       ).join("")}</ul></section>`;
     }).join("");
     return `<div class="detail-section risk-explanation">${content || '<h4>Model explanation</h4><p class="section-note">No explanation signals available.</p>'}
-      ${signals.length ? '<p class="factor-context">Relative impact among the returned signals; contributions are not percentages.</p>' : ""}</div>`;
+      ${!signals.length ? "" : signals.some((signal) => numeric(signal.share_pct) !== null)
+        ? `<p class="factor-context">Share of model evidence: this factor's part of everything that moved this transaction's score. "Without it" is the approximate fraud probability if this factor were neutral; factors interact, so these do not add up exactly.</p>`
+        : '<p class="factor-context">Relative impact among the returned signals; contributions are not percentages.</p>'}</div>`;
   }
 
   function renderTechnicalDetails(item) {
-    const rows = signalsFor(item).map((signal) => `<tr><th scope="row">${escape(signal.feature)}</th><td>${Number(signal.contribution) > 0 ? "+" : ""}${number(signal.contribution, 4)}</td></tr>`).join("");
+    const rows = signalsFor(item).map((signal) => `<tr><th scope="row">${escape(signal.feature)}</th><td>${Number(signal.contribution) > 0 ? "+" : ""}${number(signal.contribution, 4)}</td><td>${numeric(signal.share_pct) === null ? "" : `${number(signal.share_pct, 1)}%`}</td></tr>`).join("");
     return `<details class="model-details"><summary>Model details</summary><div class="model-details-content">
-      ${rows ? `<table class="contribution-table"><thead><tr><th>Feature</th><th>Contribution</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
+      ${rows ? `<table class="contribution-table"><thead><tr><th>Feature</th><th>Contribution (log-odds)</th><th>Share</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
       <dl><div><dt>Raw model score</dt><dd>${number(item.raw_model_score, 5)}</dd></div>
       <div><dt>Model version</dt><dd>${escape(item.model_version || "No data")}</dd></div>
       <div><dt>Threshold config</dt><dd>${escape(item.threshold_config_version ?? "No data")}</dd></div>

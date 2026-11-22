@@ -232,12 +232,15 @@ function renderBrief(brief, riskLevel) {
   if (!brief) return riskLevel === "LOW"
     ? "Low-risk cases do not generate briefs automatically. You can still review and add notes."
     : "Brief is being generated or is not yet available.";
-  if (typeof brief === "string") return "No investigation checklist available.";
+  if (typeof brief === "string") return "No case brief available.";
   const checklist = (brief.checklist || []).map((item) =>
-    `<li>${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</li>`
+    `<li><p class="brief-facts">${escapeHtml(item.action || "")}${item.rule_code ? ` <small>(${escapeHtml(item.rule_code)})</small>` : ""}</p>${item.rationale ? `<p class="brief-rationale">${escapeHtml(item.rationale)}</p>` : ""}</li>`
   ).join("");
+  const supportingFacts = (brief.checklist || []).some((item) => item.rationale)
+    ? (brief.key_signals || []).map((fact) => `<li>${escapeHtml(fact)}</li>`).join("") : "";
   return (brief.source === "rule_based" ? `<p class="brief-fallback-label">Rule-based fallback</p>` : "")
-    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No investigation checklist available.</p>`);
+    + (checklist ? `<ol class="investigation-checklist">${checklist}</ol>` : `<p>No case brief available.</p>`)
+    + (supportingFacts ? `<details class="brief-supporting-facts"><summary>Supporting case facts</summary><ul>${supportingFacts}</ul></details>` : "");
 }
 function renderEvidence(item) {
   if (!item.brief_status) return `<span class="evidence muted-label">No brief</span>`;
