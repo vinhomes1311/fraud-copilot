@@ -9,7 +9,7 @@ const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulato
   : DEFAULT_SIMULATOR_TPS;
 const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
-const state = { token: null, user: null, cases: [], classifications: [], caseRequestId: 0, classificationRequestId: 0, selected: null, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
+const state = { token: null, user: null, cases: [], classifications: [], caseRequestId: 0, classificationRequestId: 0, selected: null, detailRouteActive: false, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
 let revealObserver = null;
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
@@ -855,6 +855,10 @@ function readSimulatorTps() {
 async function openDetail(caseId, editDecision = false) {
   try {
     const item = await api(`/cases/${caseId}`); state.selected = item;
+    if (!state.detailRouteActive && window.history?.pushState) {
+      window.history.pushState({ caseReviewDetail: true }, "", `#case/${encodeURIComponent(item.case_id)}`);
+      state.detailRouteActive = true;
+    }
     const transaction = Object.entries(item.transaction || {}).map(([key, value]) => `<div class="data-field"><small>${escapeHtml(titleCase(key))}</small><b>${escapeHtml(value)}</b></div>`).join("");
     $("#detail-title").textContent = `Case #${item.run_number ?? item.case_id}`;
     const terminal = ["CLOSED", "DISMISSED", "CONFIRMED_FRAUD", "CONFIRMED_SIMULATED"].includes(item.status);
@@ -871,11 +875,27 @@ async function openDetail(caseId, editDecision = false) {
     const decisionSection = decisionLocked
       ? `<p class="decision-locked">This case already has a final outcome.</p>`
       : `${reclassifying ? `<p class="section-note reclassification-note">Revising this decision appends a new entry to the audit history.</p>` : ""}<label class="decision-note-label" for="decision-note">Review note <span>(optional)</span></label><textarea id="decision-note" maxlength="2000" placeholder="Add investigation notes or handoff context..."></textarea><div class="decision-actions">${actionButtons}</div>`;
-    $("#detail-content").innerHTML = window.RiskReview.renderOverview(item)
-      + window.RiskReview.renderSignals(item)
-      + `<section class="detail-section"><h4>Investigation checklist</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>`
-      + window.RiskReview.renderTechnicalDetails(item)
-      + `<details class="transaction-details"><summary>Transaction details</summary><div class="data-grid">${transaction}</div></details><div class="detail-section decision-section"><h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4><p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>${decisionSection}</div>${actionHistory ? `<div class="detail-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}`;
+    $("#detail-content").innerHTML =
+      `<div class="case-review-grid">
+        <div class="case-review-left">
+          <section class="case-evidence-card">${window.RiskReview.renderOverview(item)}
+            <section class="detail-section investigation-section"><h4>Investigation checklist</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>
+            ${window.RiskReview.renderTechnicalDetails(item)}
+            <details class="transaction-details"><summary>Transaction details</summary><div class="data-grid">${transaction}</div></details>
+          </section>
+        </div>
+        <div class="case-review-right">
+          <section class="case-evidence-card risk-signals-card">${window.RiskReview.renderSignals(item)}</section>
+          <section class="case-evidence-card decision-card">
+            <div class="detail-section decision-section">
+              <h4>${reclassifying ? "Re-evaluate decision" : "Analyst decision / action"}</h4>
+              <p class="section-note">Record the review outcome or send this case to a Risk Lead. Decisions are audited in case history; no payment or account blocking integration is connected.</p>
+              ${decisionSection}
+            </div>
+            ${actionHistory ? `<div class="detail-section decision-history-section"><h4>Decision history</h4><ul class="decision-history">${actionHistory}</ul></div>` : ""}
+          </section>
+        </div>
+      </div>`;
     $("#detail-content .copy-transaction-id")?.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(String(item.txn_id || ""));
@@ -884,7 +904,10 @@ async function openDetail(caseId, editDecision = false) {
         showToast("Could not copy. The full ID is available in Model details.");
       }
     });
-    $("#detail-panel").classList.add("open"); $("#panel-backdrop").classList.add("open");
+    $("#detail-panel").classList.add("open");
+    document.body?.classList?.add("case-review-open");
+    $("#detail-panel").scrollTop = 0;
+    $("#detail-panel").focus?.();
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => actOnCase(button.dataset.action)));
   } catch (error) { showToast(error.message); }
 }
@@ -925,7 +948,14 @@ async function actOnCase(action) {
     await loadCurrentView();
   } catch (error) { showToast(error.message); }
 }
-function closeDetail() { $("#detail-panel").classList.remove("open"); $("#panel-backdrop").classList.remove("open"); }
+function closeDetail(useHistory = true) {
+  const shouldGoBack = useHistory && state.detailRouteActive && window.history?.state?.caseReviewDetail;
+  state.detailRouteActive = false;
+  state.selected = null;
+  $("#detail-panel").classList.remove("open");
+  document.body?.classList?.remove("case-review-open");
+  if (shouldGoBack) window.history.back();
+}
 
 function setAuthMode(mode) {
   state.authMode = mode;
@@ -1065,7 +1095,13 @@ $("#simulator-tps").addEventListener("change", async () => {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", closeDetail); $("#panel-backdrop").addEventListener("click", closeDetail);
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", () => closeDetail());
+window.addEventListener("popstate", () => {
+  if (state.detailRouteActive) closeDetail(false);
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && $("#detail-panel").classList.contains("open")) closeDetail();
+});
 const resetCasePageAndLoad = () => { state.page = 0; void loadCases(); };
 ["risk-filter", "status-filter", "score-filter", "received-from-filter", "received-to-filter", "evidence-filter", "sort-filter"]
   .forEach((id) => $(`#${id}`).addEventListener("change", resetCasePageAndLoad));
