@@ -200,7 +200,8 @@ test('case drawer integrates the new sections and copies the full ID without cha
   let copied;
   const requests = [];
   const sandbox = {
-    window: {}, document: { querySelector: element, querySelectorAll: () => [] },
+    window: { addEventListener() {} },
+    document: { querySelector: element, querySelectorAll: () => [] },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     setTimeout: () => 0, clearInterval() {},
     navigator: { clipboard: { async writeText(value) { copied = value; } } },
