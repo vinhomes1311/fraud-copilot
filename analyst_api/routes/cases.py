@@ -643,10 +643,11 @@ async def get_case(case_id: int, user: User = Depends(any_reviewer)):
            )
            SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
                   c.assigned_to, c.created_at, c.updated_at,
-                  t.payload_masked AS transaction,
+                  t.payload_masked AS transaction, t.data_version, t.trace_id,
                   s.raw_model_score, s.calibrated_prob, s.model_version, s.threshold_config_version,
                   s.features, s.explanations,
-                  b.status AS brief_status, b.brief, b.citations, b.attempts AS brief_attempts, b.last_error
+                  b.status AS brief_status, b.brief, b.citations, b.attempts AS brief_attempts, b.last_error,
+                  b.model_name AS brief_model, b.prompt_version, b.playbook_version
            FROM numbered_cases c
            JOIN transactions t ON t.txn_id = c.txn_id
            JOIN scoring_results s ON s.txn_id = c.txn_id

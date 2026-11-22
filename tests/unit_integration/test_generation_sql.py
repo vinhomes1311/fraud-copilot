@@ -29,7 +29,8 @@ class GenerationSQLTests(unittest.TestCase):
         self.db.execute("""CREATE TABLE case_briefs (
             case_id INTEGER PRIMARY KEY, generation_id TEXT, status TEXT,
             attempts INTEGER DEFAULT 0, brief TEXT, citations TEXT, model_name TEXT,
-            prompt_version TEXT, tokens_used INTEGER, last_error TEXT, updated_at TEXT)""")
+            prompt_version TEXT, playbook_version TEXT, tokens_used INTEGER, last_error TEXT,
+            updated_at TEXT)""")
         self.enqueue_sql = sql_from("analyst_api/events.py", "INSERT INTO case_briefs")
         self.start_sql = sql_from("llm_worker/processor.py", "UPDATE case_briefs SET status=$2, attempts")
         self.ready_sql = sql_from("llm_worker/processor.py", "UPDATE case_briefs SET status='READY'")
@@ -48,7 +49,7 @@ class GenerationSQLTests(unittest.TestCase):
 
     def ready(self, generation="old", attempt=1):
         return self.execute(self.ready_sql, 1, '{"summary":"ok"}', '[]', attempt,
-                            "model", "v1", 120, generation)
+                            "model", "v1", 120, generation, "playbook@1")
 
     def dead(self, generation="old", attempt=3):
         return self.execute(self.dead_sql, 1, "FAILED_TIMEOUT", '{"source":"rule_based"}',
@@ -64,6 +65,7 @@ class GenerationSQLTests(unittest.TestCase):
         self.assertEqual(self.execute(self.start_sql, 1, "RUNNING", 1, "old"), 1)
         self.assertEqual(self.ready(), 1)
         before = self.row()
+        self.assertEqual(before["playbook_version"], "playbook@1")  # FR-08 brief source
         self.assertEqual(self.execute(self.start_sql, 1, "RUNNING", 1, "old"), 0)
         self.assertEqual(self.dead(), 0)
         self.assertEqual(self.ready(), 0)
@@ -112,7 +114,8 @@ class GenerationSQLTests(unittest.TestCase):
         row = self.row()
         self.assertEqual(row["attempts"], 0)
         self.assertEqual(row["status"], "PENDING")
-        for key in ("brief", "citations", "model_name", "prompt_version", "tokens_used", "last_error"):
+        for key in ("brief", "citations", "model_name", "prompt_version", "playbook_version",
+                    "tokens_used", "last_error"):
             self.assertIsNone(row[key])
 
     def test_dead_letter_is_terminal(self):

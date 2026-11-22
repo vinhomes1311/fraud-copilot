@@ -27,7 +27,8 @@ async def enqueue_brief(
         """INSERT INTO case_briefs (case_id, status, generation_id) VALUES ($1, 'PENDING', $2)
            ON CONFLICT (case_id) DO UPDATE SET status='PENDING', generation_id=$2,
              brief=NULL, citations=NULL, attempts=0, model_name=NULL,
-             prompt_version=NULL, tokens_used=NULL, last_error=NULL, updated_at=now()""",
+             prompt_version=NULL, playbook_version=NULL, tokens_used=NULL, last_error=NULL,
+             updated_at=now()""",
         case_id, env.job_id)
     await state.llm_queue.publish(env)
     return env

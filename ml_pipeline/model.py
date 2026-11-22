@@ -25,6 +25,7 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 from xgboost import XGBClassifier
 
 from .calibration import describe_calibrator, fit_calibrator
+from .drift import build_drift_baseline
 
 INTERNAL_COLUMNS = ("_sort_time", "_split_tag")
 DEFAULT_EVALUATION = {
@@ -165,14 +166,16 @@ def train_model(
             raw_scores=raw_test_scores,
         )
     estimator = pipeline.named_steps["model"]
+    recommended_triage = recommend_triage_thresholds(
+        calibrated_scores, threshold, settings["top_fraction"]
+    )
     return {
         "pipeline": pipeline,
         "calibrator": calibrator,
         "calibration": describe_calibrator(calibrator),
         "threshold": threshold,
-        "recommended_triage": recommend_triage_thresholds(
-            calibrated_scores, threshold, settings["top_fraction"]
-        ),
+        "recommended_triage": recommended_triage,
+        "drift_baseline": build_drift_baseline(x_validation, calibrated_scores, recommended_triage),
         "best_iteration": _best_iteration(estimator),
         "feature_columns": list(x_train.columns),
         "model_version": datetime.now(timezone.utc).strftime("xgb-%Y%m%d%H%M%S"),
@@ -286,6 +289,7 @@ def save_artifact(artifact: dict[str, Any], path: str | Path, source_files: list
         "recommended_triage": artifact.get("recommended_triage"),
         "best_iteration": artifact.get("best_iteration"),
         "feature_columns": artifact["feature_columns"],
+        "drift_baseline": artifact.get("drift_baseline"),
         "source_sha256": _hash_files(source_files or []),
     }
     artifact = {**artifact, "lineage": lineage}

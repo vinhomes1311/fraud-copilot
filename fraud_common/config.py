@@ -61,6 +61,16 @@ class Settings:
     model_artifact_path: str = _s("MODEL_ARTIFACT_PATH", "data/models/fraud_xgboost.joblib")
     model_required: bool = _s("MODEL_REQUIRED", "true").lower() == "true"
 
+    # Service fault injection (FR-07 tests). Static defaults; the simulator/admin
+    # can override them at runtime through PUT /api/v1/admin/fault-injection.
+    fault_injection_enabled: bool = _s("FAULT_INJECTION_ENABLED", "true").lower() == "true"
+    ml_fault_rate: float = _f("ML_FAULT_RATE", 0.0)
+    ml_fault_latency_ms: float = _f("ML_FAULT_LATENCY_MS", 0.0)
+    fault_cache_ttl_s: float = _f("FAULT_CACHE_TTL_S", 2.0)
+
+    # Drift monitoring (FR-10)
+    drift_monitor_interval_s: float = _f("DRIFT_MONITOR_INTERVAL_S", 60.0)
+
     # Hàng đợi LLM (Cold Path)
     llm_concurrency: int = _i("LLM_CONCURRENCY", 2)
     llm_job_timeout_s: float = _f("LLM_JOB_TIMEOUT_S", 30.0)

@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
+from fraud_common.config import get_settings
+from fraud_common.faults import MAX_LATENCY_MS, clear_config, read_config, write_config
 from fraud_common.schemas import Role
 
 from ..audit import write_audit
-from ..auth import User, require_roles
+from ..auth import User, require_roles, simulator_or_admin
 from ..state import state
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -54,3 +56,44 @@ async def queue_stats(_: User = Depends(admin_only)):
         "llm_jobs": await state.llm_queue.depth(),
         "case_events": await state.events_queue.depth(),
     }
+
+
+class FaultInjectionUpdate(BaseModel):
+    ml_failure_rate: float = Field(0.0, ge=0, le=1)
+    ml_latency_ms: float = Field(0.0, ge=0, le=MAX_LATENCY_MS)
+
+
+def _fault_response(config) -> dict:
+    s = get_settings()
+    return {**config.as_dict(), "enabled": s.fault_injection_enabled,
+            "ml_job_timeout_ms": s.ml_job_timeout_s * 1000, "ml_max_attempts": s.ml_max_attempts}
+
+
+@router.get("/fault-injection")
+async def get_fault_injection(_: str = Depends(simulator_or_admin)):
+    return _fault_response(await read_config(state.redis))
+
+
+@router.put("/fault-injection")
+async def put_fault_injection(body: FaultInjectionUpdate, actor: str = Depends(simulator_or_admin)):
+    """Make the scoring worker slow or fail on purpose (requirement 2.2, FR-07 tests).
+
+    Failed attempts are retried; after ML_MAX_ATTEMPTS the transaction becomes
+    MANUAL_FALLBACK_UNSCORED. Latency above ML_JOB_TIMEOUT_S causes timeouts.
+    """
+    if not get_settings().fault_injection_enabled:
+        raise HTTPException(403, "Fault injection đã bị tắt (FAULT_INJECTION_ENABLED=false)")
+    config = await write_config(state.redis, body.ml_failure_rate, body.ml_latency_ms, actor)
+    async with state.db.write_tx() as conn:
+        await write_audit(conn, actor=actor, event="fault_injection.update", entity="fault_injection",
+                          entity_id="ml", detail=body.model_dump())
+    return _fault_response(config)
+
+
+@router.delete("/fault-injection")
+async def delete_fault_injection(actor: str = Depends(simulator_or_admin)):
+    config = await clear_config(state.redis)
+    async with state.db.write_tx() as conn:
+        await write_audit(conn, actor=actor, event="fault_injection.clear", entity="fault_injection",
+                          entity_id="ml", detail={})
+    return _fault_response(config)

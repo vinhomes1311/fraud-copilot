@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from fraud_common.data_version import normalize_data_version
 from fraud_common.metrics import LABEL_LEAK_DROPPED
 from fraud_common.schemas import JOB_SCORE_TRANSACTION, JobEnvelope, ScoreTransactionPayload
 
@@ -33,6 +34,7 @@ async def ingest_transaction(request: Request):
 
     txn_id = str(body.get("trans_num") or uuid4().hex)
     trace_id = request.headers.get("x-request-id") or uuid4().hex
+    data_version = normalize_data_version(request.headers.get("x-data-version"))
 
     # Backpressure: hàng đợi quá dài -> bảo client chậm lại thay vì làm nghẽn hệ thống
     depth = await state.redis.zcard(state.ml_queue.ready)
@@ -46,7 +48,8 @@ async def ingest_transaction(request: Request):
 
     env = JobEnvelope(
         job_type=JOB_SCORE_TRANSACTION, priority=0, trace_id=trace_id,
-        payload=ScoreTransactionPayload(txn_id=txn_id, raw=body).model_dump(mode="json"))
+        payload=ScoreTransactionPayload(txn_id=txn_id, raw=body,
+                                        data_version=data_version).model_dump(mode="json"))
     try:
         await state.ml_queue.publish(env)
     except Exception:

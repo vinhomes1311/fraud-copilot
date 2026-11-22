@@ -505,6 +505,47 @@ python -m simulator.replay --csv data/fraudTrain.csv --tps 10 \
 | `--fault-rate` | `0` | Tỉ lệ payload bị tiêm lỗi |
 | `--concurrency` | `100` | Số request đồng thời tối đa |
 | `--labels` | `data/labels.csv` | File lưu nhãn thật |
+| `--data-version` | `<tên file>@sha256:<12>` | Nhãn nguồn dữ liệu gửi qua header `X-Data-Version` |
+| `--ml-fault-rate` | `0` | Xác suất mỗi lần scoring bị lỗi giả lập (0..1) |
+| `--ml-latency-ms` | `0` | Độ trễ giả lập thêm vào bước ML inference |
+| `--ml-fault-drain-s` | `5` | Chờ bao lâu sau khi gửi xong mới tắt tiêm lỗi ML |
+| `--keep-ml-faults` | tắt | Giữ cấu hình lỗi ML sau khi chạy xong |
+
+### Tiêm lỗi dịch vụ ML
+
+`--fault-rate` làm hỏng **dữ liệu đầu vào**; `--ml-fault-rate`/`--ml-latency-ms`
+làm **dịch vụ ML** chậm hoặc lỗi thật sự trong scoring worker:
+
+```bash
+# 50% lần scoring lỗi + thêm 300 ms vào inference, tự tắt khi chạy xong
+python -m simulator.replay --csv data/fraudTest.csv --limit 300 --ml-fault-rate 0.5 --ml-latency-ms 300
+# Độ trễ vượt ML_JOB_TIMEOUT_S (mặc định 2 s) -> job timeout và retry
+python -m simulator.replay --csv data/fraudTest.csv --limit 50 --ml-latency-ms 2500
+```
+
+- Mỗi lần thử bị lỗi được retry; sau `ML_MAX_ATTEMPTS` lần, giao dịch thành
+  `MANUAL_FALLBACK_UNSCORED` với lý do `_system` trong `unscored_queue`,
+  **không bao giờ** bị gán Low.
+- Độ trễ giả lập được tính vào `latency_ms` và p95 trên dashboard.
+- Cấu hình nằm trong Redis (`fault_injection:ml`) nên mọi replica scoring worker
+  đổi cùng lúc (cache `FAULT_CACHE_TTL_S` = 2 s). Có thể gọi trực tiếp API bằng
+  simulator key hoặc JWT admin:
+  `GET|PUT|DELETE /api/v1/admin/fault-injection`, body
+  `{"ml_failure_rate": 0.5, "ml_latency_ms": 300}`. Mỗi lần đổi đều ghi `audit_log`.
+- Giá trị mặc định lấy từ `ML_FAULT_RATE`, `ML_FAULT_LATENCY_MS`;
+  `FAULT_INJECTION_ENABLED=false` khóa hẳn tính năng (API trả 403).
+- Metric `fraud_injected_faults_total{kind="failure|latency"}` chỉ đếm lỗi giả lập.
+
+### Truy vết nguồn dữ liệu (FR-08)
+
+Mỗi giao dịch lưu `transactions.data_version` (ví dụ
+`fraudTest.csv@sha256:1a2b3c4d5e6f`) từ header `X-Data-Version`; nút simulator
+trên dashboard dùng hash của `data/fraudTest.csv`. Brief lưu
+`case_briefs.playbook_version` (`<document_id>@<version>#sha256:<12>`) cùng
+`model_name` và `prompt_version`. Cả hai hiện trong mục **Model details** của
+case, cùng `model_version`, `threshold_config_version` và `trace_id`.
+DB cũ: Analyst API tự thêm cột khi khởi động, hoặc chạy
+[`db/migrations/004_traceability_and_monitoring.sql`](db/migrations/004_traceability_and_monitoring.sql).
 
 ## Cấu hình
 
@@ -539,6 +580,10 @@ PostgreSQL bằng secret manager hoặc environment injection.
 | `LLM_RETRIEVER` | `playbook` cho API / `ollama` cho Ollama | Nguồn context |
 | `LLM_STUB_LATENCY_S` | `1.0` | Độ trễ giả lập |
 | `LLM_STUB_FAIL_RATE` | `0.0` | Tỉ lệ lỗi giả lập |
+| `FAULT_INJECTION_ENABLED` | `true` | Cho phép tiêm lỗi dịch vụ ML |
+| `ML_FAULT_RATE` | `0.0` | Tỉ lệ lỗi ML mặc định (0..1) |
+| `ML_FAULT_LATENCY_MS` | `0` | Độ trễ ML mặc định (ms) |
+| `DRIFT_MONITOR_INTERVAL_S` | `60` | Chu kỳ tính drift và cập nhật metric |
 
 Để thử circuit breaker và fallback:
 
@@ -556,6 +601,31 @@ LLM_STUB_FAIL_RATE=0.5 docker compose up -d --build
 - Redis queue có thống kê `ready`, `processing`, `dead` qua endpoint admin.
 
 Prometheus mở tại <http://localhost:9090> khi chạy compose dev.
+
+### Giám sát drift (FR-10)
+
+Khi train, pipeline lưu `drift_baseline` vào `data/models/fraud_xgboost.json`:
+phân bố của 16 feature (quantile 10 bin, bin riêng cho giá trị thiếu, category
+theo tỉ lệ) và của xác suất đã calibrate trên **validation split**, cộng tỉ lệ
+review kỳ vọng. Các trường lịch (tháng, ngày, thứ, cuối tuần) và `merchant` không
+được giám sát vì cửa sổ ngắn luôn chỉ chứa vài ngày.
+
+- `GET /api/v1/monitoring/drift?window=5000` (analyst, risk lead, admin) so sánh
+  `window` kết quả scoring mới nhất với baseline bằng PSI:
+  `< 0.10` ổn định, `0.10–0.25` lệch vừa, `≥ 0.25` lệch đáng kể (cần ≥ 200 dòng).
+  Phân bố score và tỉ lệ review chỉ dùng các dòng của đúng `model_version` đó.
+  Response có thêm chất lượng dữ liệu: tỉ lệ unscored và lỗi theo trường.
+- Dashboard **Risk Overview** có panel *Data & Score Drift* (làm mới mỗi phút).
+- Analyst API cập nhật `fraud_feature_psi{feature}`, `fraud_score_psi`,
+  `fraud_drift_alert`, `fraud_unscored_rate` mỗi `DRIFT_MONITOR_INTERVAL_S`;
+  [`prometheus/alerts.yml`](prometheus/alerts.yml) cảnh báo khi PSI ≥ 0.25,
+  unscored > 5% hoặc p95 scoring > 500 ms.
+- Model cũ chưa có baseline: `python -m ml_pipeline.drift` thêm baseline vào
+  artifact hiện tại mà không train lại.
+
+Lưu ý: khi replay trên DB trống, mỗi thẻ chưa có lịch sử nên các feature
+`trans_count_*`, `avg_amt_7d`... sẽ báo lệch mạnh lúc đầu. Đó là train/serve
+skew thật (model train với lịch sử đầy đủ), không phải lỗi của bộ giám sát.
 
 ## Test
 

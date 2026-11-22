@@ -9,7 +9,38 @@ const initialSimulatorTps = Number.isInteger(savedSimulatorTps) && savedSimulato
   : DEFAULT_SIMULATOR_TPS;
 const savedTestOffset = Number(localStorage.getItem("fraud_test_offset"));
 const initialTestOffset = Number.isSafeInteger(savedTestOffset) && savedTestOffset >= 0 ? savedTestOffset : 0;
-const state = { token: null, user: null, cases: [], classifications: [], caseRequestId: 0, classificationRequestId: 0, selected: null, detailRouteActive: false, view: "dashboard", dashboardPollTimer: null, dashboardLoading: false, dashboardRefreshPending: false, page: 0, pageSize: 50, total: 0, testOffset: initialTestOffset, simulatorRunning: false, simulatorEverStarted: false, simulatorTps: initialSimulatorTps, simulatorTpsInputDirty: false, simulatorVersion: 0, simulatorError: "", simulatorSyncError: "", simulatorPollTimer: null, simulatorPolling: false, simulatorHistory: [], lastSimulatorViewRefresh: 0, authMode: "login" };
+const state = {
+  token: null,
+  user: null,
+  cases: [],
+  classifications: [],
+  caseRequestId: 0,
+  classificationRequestId: 0,
+  selected: null,
+  detailRouteActive: false,
+  view: "dashboard",
+  dashboardPollTimer: null,
+  dashboardLoading: false,
+  dashboardRefreshPending: false,
+  page: 0,
+  pageSize: 50,
+  total: 0,
+  testOffset: initialTestOffset,
+  simulatorRunning: false,
+  simulatorEverStarted: false,
+  simulatorTps: initialSimulatorTps,
+  simulatorTpsInputDirty: false,
+  simulatorVersion: 0,
+  simulatorError: "",
+  simulatorSyncError: "",
+  simulatorPollTimer: null,
+  simulatorPolling: false,
+  simulatorHistory: [],
+  lastSimulatorViewRefresh: 0,
+  authMode: "login",
+  driftLoadedAt: 0,
+  driftLoading: false,
+};
 const $ = (selector) => document.querySelector(selector);
 let revealObserver = null;
 const simulatorChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("fraud-copilot-simulator") : null;
@@ -507,6 +538,78 @@ async function loadMlOperations() {
     }
   }
 }
+const DRIFT_REFRESH_MS = 60000;
+const DRIFT_STATUS_LABELS = {
+  stable: "Stable",
+  moderate: "Moderate drift",
+  significant: "Significant drift",
+  insufficient_data: "Not enough data",
+};
+function driftPercent(value, digits = 2) {
+  const number = Number(value);
+  return value === null || value === undefined || !Number.isFinite(number)
+    ? "—"
+    : `${(number * 100).toLocaleString("en-US", { maximumFractionDigits: digits })}%`;
+}
+function driftPill(status) {
+  const key = DRIFT_STATUS_LABELS[status] ? status : "insufficient_data";
+  return `<span class="drift-pill drift-${key}">${DRIFT_STATUS_LABELS[key]}</span>`;
+}
+function renderDrift(report) {
+  const formatter = new Intl.NumberFormat("en-US");
+  const status = report.overall_status || "insufficient_data";
+  const badge = $("#dashboard-drift-status");
+  badge.className = `drift-status drift-${DRIFT_STATUS_LABELS[status] ? status : "insufficient_data"}`;
+  badge.textContent = DRIFT_STATUS_LABELS[status] || DRIFT_STATUS_LABELS.insufficient_data;
+  const scope = report.window || {};
+  const minRows = Number(report.thresholds?.min_rows) || 200;
+  if (!Number(scope.scored_rows)) {
+    $("#dashboard-drift").innerHTML = `<p class="dashboard-empty">No scored transactions yet. Drift is reported once at least ${formatter.format(minRows)} transactions are scored.</p>`;
+    return;
+  }
+  const score = report.score || {};
+  const review = report.review_rate || {};
+  const quality = report.data_quality || {};
+  const psi = (value) => (value === null || value === undefined ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 3 }));
+  const shift = (item) => item?.top_shift
+    ? `Largest change: ${escapeHtml(item.top_shift.bin)} · ${driftPercent(item.top_shift.expected, 1)} → ${driftPercent(item.top_shift.actual, 1)}`
+    : "";
+  const features = (report.features || []).slice(0, 8).map((item) => {
+    const width = Math.min(100, (Number(item.psi) || 0) / 0.5 * 100);
+    return `<article class="drift-feature">
+      <div class="drift-feature-copy"><b>${escapeHtml(item.label || item.feature)}</b><small>${shift(item)}${Number(item.missing_rate) > 0 ? ` · missing ${driftPercent(item.missing_rate, 1)}` : ""}</small></div>
+      <span class="drift-bar" aria-hidden="true"><i class="drift-${escapeHtml(item.status)}" style="width:${width.toFixed(1)}%"></i></span>
+      <strong title="Population Stability Index">${psi(item.psi)}</strong>${driftPill(item.status)}
+    </article>`;
+  }).join("");
+  $("#dashboard-drift").innerHTML = `
+    <div class="drift-summary">
+      <div><small>Score distribution (PSI)</small><strong>${psi(score.psi)}</strong>${driftPill(score.status)}</div>
+      <div><small>Review rate · expected → live</small><strong>${driftPercent(review.expected_rate)} → ${driftPercent(review.actual_rate)}</strong><span>Medium + High share of scored traffic</span></div>
+      <div><small>Unscored inputs</small><strong>${driftPercent(quality.unscored_rate)}</strong><span>${formatter.format(Number(quality.unscored) || 0)} of ${formatter.format(Number(quality.rows) || 0)} recent transactions</span></div>
+      <div><small>Window</small><strong>${formatter.format(Number(scope.scored_rows) || 0)}</strong><span>scored rows · model ${escapeHtml(report.model_version || "—")}</span></div>
+    </div>
+    <div class="drift-feature-list">${features || `<p class="dashboard-empty">No monitored features.</p>`}</div>
+    <p class="drift-footnote">PSI &lt; 0.10 stable · 0.10–0.25 moderate · ≥ 0.25 significant. Baseline: ${escapeHtml(report.baseline?.reference || "validation")} split (${formatter.format(Number(report.baseline?.rows) || 0)} rows). Calendar fields are not monitored because a short window always covers only a few days.</p>`;
+}
+async function loadDrift(force = false) {
+  if (state.driftLoading || (!force && Date.now() - state.driftLoadedAt < DRIFT_REFRESH_MS)) return;
+  state.driftLoading = true;
+  try {
+    const report = await api("/monitoring/drift");
+    state.driftLoadedAt = Date.now();
+    if (state.view === "dashboard") renderDrift(report);
+  } catch (error) {
+    state.driftLoadedAt = Date.now();
+    if (state.view === "dashboard") {
+      $("#dashboard-drift-status").className = "drift-status drift-insufficient_data";
+      $("#dashboard-drift-status").textContent = "Unavailable";
+      $("#dashboard-drift").innerHTML = `<p class="dashboard-empty">Drift monitoring unavailable: ${escapeHtml(error.message)}</p>`;
+    }
+  } finally {
+    state.driftLoading = false;
+  }
+}
 function renderDashboard(data) {
   const summary = data.summary || {};
   const total = Number(summary.total_scored) || 0;
@@ -534,6 +637,7 @@ function renderDashboard(data) {
   renderDecisionBreakdown(data.decision_breakdown || []);
   renderSignalHealth(data.signal_health || {});
   void loadMlOperations();
+  void loadDrift(!$("#dashboard-drift .drift-summary"));
 
   const cases = data.recent_cases || [];
   $("#dashboard-recent-cases").innerHTML = cases.length
