@@ -33,7 +33,8 @@ CREATE TABLE threshold_configs (
   CHECK (low_max > 0 AND low_max <= high_min AND high_min < 1)
 );
 CREATE UNIQUE INDEX one_active_threshold ON threshold_configs (active) WHERE active;
--- Seed = recommended_triage of model xgb-20261119142500 (data/models/fraud_xgboost.json).
+-- Seed = recommended_triage of model xgb-20261121163243 (data/models/fraud_xgboost.json);
+-- same values as xgb-20261119142500 (migration 003): retraining is deterministic.
 INSERT INTO threshold_configs (low_max, high_min, active, created_by) VALUES (0.0072, 0.3000, true, 'seed');
 
 CREATE TABLE transactions (
@@ -42,6 +43,7 @@ CREATE TABLE transactions (
   payload_masked  JSONB NOT NULL,       -- đã bỏ/che PII, không có is_fraud
   txn_time        TIMESTAMPTZ,          -- NULL nếu giao dịch không hợp lệ
   trace_id        TEXT,
+  data_version    TEXT,                 -- nguồn dữ liệu, vd fraudTest.csv@sha256:… (FR-08)
   received_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_txn_account_time ON transactions (account_hash_id, txn_time);
@@ -61,6 +63,7 @@ CREATE TABLE scoring_results (
   trace_id                 TEXT,
   scored_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_scoring_scored_at ON scoring_results (scored_at DESC);  -- cửa sổ giám sát drift
 
 CREATE TABLE unscored_queue (            -- hàng đợi kiểm tra đặc biệt (FR-07)
   txn_id     TEXT PRIMARY KEY REFERENCES transactions(txn_id),
@@ -90,6 +93,7 @@ CREATE TABLE case_briefs (
   last_error     TEXT,
   model_name     TEXT,
   prompt_version TEXT,
+  playbook_version TEXT,                           -- playbook dùng cho brief (FR-08)
   tokens_used    INT,
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );

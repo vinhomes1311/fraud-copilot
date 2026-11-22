@@ -28,7 +28,7 @@ from fraud_common.queues import QUEUE_CASE_EVENTS, QUEUE_LLM_JOBS, QUEUE_ML_JOBS
 from fraud_common.worker import run_consumer
 
 from .events import handle_case_created
-from .routes import admin, auth_routes, cases, demo, ingest
+from .routes import admin, auth_routes, cases, demo, ingest, monitoring
 from .state import state
 from .auth import hash_password
 
@@ -74,6 +74,14 @@ async def lifespan(app: FastAPI):
                ON CONFLICT (username) DO UPDATE SET email=EXCLUDED.email, email_verified=true""",
             username, f"{username}@demo.local", display_name, hash_password(password), role)
 
+    # Traceability columns (FR-08) and monitoring index; same as db/migrations/004.
+    for statement in (
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS data_version TEXT",
+        "ALTER TABLE case_briefs ADD COLUMN IF NOT EXISTS playbook_version TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_scoring_scored_at ON scoring_results (scored_at DESC)",
+    ):
+        await state.db.wexec(statement)
+
     state.ml_queue = ReliableQueue(state.redis, QUEUE_ML_JOBS)
     state.llm_queue = ReliableQueue(state.redis, QUEUE_LLM_JOBS)
     state.events_queue = ReliableQueue(state.redis, QUEUE_CASE_EVENTS, visibility_timeout_s=30, max_attempts=5)
@@ -85,6 +93,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(state.ml_queue.gauge_loop(stop)),
         asyncio.create_task(state.llm_queue.gauge_loop(stop)),
         asyncio.create_task(demo.run_simulator(stop)),
+        asyncio.create_task(monitoring.drift_loop(stop)),
     ]
     try:
         yield
@@ -101,6 +110,7 @@ app.include_router(ingest.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(demo.router, prefix="/api/v1")
+app.include_router(monitoring.router, prefix="/api/v1")
 app.mount("/metrics", make_asgi_app())
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 

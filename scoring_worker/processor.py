@@ -7,6 +7,7 @@ import time
 
 from fraud_common.config import get_settings
 from fraud_common.db import Database
+from fraud_common.faults import FaultProvider
 from fraud_common.metrics import INVALID_TXN, ROUTED, STAGE_SECONDS
 from fraud_common.queues import ReliableQueue
 from fraud_common.schemas import (
@@ -34,10 +35,12 @@ class _Stage:
 
 
 class ScoringProcessor:
-    def __init__(self, db: Database, events_queue: ReliableQueue) -> None:
+    def __init__(self, db: Database, events_queue: ReliableQueue,
+                 faults: FaultProvider | None = None) -> None:
         self.db = db
         self.events_queue = events_queue
         self.thresholds = ThresholdProvider(db)
+        self.faults = faults or FaultProvider(getattr(events_queue, "redis", None))
         self.s = get_settings()
 
     # Được worker gọi cho mỗi job. Lỗi/timeout -> ném exception -> queue tự retry.
@@ -53,7 +56,8 @@ class ScoringProcessor:
             result = validate(payload.raw)
         if not result.ok:
             INVALID_TXN.inc()
-            await self._persist_unscored(payload.txn_id, safe, result.errors, env.trace_id)
+            await self._persist_unscored(payload.txn_id, safe, result.errors, env.trace_id,
+                                         payload.data_version)
             return
 
         tx = result.tx
@@ -61,6 +65,9 @@ class ScoringProcessor:
         with _Stage("features"):
             features = await compute_features(self.db, tx, account_hash)
         with _Stage("inference"):
+            # Injected latency/failures (simulator) count as inference time; a
+            # failure is retried and ends in MANUAL_FALLBACK_UNSCORED, never Low.
+            await self.faults.inject()
             pred = predict(features)
         cfg = await self.thresholds.get()
         level = route(pred.calibrated_prob, cfg)
@@ -69,7 +76,7 @@ class ScoringProcessor:
         with _Stage("persist"):
             case_id = await self._persist_scored(
                 payload.txn_id, safe, tx.trans_date_trans_time, features, pred, level, cfg.version,
-                latency_ms, env.trace_id)
+                latency_ms, env.trace_id, payload.data_version)
 
         ROUTED.labels(level.value).inc()
         if case_id is not None and level != RiskLevel.LOW:
@@ -84,15 +91,16 @@ class ScoringProcessor:
 
     # ------------------------------------------------------------------ DB
     async def _persist_scored(self, txn_id, safe, txn_time, features, pred, level, cfg_version,
-                              latency_ms, trace_id) -> int | None:
+                              latency_ms, trace_id, data_version=None) -> int | None:
         if txn_time.tzinfo is None:
             from datetime import timezone
             txn_time = txn_time.replace(tzinfo=timezone.utc)
         async with self.db.write_tx() as conn:
             await conn.execute(
-                """INSERT INTO transactions (txn_id, account_hash_id, payload_masked, txn_time, trace_id)
-                   VALUES ($1,$2,$3,$4,$5) ON CONFLICT (txn_id) DO NOTHING""",
-                txn_id, safe.get("account_hash_id"), safe, txn_time, trace_id)
+                """INSERT INTO transactions
+                   (txn_id, account_hash_id, payload_masked, txn_time, trace_id, data_version)
+                   VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (txn_id) DO NOTHING""",
+                txn_id, safe.get("account_hash_id"), safe, txn_time, trace_id, data_version)
             inserted = await conn.fetchrow(
                 """INSERT INTO scoring_results
                    (txn_id, status, raw_model_score, calibrated_prob, risk_level, model_version,
@@ -112,15 +120,16 @@ class ScoringProcessor:
                 "INSERT INTO audit_log (actor, event, entity, entity_id, detail, trace_id) VALUES ($1,$2,$3,$4,$5,$6)",
                 "scoring-worker", "transaction.scored", "transaction", txn_id,
                 {"risk_level": level.value, "prob": pred.calibrated_prob, "model_version": pred.model_version,
-                 "threshold_config_version": cfg_version, "case_id": case_id}, trace_id)
+                 "threshold_config_version": cfg_version, "case_id": case_id,
+                 "data_version": data_version}, trace_id)
         return case_id
 
-    async def _persist_unscored(self, txn_id, safe, errors, trace_id) -> None:
+    async def _persist_unscored(self, txn_id, safe, errors, trace_id, data_version=None) -> None:
         async with self.db.write_tx() as conn:
             await conn.execute(
-                """INSERT INTO transactions (txn_id, account_hash_id, payload_masked, trace_id)
-                   VALUES ($1,$2,$3,$4) ON CONFLICT (txn_id) DO NOTHING""",
-                txn_id, safe.get("account_hash_id"), safe, trace_id)
+                """INSERT INTO transactions (txn_id, account_hash_id, payload_masked, trace_id, data_version)
+                   VALUES ($1,$2,$3,$4,$5) ON CONFLICT (txn_id) DO NOTHING""",
+                txn_id, safe.get("account_hash_id"), safe, trace_id, data_version)
             await conn.execute(
                 """INSERT INTO scoring_results (txn_id, status, validation_errors, trace_id)
                    VALUES ($1,$2,$3,$4) ON CONFLICT (txn_id) DO NOTHING""",
@@ -130,7 +139,8 @@ class ScoringProcessor:
                 txn_id, errors)
             await conn.execute(
                 "INSERT INTO audit_log (actor, event, entity, entity_id, detail, trace_id) VALUES ($1,$2,$3,$4,$5,$6)",
-                "scoring-worker", "transaction.unscored", "transaction", txn_id, {"errors": errors}, trace_id)
+                "scoring-worker", "transaction.unscored", "transaction", txn_id,
+                {"errors": errors, "data_version": data_version}, trace_id)
         log.warning("giao dịch không hợp lệ -> MANUAL_FALLBACK_UNSCORED",
                     extra={"ctx": {"txn_id": txn_id, "trace_id": trace_id, "errors": errors}})
 
@@ -139,4 +149,5 @@ class ScoringProcessor:
         payload = ScoreTransactionPayload.model_validate(env.payload)
         await self._persist_unscored(
             payload.txn_id, mask_pii(payload.raw),
-            [{"field": "_system", "msg": f"scoring failed after retries: {error}"}], env.trace_id)
+            [{"field": "_system", "msg": f"scoring failed after retries: {error}"}], env.trace_id,
+            payload.data_version)

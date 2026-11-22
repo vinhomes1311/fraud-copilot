@@ -27,6 +27,11 @@ x-app-env: &app-env
   REGEN_LIMIT_PER_HOUR: ${REGEN_LIMIT_PER_HOUR:-3}
   BREAKER_FAILURE_THRESHOLD: ${BREAKER_FAILURE_THRESHOLD:-5}
   BREAKER_RESET_S: ${BREAKER_RESET_S:-30}
+  # Service fault injection (simulator/admin can override at runtime) and drift monitor
+  FAULT_INJECTION_ENABLED: ${FAULT_INJECTION_ENABLED:-true}
+  ML_FAULT_RATE: ${ML_FAULT_RATE:-0.0}
+  ML_FAULT_LATENCY_MS: ${ML_FAULT_LATENCY_MS:-0}
+  DRIFT_MONITOR_INTERVAL_S: ${DRIFT_MONITOR_INTERVAL_S:-60}
 
 x-python-service: &python-service
   build:
@@ -183,6 +188,7 @@ services:
     image: prom/prometheus:v2.55.1
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     restart: unless-stopped
 
 volumes:

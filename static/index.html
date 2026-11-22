@@ -119,6 +119,10 @@
                 <div class="chart-heading"><div><h4>Model Service Latency &amp; Throughput</h4><p>P95 inference latency and requests per second over the last 60 minutes.</p></div><span class="chart-live-indicator">Prometheus</span></div>
                 <div id="dashboard-ml-operations-chart" class="ml-operations-chart" aria-live="polite"><p class="chart-empty">Loading model metrics...</p></div>
               </article>
+              <article class="dashboard-panel dashboard-drift-panel">
+                <div class="dashboard-panel-heading"><div><h4>Data &amp; Score Drift</h4><p>Population Stability Index of the latest scored transactions against the model's validation baseline · refreshes every minute.</p></div><span id="dashboard-drift-status" class="drift-status drift-insufficient_data">—</span></div>
+                <div id="dashboard-drift" class="drift-body" aria-live="polite"><p class="dashboard-empty">Loading drift data...</p></div>
+              </article>
               <article class="dashboard-panel dashboard-cases-panel">
                 <div class="dashboard-panel-heading"><div><h4>Flagged Transactions</h4><p>Cases awaiting review, ordered by fraud probability.</p></div><button id="dashboard-view-all" class="text-button">View queue →</button></div>
                 <div id="dashboard-recent-cases" class="dashboard-recent-cases" aria-live="polite"></div>

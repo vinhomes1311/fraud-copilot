@@ -13,6 +13,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fraud_common.data_version import file_data_version
 from fraud_common.schemas import JOB_SCORE_TRANSACTION, JobEnvelope, ScoreTransactionPayload, Role
 
 from ..auth import User, require_roles
@@ -95,6 +96,7 @@ async def _enqueue_test_batch(batch_size: int, offset: int) -> dict[str, int | b
             offset = 0
 
     rows = await asyncio.to_thread(_read_batch, offset, batch_size)
+    data_version = await asyncio.to_thread(file_data_version, DATASET_PATH)
     queued = 0
     skipped = 0
     for row in rows:
@@ -110,7 +112,8 @@ async def _enqueue_test_batch(batch_size: int, offset: int) -> dict[str, int | b
             job_type=JOB_SCORE_TRANSACTION,
             priority=1,
             trace_id=txn_id,
-            payload=ScoreTransactionPayload(txn_id=txn_id, raw=row).model_dump(mode="json"),
+            payload=ScoreTransactionPayload(txn_id=txn_id, raw=row,
+                                            data_version=data_version).model_dump(mode="json"),
         )
         try:
             await state.ml_queue.publish(envelope)

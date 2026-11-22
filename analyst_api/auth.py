@@ -92,3 +92,16 @@ async def simulator_or_user(
     if x_api_key:
         return await require_simulator(x_api_key)
     return await current_user(creds)
+
+
+# Fault injection: the simulator (API key) or an admin (JWT) may change it.
+async def simulator_or_admin(
+    x_api_key: str | None = Header(default=None),
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> str:
+    if x_api_key:
+        return await require_simulator(x_api_key)
+    user = await current_user(creds)
+    if user.role != Role.ADMIN:
+        raise HTTPException(403, "Không đủ quyền")
+    return user.username
