@@ -91,6 +91,7 @@ class JobEnvelope(BaseModel):
 class ScoreTransactionPayload(BaseModel):
     txn_id: str
     raw: dict[str, Any]               # giao dịch thô, ĐÃ bỏ is_fraud; chưa validate
+    data_version: str | None = None   # nguồn dữ liệu, vd "fraudTest.csv@sha256:…" (FR-08)
 
 
 class CaseCreatedEvent(BaseModel):

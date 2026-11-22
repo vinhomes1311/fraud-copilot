@@ -2903,3 +2903,37 @@ body { background: #fff7f8; }
   .filter-toolbar .filter-date { flex-basis: calc(50% - 6px); min-width: 0; }
   .filter-reset { flex-basis: calc(50% - 6px); }
 }
+
+/* ---- Data & score drift panel (FR-10) ---- */
+.dashboard-drift-panel .dashboard-panel-heading { align-items: center; }
+.drift-status, .drift-pill { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; font: 700 9px "DM Sans"; letter-spacing: .02em; white-space: nowrap; }
+.drift-pill { padding: 3px 7px; font-size: 8px; }
+.drift-stable { background: #e9f7ef; color: #39815c; }
+.drift-moderate { background: #fff4e0; color: #b7792b; }
+.drift-significant { background: #fde9ea; color: #c0434f; }
+.drift-insufficient_data { background: #f1f0f4; color: #8c8794; }
+.drift-body { display: grid; gap: 12px; margin-top: 14px; }
+.drift-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.drift-summary > div { display: grid; gap: 4px; align-content: start; min-width: 0; padding: 11px 12px; border: 1px solid #eeebf3; border-radius: 10px; background: rgba(255,255,255,.82); }
+.drift-summary small { color: #8f8995; font-size: 9px; }
+.drift-summary strong { color: #4f4a57; font: 700 17px "Space Grotesk"; overflow-wrap: anywhere; }
+.drift-summary span:not(.drift-pill) { color: #9c96a2; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
+.drift-summary .drift-pill { justify-self: start; }
+.drift-feature-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.drift-feature { display: grid; grid-template-columns: minmax(0, 1fr) 70px auto auto; align-items: center; gap: 9px; min-width: 0; padding: 9px 10px; border: 1px solid #eeebf3; border-radius: 10px; background: rgba(255,255,255,.82); }
+.drift-feature-copy { display: grid; gap: 3px; min-width: 0; }
+.drift-feature-copy b { overflow: hidden; color: #56515e; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.drift-feature-copy small { overflow: hidden; color: #98929e; font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+.drift-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #f1eff5; }
+.drift-bar i { display: block; height: 100%; border-radius: inherit; background: currentColor; }
+.drift-feature > strong { color: #5b5566; font: 700 11px "Space Grotesk"; text-align: right; min-width: 38px; }
+.drift-footnote { color: #9c96a2; font-size: 9px; line-height: 1.5; }
+@media (max-width: 900px) {
+  .drift-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .drift-feature-list { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .drift-summary { grid-template-columns: minmax(0, 1fr); }
+  .drift-feature { grid-template-columns: minmax(0, 1fr) auto; }
+  .drift-feature .drift-bar { display: none; }
+}

@@ -16,7 +16,7 @@ from fraud_common.worker import NonRetryableError
 from .fallback import rule_based_brief
 from .grounding import check_grounding
 from .llm_client import PROMPT_VERSION, get_llm_client
-from .rag import get_retriever
+from .rag import get_retriever, playbook_version
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class BriefProcessor:
         self.s = s
         self.db = db
         self.retriever = get_retriever()
+        self.playbook_version = playbook_version(self.retriever)
         self.llm = get_llm_client()
         self.breaker = CircuitBreaker(s.breaker_failure_threshold, s.breaker_reset_s)
 
@@ -65,10 +66,11 @@ class BriefProcessor:
         written = await self.db.wexec(
             """UPDATE case_briefs SET status='READY', brief=$2, citations=$3,
                  attempts=$4, model_name=$5, prompt_version=$6, tokens_used=$7,
-                 last_error=NULL, updated_at=now()
+                 playbook_version=$9, last_error=NULL, updated_at=now()
                WHERE case_id=$1 AND generation_id=$8 AND status='RUNNING' AND attempts=$4""",
             p.case_id, result.brief.model_dump(), [c.model_dump() for c in result.brief.citations],
-            env.attempts + 1, result.model_name, PROMPT_VERSION, result.tokens_used, env.job_id)
+            env.attempts + 1, result.model_name, PROMPT_VERSION, result.tokens_used, env.job_id,
+            self.playbook_version)
         if written != "UPDATE 1":
             return
         BRIEFS.labels("READY").inc()
@@ -87,7 +89,7 @@ class BriefProcessor:
         written = await self.db.wexec(
             """UPDATE case_briefs SET status=$2, brief=$3, citations=$4,
                  attempts=$5, last_error=$6, model_name=NULL, prompt_version=NULL,
-                 tokens_used=NULL, updated_at=now()
+                 playbook_version=NULL, tokens_used=NULL, updated_at=now()
                WHERE case_id=$1 AND generation_id=$7
                  AND status IN ('PENDING','RUNNING') AND attempts <= $5""",
             p.case_id, status.value, fb, fb["citations"] if fb else [],

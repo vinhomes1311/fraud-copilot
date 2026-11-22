@@ -1,5 +1,5 @@
 {
-  "model_version": "xgb-20261119142500",
+  "model_version": "xgb-20261121163243",
   "source": "data/models/fraud_xgboost.json",
   "metrics": {
     "pr_auc": 0.9765935052481753,

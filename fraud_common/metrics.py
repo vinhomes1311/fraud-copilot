@@ -12,3 +12,10 @@ INVALID_TXN = Counter("fraud_invalid_transactions_total", "Giao dịch không h�
 LABEL_LEAK_DROPPED = Counter("fraud_label_leak_dropped_total", "Payload có is_fraud bị loại bỏ")
 BRIEFS = Counter("fraud_briefs_total", "Kết quả tạo brief", ["status"])
 BREAKER_STATE = Gauge("fraud_llm_breaker_open", "1 nếu circuit breaker LLM đang mở")
+# Drift monitoring (FR-10): refreshed by the Analyst API from recent scoring results.
+FEATURE_PSI = Gauge("fraud_feature_psi", "PSI of a model feature vs the training baseline", ["feature"])
+SCORE_PSI = Gauge("fraud_score_psi", "PSI of the calibrated score vs the validation baseline")
+DRIFT_ALERT = Gauge("fraud_drift_alert", "1 if any monitored distribution has significant drift")
+UNSCORED_RATE = Gauge("fraud_unscored_rate", "Share of recent transactions that could not be scored")
+# Service fault injection (simulator / admin); counts only injected, not real, failures.
+INJECTED_FAULTS = Counter("fraud_injected_faults_total", "Injected ML service faults", ["kind"])

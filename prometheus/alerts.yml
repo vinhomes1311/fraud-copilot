@@ -1,0 +1,33 @@
+# Alert rules for model monitoring (FR-10) and the scoring hot path.
+# Gauges are refreshed every DRIFT_MONITOR_INTERVAL_S by the Analyst API.
+groups:
+  - name: fraud-model-monitoring
+    rules:
+      - alert: FraudFeatureDriftSignificant
+        expr: max(fraud_feature_psi) >= 0.25
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Feature distribution drift (PSI >= 0.25)"
+          description: "At least one monitored feature has PSI >= 0.25 versus the validation baseline. Check /api/v1/monitoring/drift."
+      - alert: FraudScoreDriftSignificant
+        expr: fraud_score_psi >= 0.25
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Calibrated score distribution drift (PSI >= 0.25)"
+          description: "Review rate and alert volume may no longer match the threshold calibration; re-evaluate with labelled data."
+      - alert: FraudUnscoredRateHigh
+        expr: fraud_unscored_rate > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 5% of recent transactions could not be scored"
+          description: "Invalid inputs or ML failures are routed to manual fallback; check validation errors and the scoring worker."
+      - alert: FraudScoringP95Over500ms
+        expr: histogram_quantile(0.95, sum by (le) (rate(fraud_job_seconds_bucket{queue="ml_jobs"}[5m]))) > 0.5
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Scoring p95 above the 500 ms budget"
+          description: "validation -> ML -> routing is slower than the requirement; check queue depth and injected faults."

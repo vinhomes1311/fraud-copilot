@@ -226,3 +226,50 @@ test('case drawer integrates the new sections and copies the full ID without cha
   assert.equal(requests[0].path, '/api/v1/cases/101');
   assert.equal(requests[0].options.method, undefined);
 });
+
+test('model details show input data, prompt and playbook versions for traceability', () => {
+  const html = view.renderTechnicalDetails({ ...example, data_version: 'fraudTest.csv@sha256:abc123',
+    trace_id: 'trace-<1>', brief_status: 'READY', brief_model: 'gemini', prompt_version: 'v11',
+    playbook_version: 'common-playbook@2.1#sha256:def' });
+  assert.match(html, /Input data version<\/dt><dd>fraudTest\.csv@sha256:abc123/);
+  assert.match(html, /Playbook version<\/dt><dd>common-playbook@2\.1#sha256:def/);
+  assert.match(html, /gemini · v11/);
+  assert.match(html, /trace-&lt;1&gt;/);
+  const legacy = view.renderTechnicalDetails(example);
+  assert.match(legacy, /Input data version<\/dt><dd>Not recorded/);
+  assert.doesNotMatch(legacy, /Playbook version/);
+});
+
+test('drift panel ranks features, shows status and escapes server text', () => {
+  const app = readFileSync(resolve(root, 'static/app.js'), 'utf8');
+  const functionText = app.slice(app.indexOf('const DRIFT_REFRESH_MS'), app.indexOf('async function loadDrift('));
+  const elements = {};
+  const $ = (selector) => (elements[selector] ||= { innerHTML: '', textContent: '', className: '' });
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[c]);
+  const render = vm.runInNewContext(`${functionText}; renderDrift`, { $, escapeHtml, Intl, Number, Math });
+  render({
+    overall_status: 'significant', model_version: 'xgb-<b>', thresholds: { min_rows: 200 },
+    window: { scored_rows: 5000 }, baseline: { reference: 'validation', rows: 194502 },
+    score: { psi: 0.04, status: 'stable' }, review_rate: { expected_rate: 0.01, actual_rate: 0.025 },
+    data_quality: { unscored_rate: 0.002, unscored: 10, rows: 5010 },
+    features: [
+      { feature: 'trans_count_7d', label: 'Transactions in the previous 7 days', psi: 3.1, status: 'significant',
+        missing_rate: 0, top_shift: { bin: '<= 9', expected: 0.11, actual: 1 } },
+      { feature: 'amt', label: '<img src=x>', psi: 0.02, status: 'stable', missing_rate: 0.05, top_shift: null },
+    ],
+  });
+  const html = elements['#dashboard-drift'].innerHTML;
+  assert.equal(elements['#dashboard-drift-status'].textContent, 'Significant drift');
+  assert.match(elements['#dashboard-drift-status'].className, /drift-significant/);
+  assert.match(html, /Transactions in the previous 7 days/);
+  assert.match(html, /&lt;= 9 · 11% → 100%/);
+  assert.match(html, /1% → 2\.5%/);
+  assert.match(html, /missing 5%/);
+  assert.match(html, /xgb-&lt;b&gt;/);
+  assert.doesNotMatch(html, /<img|xgb-<b>/);
+  assert.ok(html.indexOf('Transactions in the previous 7 days') < html.indexOf('&lt;img'));
+
+  render({ overall_status: 'insufficient_data', window: { scored_rows: 0 }, thresholds: { min_rows: 200 } });
+  assert.match(elements['#dashboard-drift'].innerHTML, /No scored transactions yet/);
+  assert.equal(elements['#dashboard-drift-status'].textContent, 'Not enough data');
+});

@@ -2,11 +2,15 @@
 
   - Tách nhãn is_fraud ra file riêng (data/labels.csv), KHÔNG gửi trong payload.
   - Có tiêm lỗi đầu vào (--fault-rate) để thử luồng MANUAL_FALLBACK_UNSCORED.
+  - Có tiêm lỗi dịch vụ ML (--ml-fault-rate, --ml-latency-ms): scoring worker
+    chậm hoặc lỗi thật sự; job lỗi quá số lần thử -> MANUAL_FALLBACK_UNSCORED.
+  - Gửi header X-Data-Version (tên file + sha256) để truy vết nguồn dữ liệu (FR-08).
   - Không có --csv thì tự sinh dữ liệu tổng hợp, chạy được ngay.
 
 Ví dụ:
   python -m simulator.replay --url http://localhost:8080 --tps 10 --limit 500
   python -m simulator.replay --csv data/fraudTrain.csv --tps 10 --fault-rate 0.02
+  python -m simulator.replay --csv data/fraudTest.csv --limit 300 --ml-fault-rate 0.5 --ml-latency-ms 300
 """
 from __future__ import annotations
 
@@ -21,6 +25,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
+
+from fraud_common.data_version import file_data_version, normalize_data_version
 
 NUM_FIELDS = {"amt": float, "lat": float, "long": float, "merch_lat": float, "merch_long": float,
               "city_pop": int, "unix_time": int}
@@ -69,6 +75,29 @@ def synth_rows(n: int) -> list[dict]:
     return rows
 
 
+SYNTHETIC_DATA_VERSION = "synthetic@seed42-v1"
+FAULT_PATH = "/api/v1/admin/fault-injection"
+
+
+def data_version_for(args: argparse.Namespace) -> str:
+    if args.data_version:
+        return normalize_data_version(args.data_version) or SYNTHETIC_DATA_VERSION
+    return file_data_version(args.csv) if args.csv else SYNTHETIC_DATA_VERSION
+
+
+async def set_ml_faults(client: httpx.AsyncClient, failure_rate: float, latency_ms: float) -> dict:
+    resp = await client.put(FAULT_PATH, json={"ml_failure_rate": failure_rate, "ml_latency_ms": latency_ms})
+    resp.raise_for_status()
+    return resp.json()
+
+
+async def clear_ml_faults(client: httpx.AsyncClient) -> None:
+    try:
+        (await client.delete(FAULT_PATH)).raise_for_status()
+    except httpx.HTTPError as exc:
+        print(f"Cảnh báo: không tắt được tiêm lỗi ML ({exc}); gọi DELETE {FAULT_PATH} thủ công.")
+
+
 def inject_fault(row: dict) -> dict:
     r = dict(row)
     kind = random.choice(["missing", "bad_type", "negative", "bad_geo"])
@@ -89,7 +118,9 @@ async def run(args: argparse.Namespace) -> None:
     labels_path.parent.mkdir(parents=True, exist_ok=True)
     stats: Counter = Counter()
     interval = 1.0 / args.tps
-    headers = {"X-API-Key": os.getenv("SIMULATOR_API_KEY", "dev-sim-key")}
+    data_version = data_version_for(args)
+    headers = {"X-API-Key": os.getenv("SIMULATOR_API_KEY", "dev-sim-key"), "X-Data-Version": data_version}
+    ml_faults = args.ml_fault_rate > 0 or args.ml_latency_ms > 0
     sem = asyncio.Semaphore(args.concurrency)
     pending: set[asyncio.Task] = set()
 
@@ -97,6 +128,9 @@ async def run(args: argparse.Namespace) -> None:
     async with httpx.AsyncClient(base_url=args.url, headers=headers, timeout=5.0) as client:
         writer = csv.writer(lf)
         writer.writerow(["txn_id", "is_fraud"])
+        if ml_faults:
+            fault = await set_ml_faults(client, args.ml_fault_rate, args.ml_latency_ms)
+            print(f"Tiêm lỗi dịch vụ ML: {fault}")
 
         async def send(payload: dict) -> None:
             async with sem:
@@ -122,8 +156,13 @@ async def run(args: argparse.Namespace) -> None:
             if delay > 0:
                 await asyncio.sleep(delay)
         await asyncio.gather(*pending)
+        if ml_faults and not args.keep_ml_faults:
+            # Jobs already queued still see the fault until the worker drains them.
+            await asyncio.sleep(args.ml_fault_drain_s)
+            await clear_ml_faults(client)
     lf.close()
-    print(f"Xong {len(rows)} giao dịch. Kết quả HTTP: {dict(stats)}. Nhãn lưu tại {labels_path}")
+    print(f"Xong {len(rows)} giao dịch ({data_version}). Kết quả HTTP: {dict(stats)}. "
+          f"Nhãn lưu tại {labels_path}")
 
 
 def main() -> None:
@@ -135,6 +174,16 @@ def main() -> None:
     ap.add_argument("--fault-rate", type=float, default=0.0, help="tỉ lệ giao dịch bị tiêm lỗi (0..1)")
     ap.add_argument("--concurrency", type=int, default=100)
     ap.add_argument("--labels", default="data/labels.csv")
+    ap.add_argument("--data-version", default=None,
+                    help="nhãn nguồn dữ liệu; mặc định <tên file>@sha256:<12 ký tự>")
+    ap.add_argument("--ml-fault-rate", type=float, default=0.0,
+                    help="xác suất mỗi lần scoring bị lỗi giả lập (0..1)")
+    ap.add_argument("--ml-latency-ms", type=float, default=0.0,
+                    help="độ trễ giả lập thêm vào bước ML inference (ms)")
+    ap.add_argument("--ml-fault-drain-s", type=float, default=5.0,
+                    help="chờ bao lâu sau khi gửi xong rồi mới tắt tiêm lỗi ML")
+    ap.add_argument("--keep-ml-faults", action="store_true",
+                    help="không tự tắt tiêm lỗi ML khi chạy xong")
     asyncio.run(run(ap.parse_args()))
 
 

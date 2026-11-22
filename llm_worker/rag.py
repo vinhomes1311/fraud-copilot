@@ -60,6 +60,21 @@ class ApprovedPlaybookRetriever:
                 for c in ranked[:top_k]]
 
 
+STUB_PLAYBOOK_VERSION = "stub-playbook@demo"
+
+
+def playbook_version(retriever) -> str:
+    """Identify the knowledge base behind a retriever (FR-08 traceability)."""
+    if isinstance(retriever, StubRetriever):
+        return STUB_PLAYBOOK_VERSION
+    import hashlib
+    import json
+    from .local_integration import KB_PATH
+    raw = KB_PATH.read_bytes()
+    kb = json.loads(raw)
+    return f"{kb['document_id']}@{kb['version']}#sha256:{hashlib.sha256(raw).hexdigest()[:12]}"
+
+
 def get_retriever() -> Retriever:
     import os
     from fraud_common.config import get_settings

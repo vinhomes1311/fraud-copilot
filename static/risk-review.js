@@ -123,8 +123,12 @@ window.RiskReview = (() => {
       <dl><div><dt>Raw model score</dt><dd>${number(item.raw_model_score, 5)}</dd></div>
       <div><dt>Model version</dt><dd>${escape(item.model_version || "No data")}</dd></div>
       <div><dt>Threshold config</dt><dd>${escape(item.threshold_config_version ?? "No data")}</dd></div>
+      <div><dt>Input data version</dt><dd>${escape(item.data_version || "Not recorded")}</dd></div>
       <div><dt>Brief status</dt><dd>${escape(({ PENDING: "Pending", RUNNING: "Running", READY: "Ready", FAILED: "Failed", FAILED_TIMEOUT: "Failed Timeout" })[item.brief_status] || item.brief_status || (item.risk_level === "LOW" ? "Not generated automatically" : "Not generated"))}</dd></div>
-      <div><dt>Transaction ID</dt><dd>${escape(item.txn_id)}</dd></div></dl></div></details>`;
+      ${item.brief_status === "READY" ? `<div><dt>Brief model / prompt</dt><dd>${escape(item.brief_model || "No data")} · ${escape(item.prompt_version || "No data")}</dd></div>
+      <div><dt>Playbook version</dt><dd>${escape(item.playbook_version || "Not recorded")}</dd></div>` : ""}
+      <div><dt>Transaction ID</dt><dd>${escape(item.txn_id)}</dd></div>
+      ${item.trace_id ? `<div><dt>Trace ID</dt><dd>${escape(item.trace_id)}</dd></div>` : ""}</dl></div></details>`;
   }
 
   return Object.freeze({ probability, featureValue, renderOverview, renderSignals, renderTechnicalDetails });
