@@ -599,7 +599,10 @@ function renderDrift(report) {
   const shift = (item) => item?.top_shift
     ? `Largest change: ${escapeHtml(item.top_shift.bin)} · ${driftPercent(item.top_shift.expected, 1)} → ${driftPercent(item.top_shift.actual, 1)}`
     : "";
-  const features = (report.features || []).slice(0, 8).map((item) => {
+  const features = [...(report.features || [])]
+    .sort((left, right) => (Number(right.psi) || 0) - (Number(left.psi) || 0))
+    .slice(0, 8)
+    .map((item) => {
     const width = Math.min(100, (Number(item.psi) || 0) / 0.5 * 100);
     return `<article class="drift-feature">
       <div class="drift-feature-copy"><b>${escapeHtml(item.label || item.feature)}</b><small>${shift(item)}${Number(item.missing_rate) > 0 ? ` · missing ${driftPercent(item.missing_rate, 1)}` : ""}</small></div>

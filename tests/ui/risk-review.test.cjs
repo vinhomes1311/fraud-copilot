@@ -193,6 +193,13 @@ test('case drawer integrates the new sections and copies the full ID without cha
       elements.set(selector, { innerHTML: '', textContent: '', value: '', handlers: {},
         addEventListener(name, callback) { this.handlers[name] = callback; },
         classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name),
+          toggle: (name, force) => {
+            if (force === true) { classes.add(name); return true; }
+            if (force === false) { classes.delete(name); return false; }
+            if (classes.has(name)) { classes.delete(name); return false; }
+            classes.add(name);
+            return true;
+          },
           contains: (name) => classes.has(name) } });
     }
     return elements.get(selector);
