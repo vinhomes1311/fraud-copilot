@@ -633,6 +633,31 @@ async def list_classifications(
     }
 
 
+@router.get("/manual-review/queue")
+async def list_manual_review_queue(
+    user: User = Depends(any_reviewer),
+    limit: int = Query(50, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+):
+    rows = await state.db.rfetch(
+        """SELECT uq.txn_id, uq.reasons AS validation_errors, uq.created_at,
+                  s.trace_id, t.payload_masked AS transaction
+           FROM unscored_queue uq
+           JOIN scoring_results s ON s.txn_id = uq.txn_id
+           JOIN transactions t ON t.txn_id = uq.txn_id
+           WHERE uq.status = 'PENDING'
+             AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.txn_id = uq.txn_id)
+           ORDER BY uq.created_at DESC, uq.txn_id DESC
+           LIMIT $1 OFFSET $2""",
+        limit, offset)
+    total = await state.db.rfetchval(
+        """SELECT count(*)
+           FROM unscored_queue uq
+           WHERE uq.status = 'PENDING'
+             AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.txn_id = uq.txn_id)""")
+    return {"items": [dict(row) for row in rows], "limit": limit, "offset": offset, "total": total}
+
+
 @router.get("/{case_id}")
 async def get_case(case_id: int, user: User = Depends(any_reviewer)):
     row = await state.db.rfetchrow(
@@ -644,6 +669,7 @@ async def get_case(case_id: int, user: User = Depends(any_reviewer)):
            SELECT c.case_id, c.run_number, c.txn_id, c.risk_level, c.status,
                   c.assigned_to, c.created_at, c.updated_at,
                   t.payload_masked AS transaction, t.data_version, t.trace_id,
+                  s.status AS scoring_status, s.validation_errors,
                   s.raw_model_score, s.calibrated_prob, s.model_version, s.threshold_config_version,
                   s.features, s.explanations,
                   b.status AS brief_status, b.brief, b.citations, b.attempts AS brief_attempts, b.last_error,
@@ -677,6 +703,9 @@ async def create_manual_case(body: ManualCaseRequest, request: Request,
             """INSERT INTO cases (txn_id, risk_level, assigned_to)
                VALUES ($1,$2,$3) RETURNING case_id""",
             body.txn_id, body.risk_level.value, user.username)
+        await conn.execute(
+            "UPDATE unscored_queue SET status='CASE_CREATED' WHERE txn_id=$1 AND status='PENDING'",
+            body.txn_id)
         await write_audit(
             conn, actor=user.username, event="case.manual_created", entity="case",
             entity_id=case_id, detail={"txn_id": body.txn_id, "reason": body.reason},

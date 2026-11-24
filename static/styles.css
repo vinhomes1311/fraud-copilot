@@ -3064,7 +3064,6 @@ body { background: #fff7f8; }
   .filter-toolbar .filter-date { flex-basis: calc(50% - 6px); min-width: 0; }
   .filter-reset { flex-basis: calc(50% - 6px); }
 }
-
 /* ---- Data & score drift panel (FR-10) ---- */
 .dashboard-drift-panel .dashboard-panel-heading { align-items: center; }
 .drift-status, .drift-pill { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; font: 700 9px "DM Sans"; letter-spacing: .02em; white-space: nowrap; }
@@ -3097,4 +3096,39 @@ body { background: #fff7f8; }
   .drift-summary { grid-template-columns: minmax(0, 1fr); }
   .drift-feature { grid-template-columns: minmax(0, 1fr) auto; }
   .drift-feature .drift-bar { display: none; }
+}
+
+.fault-lab-card { padding: 20px; }
+.fault-lab-card > label, .fault-lab-options label { display: block; margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.fault-lab-select, .fault-lab-input { width: min(100%, 520px); margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; color: var(--text); }
+.fault-lab-options { display: grid; gap: 4px; max-width: 520px; margin: 12px 0; }
+.fault-lab-options .fault-lab-select, .fault-lab-options .fault-lab-input { margin-bottom: 4px; }
+.fault-lab-json { display: block; width: 100%; min-height: 240px; margin-bottom: 14px; padding: 12px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; color: var(--text); font: 12px/1.6 Consolas, monospace; }
+.fault-lab-select:focus, .fault-lab-input:focus, .fault-lab-json:focus { outline: 3px solid #356ae61a; border-color: #8eaceb; }
+.fault-lab-preview { margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+.fault-lab-preview summary { cursor: pointer; color: var(--text); font-size: 12px; font-weight: 700; }
+.fault-lab-preview pre { max-height: 280px; margin: 10px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 Consolas, monospace; }
+.fault-lab-result { margin-top: 16px; padding: 12px; border-radius: 8px; background: #f8fafc; overflow-wrap: anywhere; }
+.fault-lab-result dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 6px 10px; margin: 0 0 10px; font-size: 12px; }
+.fault-lab-result dt { color: var(--muted); }
+.fault-lab-result dd { margin: 0; font-weight: 600; }
+.fault-lab-result pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 Consolas, monospace; }
+.fault-lab-error { min-height: 18px; color: var(--red); font-size: 12px; }
+.manual-review-list { display: grid; gap: 12px; padding: 16px; }
+.manual-review-item { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.manual-review-item > header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.manual-review-item > header small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere; }
+.manual-review-errors { margin: 16px 0; color: var(--text); font-size: 13px; }
+.manual-review-errors ul { margin: 8px 0 0; padding-left: 20px; color: var(--red); }
+.manual-review-item details { margin: 12px 0; color: var(--muted); font-size: 12px; }
+.manual-review-item details summary { cursor: pointer; }
+.manual-review-item details pre { max-height: 220px; overflow: auto; padding: 10px; background: #f8fafc; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.manual-review-actions { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(200px, 1.3fr) auto; gap: 12px; align-items: end; margin-top: 16px; }
+.manual-review-actions label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.manual-review-actions select, .manual-review-actions input { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: #fff; }
+.manual-fallback-message { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--text); }
+.manual-validation-section { border-left: 3px solid var(--red); padding: 12px; background: #fff8f8; }
+.manual-validation-section ul { margin: 8px 0 0; padding-left: 20px; color: var(--red); }
+@media (max-width: 760px) {
+  .manual-review-actions { grid-template-columns: 1fr; }
 }

@@ -82,6 +82,8 @@
           <button id="analytics-nav" class="nav-item" title="Risk Analytics"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16" /><path d="M7 16v-4" /><path d="M12 16V8" /><path d="M17 16V4" /></svg> Risk Analytics</button>
           <button id="review-nav" class="nav-item" title="Review Queue"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="M4 13h4l2 3h4l2-3h4" /></svg> Review Queue <span id="review-nav-count" class="nav-badge hidden">0</span></button>
           <button id="classifications-nav" class="nav-item" title="Decision History"><svg class="nav-icon symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg> Decision History</button>
+          <button id="manual-review-nav" class="nav-item" title="Manual Review">Manual Review <span id="manual-review-nav-count" class="nav-badge hidden">0</span></button>
+          <button id="fault-lab-nav" class="nav-item hidden" title="Fault Lab">Fault Lab</button>
         </nav>
         <label class="global-search"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input id="dashboard-search" type="search" placeholder="Tìm mã case hoặc giao dịch..." aria-label="Tìm mã case hoặc giao dịch"><kbd>Enter</kbd></label>
         <div class="topbar-actions"><span class="live-status"><i></i> Chấm điểm đang hoạt động</span><button id="refresh-button" class="icon-button" title="Làm mới"><svg class="symbol-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M19 12a7 7 0 0 0-12-4L5 10" /><path d="M4 17v-5h5" /><path d="M5 12a7 7 0 0 0 12 4l2-2" /></svg></button><button id="account-button" class="account-button" type="button" aria-label="Mở hồ sơ tài khoản" aria-haspopup="dialog" aria-controls="profile-dialog"><span class="avatar" id="user-avatar">A</span><span class="user-meta"><b id="user-name">Chuyên viên</b><small id="user-role">Chuyên viên phân tích rủi ro</small></span></button></div>
@@ -152,6 +154,79 @@
                 </div>
               </article>
             </div>
+          </section>
+          <section id="manual-review-content" class="manual-review-content hidden">
+            <div class="section-heading"><div><h3>Manual Review</h3><p>Inspect transactions that could not be scored and create a review case.</p></div></div>
+            <section class="queue-card manual-review-card">
+              <div id="manual-review-list" class="manual-review-list"><p class="muted">Loading transactions...</p></div>
+              <div class="table-footer">
+                <span id="manual-review-count">—</span>
+                <div><button id="manual-review-prev" class="page-button" disabled>‹</button><span id="manual-review-page" class="page-button active">1</span><button id="manual-review-next" class="page-button" disabled>›</button></div>
+              </div>
+            </section>
+          </section>
+          <section id="fault-lab-content" class="fault-lab-content hidden">
+            <div class="section-heading"><div><h3>Fault Lab</h3><p>Chọn loại lỗi cần mô phỏng rồi gửi vào hệ thống.</p></div></div>
+            <section class="queue-card fault-lab-card">
+              <label for="fault-lab-kind">Chọn loại lỗi</label>
+              <select id="fault-lab-kind" class="fault-lab-select">
+                <option value="missing">Thiếu trường bắt buộc</option>
+                <option value="type">Sai kiểu dữ liệu</option>
+                <option value="invalid">Giá trị không hợp lệ</option>
+                <option value="advanced">Tùy chỉnh JSON nâng cao</option>
+              </select>
+              <div id="fault-lab-missing-options" class="fault-lab-options hidden">
+                <label for="fault-lab-missing-field">Trường cần bỏ</label>
+                <select id="fault-lab-missing-field" class="fault-lab-select">
+                  <option value="amt">amt</option>
+                  <option value="cc_num">cc_num</option>
+                  <option value="merchant">merchant</option>
+                  <option value="trans_date_trans_time">trans_date_trans_time</option>
+                </select>
+              </div>
+              <div id="fault-lab-type-options" class="fault-lab-options hidden">
+                <label for="fault-lab-type-field">Trường sai kiểu</label>
+                <select id="fault-lab-type-field" class="fault-lab-select">
+                  <option value="amt">amt</option>
+                  <option value="lat">lat</option>
+                  <option value="long">long</option>
+                </select>
+                <label for="fault-lab-type-value">Giá trị lỗi</label>
+                <input id="fault-lab-type-value" class="fault-lab-input" value="abc" />
+              </div>
+              <div id="fault-lab-invalid-options" class="fault-lab-options hidden">
+                <label for="fault-lab-invalid-value">Giá trị cần gửi</label>
+                <select id="fault-lab-invalid-value" class="fault-lab-select">
+                  <option value="amt">amt âm (-100)</option>
+                  <option value="lat">lat vượt phạm vi (999)</option>
+                  <option value="long">long vượt phạm vi (999)</option>
+                </select>
+              </div>
+              <div id="fault-lab-advanced-options" class="fault-lab-options hidden">
+                <label for="fault-lab-json">Payload transaction (JSON)</label>
+                <textarea id="fault-lab-json" class="fault-lab-json" spellcheck="false">{
+  "trans_num": "fault-lab-template",
+  "trans_date_trans_time": "2026-01-15T12:00:00Z",
+  "cc_num": "4111111111111111",
+  "merchant": "fraud_Kirlin and Sons",
+  "category": "shopping_pos",
+  "amt": 42.5,
+  "lat": 37.7749,
+  "long": -122.4194,
+  "merch_lat": 37.7849,
+  "merch_long": -122.4094,
+  "city": "San Francisco",
+  "state": "CA"
+}</textarea>
+              </div>
+              <p id="fault-lab-input-error" class="fault-lab-error" role="alert"></p>
+              <details class="fault-lab-preview">
+                <summary>Payload sẽ gửi</summary>
+                <pre id="fault-lab-preview-json"></pre>
+              </details>
+              <button id="fault-lab-submit" class="primary-button" type="button">Gửi vào hệ thống</button>
+              <div id="fault-lab-result" class="fault-lab-result" role="status" aria-live="polite"></div>
+            </section>
           </section>
           <div id="work-queue-layout">
           <section id="review-content">

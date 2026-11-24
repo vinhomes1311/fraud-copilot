@@ -60,6 +60,7 @@ class Settings:
     threshold_cache_ttl_s: float = _f("THRESHOLD_CACHE_TTL_S", 30.0)
     model_artifact_path: str = _s("MODEL_ARTIFACT_PATH", "data/models/fraud_xgboost.joblib")
     model_required: bool = _s("MODEL_REQUIRED", "true").lower() == "true"
+    enable_fault_lab: bool = _s("ENABLE_FAULT_LAB", "false").strip().lower() == "true"
 
     # Service fault injection (FR-07 tests). Static defaults; the simulator/admin
     # can override them at runtime through PUT /api/v1/admin/fault-injection.

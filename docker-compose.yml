@@ -66,6 +66,7 @@ services:
     environment:
       <<: *app-env
       SERVICE_NAME: analyst-api
+      ENABLE_FAULT_LAB: ${ENABLE_FAULT_LAB:-false}
     volumes:
       - ./data:/app/data
 

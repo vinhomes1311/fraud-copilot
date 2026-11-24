@@ -14,6 +14,12 @@ const state = {
   user: null,
   cases: [],
   classifications: [],
+  manualReviewItems: [],
+  manualReviewDrafts: new Map(),
+  manualReviewPage: 0,
+  manualReviewTotal: 0,
+  manualReviewRequestId: 0,
+  manualReviewPollTimer: null,
   caseRequestId: 0,
   classificationRequestId: 0,
   selected: null,
@@ -38,6 +44,10 @@ const state = {
   simulatorHistory: [],
   lastSimulatorViewRefresh: 0,
   authMode: "login",
+  faultLabEnabled: false,
+  faultLabResult: null,
+  faultLabError: "",
+  faultLabPreviewTxnId: null,
   driftLoadedAt: 0,
   driftLoading: false,
 };
@@ -136,6 +146,19 @@ async function api(path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 
+async function loadFaultLabConfig() {
+  try {
+    const response = await fetch("/api/v1/fault-lab/config");
+    const config = await response.json();
+    if (!response.ok) throw new Error(config.detail || `Request failed (${response.status})`);
+    state.faultLabEnabled = config.enabled === true;
+  } catch (error) {
+    state.faultLabEnabled = false;
+    showToast(`Could not load Fault Lab configuration: ${error.message}`);
+  }
+  $("#fault-lab-nav").classList.toggle("hidden", !state.faultLabEnabled);
+}
+
 function showApp() {
   $("#intro-view").classList.add("hidden");
   $("#login-view").classList.add("hidden");
@@ -157,6 +180,8 @@ function animateCurrentView() {
     review: ["#review-content", "#review-kpi-grid > .kpi-card, .section-heading, .queue-card"],
     analytics: ["#review-content", "#analytics-kpi-grid > .kpi-card, .section-heading, .queue-card, .decision-summary-card"],
     classifications: ["#classifications-content", ".section-heading, .queue-card"],
+    "manual-review": ["#manual-review-content", ".section-heading"],
+    "fault-lab": ["#fault-lab-content", ".section-heading, .queue-card"],
   };
   const [selector, revealSelector] = views[state.view];
   const section = $(selector);
@@ -811,27 +836,39 @@ async function loadClassifications() {
 function loadCurrentView() {
   if (state.view === "dashboard") return loadDashboard();
   if (state.view === "classifications") return loadClassifications();
+  if (state.view === "manual-review") return loadManualReview();
+  if (state.view === "fault-lab") return renderFaultLabResult();
   return loadCases();
 }
 function setView(view) {
+  if (view === "fault-lab" && !state.faultLabEnabled) return;
+  if (state.manualReviewPollTimer !== null) clearTimeout(state.manualReviewPollTimer);
+  state.manualReviewPollTimer = null;
   state.view = view;
   const dashboard = view === "dashboard";
   const analytics = view === "analytics";
   const classifications = view === "classifications";
-  const showDecisionSummary = !dashboard;
+  const manualReview = view === "manual-review";
+  const faultLab = view === "fault-lab";
+  const showDecisionSummary = !dashboard && !faultLab && !manualReview;
   state.page = 0;
+  state.manualReviewPage = 0;
   $("#work-queue-layout").classList.toggle("with-summary", showDecisionSummary);
   $("#dashboard-nav").classList.toggle("active", dashboard);
   $("#review-nav").classList.toggle("active", view === "review");
   $("#analytics-nav").classList.toggle("active", analytics);
   $("#classifications-nav").classList.toggle("active", classifications);
-  $("#page-title").textContent = dashboard ? "Risk Overview" : classifications ? "Decision History" : analytics ? "Risk Analytics" : "Review Queue";
+  $("#manual-review-nav").classList.toggle("active", manualReview);
+  $("#fault-lab-nav").classList.toggle("active", faultLab);
+  $("#page-title").textContent = dashboard ? "Risk Overview" : classifications ? "Decision History" : analytics ? "Risk Analytics" : manualReview ? "Manual Review" : faultLab ? "Fault Lab" : "Review Queue";
   $("#review-kpi-grid").classList.toggle("hidden", view !== "review");
   $("#analytics-kpi-grid").classList.toggle("hidden", !analytics);
   $("#analytics-decisions").classList.toggle("hidden", !showDecisionSummary);
   $("#dashboard-content").classList.toggle("hidden", !dashboard);
-  $("#review-content").classList.toggle("hidden", dashboard || classifications);
+  $("#review-content").classList.toggle("hidden", dashboard || classifications || faultLab || manualReview);
   $("#classifications-content").classList.toggle("hidden", !classifications);
+  $("#manual-review-content").classList.toggle("hidden", !manualReview);
+  $("#fault-lab-content").classList.toggle("hidden", !faultLab);
   $("#queue-title").textContent = analytics ? "High & Medium Risk Transactions" : "Case Review Queue";
   $("#queue-description").textContent = analytics
     ? "Transactions ranked by model-predicted fraud probability."
@@ -839,6 +876,266 @@ function setView(view) {
   animateCurrentView();
   loadCurrentView();
 }
+
+function renderFaultLabResult() {
+  const result = state.faultLabResult;
+  const host = $("#fault-lab-result");
+  if (!result) {
+    host.innerHTML = state.faultLabError
+      ? `<p class="fault-lab-error">${escapeHtml(state.faultLabError)}</p>`
+      : `<p class="muted">Chưa gửi giao dịch nào.</p>`;
+    return;
+  }
+  const errors = Array.isArray(result.validation_errors) ? result.validation_errors : [];
+  host.innerHTML = `
+    <dl>
+      <dt>txn_id</dt><dd>${escapeHtml(result.txn_id || "—")}</dd>
+      <dt>trace_id</dt><dd>${escapeHtml(result.trace_id || "—")}</dd>
+      <dt>status</dt><dd>${escapeHtml(result.status || "QUEUED")}</dd>
+      <dt>risk_level</dt><dd>${escapeHtml(result.risk_level || "—")}</dd>
+    </dl>
+    <b>validation_errors</b>
+    <pre>${escapeHtml(errors.length ? JSON.stringify(errors, null, 2) : "[]")}</pre>
+    ${result.status === "MANUAL_FALLBACK_UNSCORED"
+      ? `<p class="manual-fallback-message">This transaction was routed to Manual Review. <button class="secondary-button" type="button" data-open-manual-review>Open Manual Review</button></p>`
+      : ""}
+    ${state.faultLabError ? `<p class="fault-lab-error">${escapeHtml(state.faultLabError)}</p>` : ""}
+  `;
+  host.querySelector("[data-open-manual-review]")?.addEventListener("click", () => setView("manual-review"));
+}
+function renderManualReview() {
+  const items = state.manualReviewItems;
+  const list = $("#manual-review-list");
+  list.innerHTML = items.length ? items.map((item) => {
+    const errors = Array.isArray(item.validation_errors) ? item.validation_errors : [];
+    const errorList = errors.length
+      ? `<ul>${errors.map((error) => `<li><b>${escapeHtml(error.field || "Data")}</b>: ${escapeHtml(error.msg || "Invalid value")}</li>`).join("")}</ul>`
+      : `<p class="muted">No validation details were recorded.</p>`;
+    const transaction = JSON.stringify(item.transaction || {}, null, 2);
+    const received = item.created_at ? new Date(item.created_at).toLocaleString("vi-VN") : "—";
+    return `<article class="manual-review-item" data-manual-review-txn="${escapeHtml(item.txn_id)}">
+      <header><div><b>${escapeHtml(item.txn_id)}</b><small>Received ${escapeHtml(received)} · Trace ${escapeHtml(item.trace_id || "—")}</small></div><span class="status status-open">Unscored</span></header>
+      <div class="manual-review-errors"><b>Validation errors</b>${errorList}</div>
+      <details><summary>Transaction data</summary><pre>${escapeHtml(transaction)}</pre></details>
+      <div class="manual-review-actions">
+        <label>Risk level
+          <select data-manual-review-risk>
+            <option value="">Select a risk level</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option>
+          </select>
+        </label>
+        <label>Review reason
+          <input data-manual-review-reason maxlength="2000" placeholder="Explain your assessment" />
+        </label>
+        <button class="primary-button" type="button" data-create-review-case>Create review case</button>
+      </div>
+    </article>`;
+  }).join("") : `<p class="muted">No transactions are waiting for manual review.</p>`;
+  list.querySelectorAll("[data-manual-review-txn]").forEach((card) => {
+    const txnId = card.dataset.manualReviewTxn;
+    const riskInput = card.querySelector("[data-manual-review-risk]");
+    const reasonInput = card.querySelector("[data-manual-review-reason]");
+    const draft = state.manualReviewDrafts.get(txnId);
+    if (draft) {
+      riskInput.value = draft.riskLevel;
+      reasonInput.value = draft.reason;
+    }
+    const saveDraft = () => {
+      const current = { riskLevel: riskInput.value, reason: reasonInput.value };
+      if (current.riskLevel || current.reason) state.manualReviewDrafts.set(txnId, current);
+      else state.manualReviewDrafts.delete(txnId);
+    };
+    riskInput.addEventListener("change", saveDraft);
+    reasonInput.addEventListener("input", saveDraft);
+    card.querySelector("[data-create-review-case]").addEventListener("click", (event) =>
+      createManualReviewCase(txnId, event.currentTarget)
+    );
+  });
+  const first = state.manualReviewTotal ? state.manualReviewPage * state.pageSize + 1 : 0;
+  const last = Math.min((state.manualReviewPage + 1) * state.pageSize, state.manualReviewTotal);
+  $("#manual-review-count").textContent = `${first}-${last} / ${state.manualReviewTotal} transactions`;
+  $("#manual-review-page").textContent = `${state.manualReviewPage + 1}`;
+  $("#manual-review-prev").disabled = state.manualReviewPage === 0;
+  $("#manual-review-next").disabled = last >= state.manualReviewTotal;
+}
+function scheduleManualReviewRefresh() {
+  if (state.manualReviewPollTimer !== null) clearTimeout(state.manualReviewPollTimer);
+  state.manualReviewPollTimer = null;
+  if (!state.token || state.view !== "manual-review") return;
+  state.manualReviewPollTimer = setTimeout(() => {
+    state.manualReviewPollTimer = null;
+    void loadManualReview();
+  }, 10000);
+}
+async function loadManualReview() {
+  const requestId = ++state.manualReviewRequestId;
+  try {
+    const params = new URLSearchParams({
+      limit: String(state.pageSize),
+      offset: String(state.manualReviewPage * state.pageSize),
+    });
+    const result = await api(`/cases/manual-review/queue?${params}`);
+    if (requestId !== state.manualReviewRequestId) return;
+    const previousTotal = state.manualReviewTotal;
+    const itemsChanged = result.total !== previousTotal
+      || (result.items || []).length !== state.manualReviewItems.length
+      || (result.items || []).some((item, index) => item.txn_id !== state.manualReviewItems[index]?.txn_id);
+    state.manualReviewItems = result.items || [];
+    state.manualReviewTotal = Number(result.total) || 0;
+    const badge = $("#manual-review-nav-count");
+    badge.textContent = new Intl.NumberFormat("en-US").format(state.manualReviewTotal);
+    badge.classList.toggle("hidden", !state.manualReviewTotal);
+    if (state.view === "manual-review" && state.manualReviewPage > 0 && state.manualReviewTotal > previousTotal) {
+      state.manualReviewPage = 0;
+      void loadManualReview();
+      return;
+    }
+    if (state.view === "manual-review" && itemsChanged) renderManualReview();
+    scheduleManualReviewRefresh();
+  } catch (error) {
+    if (requestId !== state.manualReviewRequestId || state.view !== "manual-review") return;
+    $("#manual-review-list").innerHTML = `<p class="fault-lab-error">Could not load manual review queue: ${escapeHtml(error.message)}</p>`;
+    showToast(error.message);
+    scheduleManualReviewRefresh();
+  }
+}
+async function createManualReviewCase(txnId, button) {
+  const item = button.closest("[data-manual-review-txn]");
+  const riskLevel = item.querySelector("[data-manual-review-risk]").value;
+  const reason = item.querySelector("[data-manual-review-reason]").value.trim();
+  if (!riskLevel || !reason) {
+    showToast("Select a risk level and enter a review reason.");
+    return;
+  }
+  button.disabled = true;
+  try {
+    const result = await api("/cases/manual", {
+      method: "POST",
+      body: JSON.stringify({ txn_id: txnId, risk_level: riskLevel, reason }),
+    });
+    state.manualReviewDrafts.delete(txnId);
+    state.manualReviewTotal = Math.max(0, state.manualReviewTotal - 1);
+    $("#manual-review-nav-count").textContent = new Intl.NumberFormat("en-US").format(state.manualReviewTotal);
+    $("#manual-review-nav-count").classList.toggle("hidden", !state.manualReviewTotal);
+    showToast("Review case created. Opening it for assessment.");
+    setView("review");
+    void openDetail(result.case_id);
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+  }
+}
+function makeFaultLabTxnId() {
+  const id = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `fault-lab-${id}`;
+}
+function buildFaultLabPayload() {
+  if (!state.faultLabPreviewTxnId) state.faultLabPreviewTxnId = makeFaultLabTxnId();
+  const payload = {
+    trans_num: "fault-lab-preview",
+    trans_date_trans_time: "2026-01-15T12:00:00Z",
+    cc_num: "4111111111111111",
+    merchant: "fraud_Kirlin and Sons",
+    category: "shopping_pos",
+    amt: 42.5,
+    lat: 37.7749,
+    long: -122.4194,
+    merch_lat: 37.7849,
+    merch_long: -122.4094,
+    city: "San Francisco",
+    state: "CA",
+  };
+  const mode = $("#fault-lab-kind").value;
+  if (mode === "missing") {
+    delete payload[$("#fault-lab-missing-field").value];
+  } else if (mode === "type") {
+    payload[$("#fault-lab-type-field").value] = $("#fault-lab-type-value").value;
+  } else if (mode === "invalid") {
+    const field = $("#fault-lab-invalid-value").value;
+    payload[field] = field === "amt" ? -100 : 999;
+  } else if (mode === "advanced") {
+    const advanced = JSON.parse($("#fault-lab-json").value);
+    if (!advanced || typeof advanced !== "object" || Array.isArray(advanced)) {
+      throw new Error("Payload phải là một JSON object");
+    }
+    return { ...advanced, trans_num: state.faultLabPreviewTxnId };
+  }
+  return { ...payload, trans_num: state.faultLabPreviewTxnId };
+}
+function renderFaultLabComposer() {
+  const mode = $("#fault-lab-kind").value;
+  $("#fault-lab-missing-options").classList.toggle("hidden", mode !== "missing");
+  $("#fault-lab-type-options").classList.toggle("hidden", mode !== "type");
+  $("#fault-lab-invalid-options").classList.toggle("hidden", mode !== "invalid");
+  $("#fault-lab-advanced-options").classList.toggle("hidden", mode !== "advanced");
+  try {
+    const payload = buildFaultLabPayload();
+    $("#fault-lab-input-error").textContent = "";
+    $("#fault-lab-preview-json").textContent = JSON.stringify(payload, null, 2);
+  } catch (error) {
+    $("#fault-lab-input-error").textContent = error.message;
+    $("#fault-lab-preview-json").textContent = "";
+  }
+}
+async function pollFaultLabResult(txnId) {
+  try {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const result = await api(`/transactions/${encodeURIComponent(txnId)}/result`);
+      if (state.faultLabResult?.txn_id !== txnId) return;
+      if (result.status === "PENDING") continue;
+      state.faultLabResult = { ...state.faultLabResult, ...result };
+      state.faultLabError = "";
+      renderFaultLabResult();
+      if (result.status === "MANUAL_FALLBACK_UNSCORED") void loadManualReview();
+      return;
+    }
+    if (state.faultLabResult?.txn_id !== txnId) return;
+    state.faultLabError = "Đã gửi giao dịch nhưng chưa nhận được kết quả.";
+    renderFaultLabResult();
+  } catch (error) {
+    if (state.faultLabResult?.txn_id !== txnId) return;
+    state.faultLabError = `Không thể lấy kết quả: ${error.message}`;
+    renderFaultLabResult();
+  }
+}
+async function submitFaultLab() {
+  const button = $("#fault-lab-submit");
+  state.faultLabError = "";
+  let payload;
+  try {
+    payload = buildFaultLabPayload();
+  } catch (error) {
+    $("#fault-lab-input-error").textContent = error.message;
+    return;
+  }
+  state.faultLabPreviewTxnId = makeFaultLabTxnId();
+  payload.trans_num = state.faultLabPreviewTxnId;
+  $("#fault-lab-preview-json").textContent = JSON.stringify(payload, null, 2);
+  if ($("#fault-lab-kind").value === "advanced") {
+    $("#fault-lab-json").value = JSON.stringify(payload, null, 2);
+  }
+  button.disabled = true;
+  try {
+    const queued = await api("/fault-lab/transactions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    $("#fault-lab-json").value = JSON.stringify({ ...payload, trans_num: queued.txn_id }, null, 2);
+    state.faultLabResult = queued;
+    state.faultLabPreviewTxnId = makeFaultLabTxnId();
+    renderFaultLabResult();
+    renderFaultLabComposer();
+    if (queued.status === "QUEUED") void pollFaultLabResult(queued.txn_id);
+  } catch (error) {
+    state.faultLabError = error.message;
+    renderFaultLabResult();
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function loadTestBatch() {
   try {
     const current = await api(`/demo/simulator?initial_offset=${state.testOffset}&initial_tps=${state.simulatorTps}`);
@@ -967,6 +1264,13 @@ async function openDetail(caseId, editDecision = false) {
       state.detailRouteActive = true;
     }
     const transaction = Object.entries(item.transaction || {}).map(([key, value]) => `<div class="data-field"><small>${escapeHtml(titleCase(key))}</small><b>${escapeHtml(value)}</b></div>`).join("");
+    const validationErrors = Array.isArray(item.validation_errors) ? item.validation_errors : [];
+    const validationErrorList = validationErrors.length
+      ? `<ul>${validationErrors.map((error) => `<li><b>${escapeHtml(error.field || "Data")}</b>: ${escapeHtml(error.msg || "Invalid value")}</li>`).join("")}</ul>`
+      : `<p>No validation details were recorded.</p>`;
+    const validationSection = item.scoring_status !== "SCORED"
+      ? `<section class="detail-section manual-validation-section"><h4>Manual review · transaction was not scored</h4>${validationErrorList}</section>`
+      : "";
     $("#detail-title").textContent = `Case #${item.run_number ?? item.case_id}`;
     const terminal = ["CLOSED", "DISMISSED", "CONFIRMED_FRAUD", "CONFIRMED_SIMULATED"].includes(item.status);
     const hasPreviousOutcome = (item.actions || []).some((action) =>
@@ -986,6 +1290,7 @@ async function openDetail(caseId, editDecision = false) {
       `<div class="case-review-grid">
         <div class="case-review-left">
           <section class="case-evidence-card">${window.RiskReview.renderOverview(item)}
+            ${validationSection}
             <section class="detail-section investigation-section"><h4>Investigation checklist</h4><div class="brief">${renderBrief(item.brief, item.risk_level)}</div></section>
             ${window.RiskReview.renderTechnicalDetails(item)}
             <details class="transaction-details"><summary>Transaction details</summary><div class="data-grid">${transaction}</div></details>
@@ -1098,6 +1403,7 @@ $("#login-form").addEventListener("submit", async (event) => {
     state.token = body.access_token;
     localStorage.setItem("fraud_token", state.token);
     state.user = { username: data.username.trim().toLowerCase(), role: body.role };
+    await loadFaultLabConfig();
     if (registering) {
       showToast("Tài khoản đã được tạo thành công");
       $("#login-form").elements.password.value = "";
@@ -1167,9 +1473,19 @@ $("#profile-dialog").addEventListener("click", (event) => {
   if (event.target === event.currentTarget) event.currentTarget.close();
 });
 function logout() {
+  if (state.manualReviewPollTimer !== null) clearTimeout(state.manualReviewPollTimer);
+  state.manualReviewPollTimer = null;
   localStorage.removeItem("fraud_token");
   state.token = null;
   state.user = null;
+  state.faultLabEnabled = false;
+  state.faultLabResult = null;
+  state.faultLabError = "";
+  state.faultLabPreviewTxnId = null;
+  state.manualReviewItems = [];
+  state.manualReviewTotal = 0;
+  $("#manual-review-nav-count").classList.add("hidden");
+  $("#fault-lab-nav").classList.add("hidden");
   showLogin();
 }
 $("#logout-button").addEventListener("click", logout);
@@ -1202,7 +1518,19 @@ $("#simulator-tps").addEventListener("change", async () => {
     showToast(error.message);
   }
 });
-$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", () => closeDetail());
+$("#refresh-button").addEventListener("click", loadCurrentView); $("#load-test-batch").addEventListener("click", loadTestBatch); $("#reset-demo-data").addEventListener("click", resetDemoData); $("#dashboard-nav").addEventListener("click", () => setView("dashboard")); $("#dashboard-review-link").addEventListener("click", () => setView("review")); $("#dashboard-view-all").addEventListener("click", () => setView("review")); $("#review-nav").addEventListener("click", () => setView("review")); $("#analytics-nav").addEventListener("click", () => setView("analytics")); $("#classifications-nav").addEventListener("click", () => setView("classifications")); $("#manual-review-nav").addEventListener("click", () => setView("manual-review")); $("#fault-lab-nav").addEventListener("click", () => setView("fault-lab")); $("#fault-lab-submit").addEventListener("click", submitFaultLab); $("#dashboard-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { $("#search-input").value = event.currentTarget.value.trim(); state.page = 0; setView("review"); renderCases(); } }); $("#search-input").addEventListener("input", renderCases); $("#risk-filter").addEventListener("change", renderCases); $("#status-filter").addEventListener("change", renderCases); $("#prev-page").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadCases(); } }); $("#next-page").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadCases(); } }); $("#classification-prev").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; loadClassifications(); } }); $("#classification-next").addEventListener("click", () => { if ((state.page + 1) * state.pageSize < state.total) { state.page += 1; loadClassifications(); } }); $("#classification-filter").addEventListener("change", () => { state.page = 0; loadClassifications(); }); let classificationSearchTimer; $("#classification-search").addEventListener("input", () => { clearTimeout(classificationSearchTimer); classificationSearchTimer = setTimeout(() => { state.page = 0; loadClassifications(); }, 250); }); $("#close-detail").addEventListener("click", () => closeDetail());
+$("#manual-review-prev").addEventListener("click", () => { if (state.manualReviewPage > 0) { state.manualReviewPage -= 1; loadManualReview(); } });
+$("#manual-review-next").addEventListener("click", () => { if ((state.manualReviewPage + 1) * state.pageSize < state.manualReviewTotal) { state.manualReviewPage += 1; loadManualReview(); } });
+$("#fault-lab-kind").addEventListener("change", renderFaultLabComposer);
+$("#fault-lab-missing-field").addEventListener("change", renderFaultLabComposer);
+$("#fault-lab-type-field").addEventListener("change", () => {
+  $("#fault-lab-type-value").value = $("#fault-lab-type-field").value === "amt" ? "abc" : "not-a-number";
+  renderFaultLabComposer();
+});
+$("#fault-lab-type-value").addEventListener("input", renderFaultLabComposer);
+$("#fault-lab-invalid-value").addEventListener("change", renderFaultLabComposer);
+$("#fault-lab-json").addEventListener("input", renderFaultLabComposer);
+renderFaultLabComposer();
 window.addEventListener("popstate", () => {
   if (state.detailRouteActive) closeDetail(false);
 });
