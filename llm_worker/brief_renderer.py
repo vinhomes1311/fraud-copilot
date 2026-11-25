@@ -116,7 +116,7 @@ RULE_FACTS = {
 }
 
 
-def render_brief(evidence, selected_chunks, rationales=None):
+def render_brief(evidence, selected_chunks, rationales=None, *, rationale_origin='llm'):
     facts = case_facts(evidence)
     gaps = [key for key in facts if key.endswith('-GAP')]
     factor_ids = [key for key in facts if key.startswith('EV-FACTOR-')]
@@ -147,5 +147,5 @@ def render_brief(evidence, selected_chunks, rationales=None):
         checklist=checklist,
         citations=[Citation(section_id=c['section_id'], rule_code=c['rule_code'], quote=c['text'])
                    for c in selected_chunks],
-        source='llm',
+        source='llm', rationale_origin=rationale_origin,
     )

@@ -1,0 +1,9 @@
+# Bind the dashboard to this machine when reviewing local API-backed briefs.
+# Use with docker-compose.yml and docker-compose.api.yml.
+services:
+  llm-worker:
+    environment:
+      LLM_API_BRIEF_MODE: ${LLM_API_BRIEF_MODE:-grounded_selection}
+  nginx:
+    ports: !override
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:80"

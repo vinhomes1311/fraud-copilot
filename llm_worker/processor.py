@@ -15,7 +15,7 @@ from fraud_common.worker import NonRetryableError
 
 from .fallback import rule_based_brief
 from .grounding import check_grounding
-from .llm_client import PROMPT_VERSION, get_llm_client
+from .llm_client import get_llm_client
 from .rag import get_retriever, playbook_version
 
 log = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class BriefProcessor:
                  playbook_version=$9, last_error=NULL, updated_at=now()
                WHERE case_id=$1 AND generation_id=$8 AND status='RUNNING' AND attempts=$4""",
             p.case_id, result.brief.model_dump(), [c.model_dump() for c in result.brief.citations],
-            env.attempts + 1, result.model_name, PROMPT_VERSION, result.tokens_used, env.job_id,
+            env.attempts + 1, result.model_name, result.prompt_version, result.tokens_used, env.job_id,
             self.playbook_version)
         if written != "UPDATE 1":
             return

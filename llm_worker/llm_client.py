@@ -13,6 +13,7 @@ from .fallback import describe_signal
 from .rag import Chunk
 
 PROMPT_VERSION = "grounded-kaggle-sparkov-v11-explained-brief-en"
+GROUNDED_SELECTION_PROMPT_VERSION = "grounded-kaggle-sparkov-v29-selection-en"
 
 
 @dataclass
@@ -20,6 +21,10 @@ class LLMResult:
     brief: BriefContent
     tokens_used: int
     model_name: str
+
+    @property
+    def prompt_version(self):
+        return GROUNDED_SELECTION_PROMPT_VERSION if self.brief.rationale_origin == 'renderer' else PROMPT_VERSION
 
 
 class LLMClient(Protocol):

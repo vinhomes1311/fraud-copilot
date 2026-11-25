@@ -117,6 +117,8 @@ services:
       LLM_API_STORE: ${LLM_API_STORE:-false}
       LLM_API_MAX_COMPLETION_TOKENS: ${LLM_API_MAX_COMPLETION_TOKENS:-1024}
       LLM_API_REASONING_EFFORT: ${LLM_API_REASONING_EFFORT:-}
+      LLM_API_THINKING: ${LLM_API_THINKING:-}
+      LLM_API_BRIEF_MODE: ${LLM_API_BRIEF_MODE:-explained}
       LLM_RETRIEVER: ${LLM_RETRIEVER:-}
 
   # ---- Simulator: chỉ chạy khi gọi rõ ràng (--profile sim) ----

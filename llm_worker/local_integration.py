@@ -198,12 +198,19 @@ def project_evidence(ctx):
         evidence['EV-FACTOR-' + str(i)] = item
     evidence['EV-LIMIT'] = {'text': 'Model signals do not confirm fraud. Final decision belongs to the analyst. Checklist actions are team proposals based on playbook principles.'}
     if not has_history:
-        evidence['EV-HISTORY-GAP'] = {'text': 'No positive prior-24-hour transaction count supplied; no 24-hour behavioral baseline can be established.'}
+        evidence['EV-HISTORY-GAP'] = {'text': (
+            'Prior-24-hour transaction count is recorded as zero, so no earlier transactions were recorded '
+            'in this window and no 24-hour behavioral baseline can be established.'
+            if count == 0 else
+            'Prior-24-hour transaction count is absent: no positive count supplied and no 24-hour behavioral baseline can be established. Do not infer zero recorded activity.')}
     elif not has_baseline:
         evidence['EV-BASELINE-GAP'] = {'text': 'Prior 24-hour transaction count is positive, but no positive prior 24-hour mean amount is supplied; 24-hour amount comparisons cannot be established.'}
     if 'trans_count_7d' in features:
         if not has_history_7d:
-            evidence['EV-HISTORY-7D-GAP'] = {'text': 'No positive prior-7-day transaction count supplied; no 7-day behavioral baseline can be established.'}
+            evidence['EV-HISTORY-7D-GAP'] = {'text': (
+                'Prior-7-day transaction count is recorded as zero: no earlier transactions in this window. The count is NOT missing; an empty window supplies no behavioral comparison baseline.'
+                if features.get('trans_count_7d') == 0 else
+                'Prior-7-day transaction count is absent: no positive count supplied and no 7-day behavioral baseline can be established. Do not infer zero recorded activity.')}
         elif not has_mean_7d:
             evidence['EV-BASELINE-7D-GAP'] = {'text': 'Prior 7-day transaction count is positive, but no positive 7-day mean amount is supplied.'}
     if 'amt_to_max_7d_ratio' in features and not has_max_7d:
@@ -232,8 +239,15 @@ class OllamaClient:
         selection = json.loads(content)
         fields(selection, ('checklist_ids', 'rationales'))
         # Evidence completeness is owned by the renderer, not a copying task for
-        # the model. Checklist validation below remains strict; no output repair.
+        # the model. Checklist validation below remains strict.
         return {'evidence_ids': list(evidence), 'checklist_ids': selection['checklist_ids']}, selection['rationales']
+
+    def resolve_selection(self, content, schema, evidence, required):
+        selection, raw = self.parse_selection(content, evidence)
+        return selection['checklist_ids'], raw
+
+    def format_rationales(self, raw, rules, evidence):
+        return validate_rationales(raw, rules, evidence), 'llm'
 
     async def chat(self, model, schema, evidence, selected_chunks):
         return await request('/api/chat', {'model':model,'stream':False,'format':schema,
@@ -277,14 +291,15 @@ class OllamaClient:
         counts = [result.get('prompt_eval_count'), result.get('eval_count')]
         if any(type(n) is not int or n < 0 for n in counts):
             raise ValueError('Missing/invalid token usage')
-        selection, raw_rationales = self.parse_selection(result['message']['content'], evidence)
+        rules, raw_rationales = self.resolve_selection(result['message']['content'], schema, evidence, required)
+        selection = {'evidence_ids': list(evidence), 'checklist_ids': rules}
         validate_selection(selection, evidence, selected_chunks)
         if not set(selection['checklist_ids']) <= priorities.keys():
             raise ValueError('Selected rule is not applicable to supplied evidence')
         if required and set(selection['checklist_ids']) != required:
             raise ValueError('Missing required exclusive data-gap review')
-        rationales = validate_rationales(raw_rationales, selection['checklist_ids'], evidence)
+        rationales, origin = self.format_rationales(raw_rationales, rules, evidence)
         chosen = {c['id']:c for c in selected_chunks}
         actions = [chosen[i] for i in selection['checklist_ids']]
-        brief = render_brief(evidence, actions, rationales=rationales)
+        brief = render_brief(evidence, actions, rationales=rationales, rationale_origin=origin)
         return LLMResult(brief=brief,tokens_used=sum(counts),model_name=model)
